@@ -10,13 +10,14 @@ supersedes the old one.
 | [0002](0002-build-on-the-duel-masters-engine.md)        | Build on the duel-masters engine and board            | Accepted |
 | [0003](0003-go-server-owns-the-backend.md)              | The Go server does all backend work                   | Accepted |
 | [0004](0004-nextjs-frontend-from-triple-triad.md)       | Next.js frontend, reused from Triple Triad            | Accepted |
-| [0005](0005-sqlite-default-postgres-switchable.md)      | SQLite by default, switchable to PostgreSQL           | Accepted |
+| [0005](0005-sqlite-default-postgres-switchable.md)      | SQLite by default, switchable to PostgreSQL           | Accepted, amended by 0012 |
 | [0006](0006-link-the-card-database.md)                  | Link the card database as a git submodule             | Accepted |
-| [0007](0007-monorepo-organised-by-feature.md)           | Monorepo, Go server organised by feature              | Accepted |
+| [0007](0007-monorepo-organised-by-feature.md)           | Monorepo, Go server organised by feature              | Accepted, amended by 0012 |
 | [0008](0008-openapi-contract-with-generated-code.md)    | OpenAPI contract with generated code                  | Accepted |
 | [0009](0009-mit-license.md)                             | MIT license                                           | Accepted |
 | [0010](0010-battle-zone-theme.md)                       | Battle Zone theme                                     | Accepted |
 | [0011](0011-engine-keeps-its-original-layout.md)        | The engine keeps its original layout                  | Accepted |
+| [0012](0012-gorm-for-data-access.md)                    | GORM for data access                                  | Accepted |
 
 ## Template
 

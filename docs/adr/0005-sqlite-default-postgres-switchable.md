@@ -1,6 +1,6 @@
 # 0005. SQLite by default, switchable to PostgreSQL
 
-- Status: Accepted
+- Status: Accepted, amended by [0012](0012-gorm-for-data-access.md) (data access and migrations)
 - Date: 2026-10-24
 
 ## Context

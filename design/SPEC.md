@@ -45,7 +45,7 @@ These apply to every part of the project and outrank convenience.
 | Part        | Choice                                                                                          |
 | ----------- | ----------------------------------------------------------------------------------------------- |
 | Backend     | **Go**, one server: accounts, sessions, decks, formats, lobby, matchmaking, chat, ratings, admin and the rules engine |
-| Database    | **SQLite** by default, switchable to **PostgreSQL** in config; owned by the Go server           |
+| Database    | **SQLite** by default, switchable to **PostgreSQL** in config; owned by the Go server, accessed through the **GORM** ORM |
 | Frontend    | **Next.js** (reused from Triple Triad): pages only; every read and write goes to the Go API     |
 | Game board  | `duel-interface` React package (copied from the `duel-masters` project)                         |
 | Game resources | The `duelmasters_db` repository, **linked** into this one (git submodule): all card pictures, card data and icons, served by the Go server |
@@ -59,9 +59,9 @@ Browser ──HTTP──▶ Next.js (pages) ──/api, /ws──▶ Go server �
 - The Go server is the only thing that reads or writes data. Next.js holds no secrets and no
   database.
 - **Database switch**: one setting picks SQLite (a file in the data folder, nothing to install) or
-  PostgreSQL (a connection address). The data layer is written once for both: queries stay within
-  what both support, migrations exist for both and run automatically at startup, and the same test
-  suite runs against both. Backups (section 9) work the same on either, so data can be moved from
+  PostgreSQL (a connection address). The data layer is written once for both with the GORM ORM:
+  one set of models, one set of versioned migrations that run automatically at startup, and the
+  same test suite run against both (ADR 0012). Backups (section 9) work the same on either, so data can be moved from
   SQLite to PostgreSQL by exporting and importing.
 - The engine now lives in the same program as the site backend, so games are created, joined and
   reported **inside the Go server**: no shared secret, signed duel tickets or result webhook
@@ -338,10 +338,9 @@ duel-masters-game-platform/
 │  │  │  ├─ ratings/                  Elo, tiers, streaks, history
 │  │  │  ├─ settings/                 key-value settings: definitions, types, defaults, limits
 │  │  │  ├─ backup/                   database-neutral export and import
-│  │  │  ├─ store/                    database access: shared interface, sqlite/ and postgres/
+│  │  │  ├─ store/                    database connection (GORM: SQLite or PostgreSQL), migrations
 │  │  │  └─ engine/                   the rules engine in its original layout (game/, server/,
 │  │  │                                internal/, tests/), with its rule book CONTRIBUTING.md
-│  │  ├─ migrations/sqlite/, migrations/postgres/
 │  │  └─ Dockerfile
 │  └─ web/                            Next.js site (from Triple Triad)
 │     ├─ src/app/                     pages, one folder per route
@@ -363,9 +362,9 @@ duel-masters-game-platform/
 └─ README.md, LICENSE, THIRD_PARTY_NOTICES.md
 ```
 
-- **Feature folders** hold their own logic and declare the data access they need as a small
-  interface; `store/` implements those interfaces once per database. Features never import each
-  other's internals, only their exported interfaces.
+- **Feature folders** hold their own logic, models and data access (through GORM); `store/` opens
+  the database and runs the migrations. Features never import each other's internals, only their
+  exported interfaces.
 - **The engine is self-contained** in `internal/engine/`, in the same layout as in `duel-masters`
   (ADR 0011); `games/` is the only package that uses it. Every engine change follows
   `internal/engine/CONTRIBUTING.md`.

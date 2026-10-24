@@ -1,6 +1,6 @@
 # 0007. Monorepo, Go server organised by feature
 
-- Status: Accepted
+- Status: Accepted, amended by [0012](0012-gorm-for-data-access.md) (features use GORM directly; `store/` opens the database and runs migrations)
 - Date: 2026-10-24
 
 ## Context
