@@ -1,6 +1,6 @@
 module github.com/Blankscreen-exe/duel-masters-game-platform/apps/server
 
-go 1.22
+go 1.26
 
 require (
 	github.com/google/uuid v1.1.1
