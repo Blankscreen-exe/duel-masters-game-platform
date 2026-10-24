@@ -16,6 +16,7 @@ supersedes the old one.
 | [0008](0008-openapi-contract-with-generated-code.md)    | OpenAPI contract with generated code                  | Accepted |
 | [0009](0009-mit-license.md)                             | MIT license                                           | Accepted |
 | [0010](0010-battle-zone-theme.md)                       | Battle Zone theme                                     | Accepted |
+| [0011](0011-engine-keeps-its-original-layout.md)        | The engine keeps its original layout                  | Accepted |
 
 ## Template
 

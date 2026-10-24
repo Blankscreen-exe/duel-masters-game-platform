@@ -339,7 +339,8 @@ duel-masters-game-platform/
 │  │  │  ├─ settings/                 key-value settings: definitions, types, defaults, limits
 │  │  │  ├─ backup/                   database-neutral export and import
 │  │  │  ├─ store/                    database access: shared interface, sqlite/ and postgres/
-│  │  │  └─ engine/                   the rules engine copied from duel-masters, with its tests
+│  │  │  └─ engine/                   the rules engine in its original layout (game/, server/,
+│  │  │                                internal/, tests/), with its rule book CONTRIBUTING.md
 │  │  ├─ migrations/sqlite/, migrations/postgres/
 │  │  └─ Dockerfile
 │  └─ web/                            Next.js site (from Triple Triad)
@@ -365,7 +366,9 @@ duel-masters-game-platform/
 - **Feature folders** hold their own logic and declare the data access they need as a small
   interface; `store/` implements those interfaces once per database. Features never import each
   other's internals, only their exported interfaces.
-- **The engine is self-contained** in `internal/engine/`; `games/` is the only package that uses it.
+- **The engine is self-contained** in `internal/engine/`, in the same layout as in `duel-masters`
+  (ADR 0011); `games/` is the only package that uses it. Every engine change follows
+  `internal/engine/CONTRIBUTING.md`.
 - **Decision records**: each significant decision gets a short note in `docs/adr/` (what, why,
   alternatives), starting with the ones already made in this specification.
 

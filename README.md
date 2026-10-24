@@ -5,9 +5,10 @@ lobby with quick match, ratings and match history, and an admin panel. Games are
 rules engine and duel board from the [`duel-masters`](https://github.com/sindreslungaard/duel-masters)
 project, maintained here.
 
-> **Status:** design agreed, not yet built. The full specification lives in
-> [`design/SPEC.md`](design/SPEC.md) and the reasons behind each decision in
-> [`docs/adr/`](docs/adr/).
+> **Status:** early build. The rules engine (`apps/server/internal/engine`) and the duel board
+> (`packages/duel-board`) are in place; the server and website around them come next. The full
+> specification lives in [`design/SPEC.md`](design/SPEC.md) and the reasons behind each decision
+> in [`docs/adr/`](docs/adr/).
 
 ## Getting the code
 
@@ -20,6 +21,23 @@ git clone --recurse-submodules https://github.com/Blankscreen-exe/duel-masters-g
 ```
 
 In an existing clone, fetch it with `git submodule update --init`.
+
+## Development
+
+**Requirements:** Go (the version in [`apps/server/go.mod`](apps/server/go.mod) or newer),
+Node.js 24+ and pnpm 11+ (`corepack enable` sets up the pinned pnpm version).
+
+```bash
+pnpm install
+pnpm test          # type-checks and tests the packages, then runs the server tests
+pnpm test:race     # server tests with the race detector (needs a C compiler)
+pnpm vet           # go vet on the server
+```
+
+Changes to the rules engine follow
+[`apps/server/internal/engine/CONTRIBUTING.md`](apps/server/internal/engine/CONTRIBUTING.md).
+Known engine bugs and the order we fix them in are in
+[`docs/engine-fixes.md`](docs/engine-fixes.md).
 
 ## Theme mockups
 
