@@ -121,34 +121,32 @@ func settleTurn(t *testing.T, scn *scenario.TestScenario) {
 	require.NoError(t, scn.WaitForEventLoop())
 }
 
-// answerInTurn answers one prompt and waits for the engine's reply, so a
-// follow-up answer is never sent while the previous one is still in flight.
+// answerInTurn answers one prompt and waits until the answer has been dealt
+// with: the event loop is idle, a new prompt is open, or the answer was
+// refused. Nothing the test sends next can then be lost.
 //
-// This matters because the parallel action handler drains Player.Action before
-// writing to it, to stop a client flooding the match with goroutines. An answer
-// that has not been picked up yet is thrown away by the next answer's drain, so
-// two answers sent back to back can lose the first one and leave the event loop
-// waiting on a prompt nobody will answer again. A real client cannot do this,
-// because it only ever shows one prompt at a time.
+// Two things lose messages sent too early. The parallel action handler drains
+// Player.Action before writing to it, to stop a client flooding the match with
+// goroutines, so an answer not yet picked up is thrown away by the next one.
+// And the event that was waiting on the prompt goes on running after the
+// answer, so an action sent meanwhile is dropped by the busy event loop. A real
+// client cannot do either, because it only ever shows one prompt at a time and
+// waits for the board to settle.
 func answerInTurn(t *testing.T, scn *scenario.TestScenario, player *match.PlayerReference, cardIDs ...string) {
 	t.Helper()
 
-	start, err := scn.MessageCount(player)
-	require.NoError(t, err)
-
+	mark := scn.Mark()
 	require.NoError(t, scn.SubmitAction(player, cardIDs...))
-	require.NoError(t, scn.WaitForMessage(player, start, "action", "action_error", "warn", "wait", "state_update"))
+	require.NoError(t, scn.WaitForAnswerToSettle(player, mark))
 }
 
 // cancelInTurn is answerInTurn for a cancellation.
 func cancelInTurn(t *testing.T, scn *scenario.TestScenario, player *match.PlayerReference) {
 	t.Helper()
 
-	start, err := scn.MessageCount(player)
-	require.NoError(t, err)
-
+	mark := scn.Mark()
 	require.NoError(t, scn.CancelAction(player))
-	require.NoError(t, scn.WaitForMessage(player, start, "action", "action_error", "warn", "wait", "state_update"))
+	require.NoError(t, scn.WaitForAnswerToSettle(player, mark))
 }
 
 // answerDrawUpTo answers the prompts fx.DrawUpto opens. It asks once per card

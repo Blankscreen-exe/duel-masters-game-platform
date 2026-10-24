@@ -109,6 +109,17 @@ func (m *Match) EventLoopStopped() bool {
 	return m != nil && !m.eventloop.isRunning()
 }
 
+// HasPendingEvents reports whether the match still has sequential events to
+// run: scheduled, queued or running, including one waiting on a player's
+// prompt. Code acting on the match from outside its event loop, such as a test
+// driving it, waits for this to report false before reading what an event
+// changes. Unlike sending the match an event to see when it is answered,
+// checking takes no place in the event loop's queue, so it never pushes out
+// another event.
+func (m *Match) HasPendingEvents() bool {
+	return m != nil && m.eventloop.hasPending()
+}
+
 // Dispose closes the match, disconnects the clients and removes all references to it
 func (m *Match) Dispose() {
 

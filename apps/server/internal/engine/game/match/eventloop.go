@@ -21,6 +21,11 @@ type EventLoop struct {
 	running atomic.Bool
 	events  chan func()
 	exit    chan struct{}
+
+	// pending counts the sequential events scheduled and not yet over: on their
+	// way into the queue, queued, or running. An event the loop drops instead
+	// of running stops counting when it is dropped.
+	pending atomic.Int64
 }
 
 func NewEventLoop() *EventLoop {
@@ -42,6 +47,12 @@ func (el *EventLoop) isRunning() bool {
 	return el.running.Load()
 }
 
+// hasPending reports whether the loop still has sequential events to run. A
+// loop that has exited has none: whatever it left queued never runs.
+func (el *EventLoop) hasPending() bool {
+	return el.running.Load() && el.pending.Load() > 0
+}
+
 func (el *EventLoop) start() {
 	defer internal.Recover()
 	defer el.running.Store(false)
@@ -60,6 +71,8 @@ func (el *EventLoop) start() {
 			// drain the channel
 			for len(el.events) > 0 {
 				<-el.events
+				// The dropped event never runs, so it stops counting here.
+				el.pending.Add(-1)
 			}
 		}
 	}
@@ -81,6 +94,12 @@ func (el *EventLoop) stop() {
 
 func (el *EventLoop) schedule(event func(), strategy EventExecutionStrategy) {
 
+	// Counted before the goroutine starts, so that by the time schedule
+	// returns, the event shows as pending until it has run or been dropped.
+	if strategy == SequentialEvent {
+		el.pending.Add(1)
+	}
+
 	go func() {
 		// A parallel event should never open a prompt, but it runs on its own
 		// goroutine, so an abort raised by one has no other boundary to reach.
@@ -92,9 +111,18 @@ func (el *EventLoop) schedule(event func(), strategy EventExecutionStrategy) {
 			return
 
 		case SequentialEvent:
+			queued := func() {
+				// Deferred, so that an event ending in a panic, such as one
+				// abandoned when the match is disposed, also stops counting.
+				defer el.pending.Add(-1)
+
+				event()
+			}
+
 			select {
-			case el.events <- event:
+			case el.events <- queued:
 			default:
+				el.pending.Add(-1)
 				logrus.Debug("Skipped an incoming event")
 			}
 		}

@@ -64,12 +64,18 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 - **Fix idea:** Only deliver an action when the player has an open, unresolved prompt (`ActionState`). Otherwise reject it with a warning and do not block. Make sure the disposal path does not log a stack trace.
 - **Test:** Send an action with no prompt open, then open a cancellable prompt. It must not be auto-cancelled. Dispose the match afterwards and check that no goroutine leaks.
 
-### [ ] 23. Scenario actions are dropped by the event loop's one-slot queue (Verified)
-- **Where:** `game/match/eventloop.go` (`schedule`, `start`), `tests/scenario/scenario.go` (`waitForIdleLoop`)
-- **Problem:** Sequential events go through a channel with one slot. `schedule` drops an event when the slot is taken, and the loop drains the slot after every event, dropping whatever arrived meanwhile. The scenario's `waitForIdleLoop` probes the loop with harmless `attack_player` messages, which take that slot too: a probe delivered late can push out the test's next real action, which then times out ("timed out waiting for scenario action after 2s") or never happens. Mostly seen under `-race`, which slows every goroutine down, so CI's race step fails now and then.
-- **Measured:** `TestSpinalParasite` ("does not restrict a creature it did not choose") fails about 3 times in 60 under `-race`; also seen in `TestBodaciousGiant`, `TestForcedFrenzy` and `TestQuillspikeRumbler` on the original upstream code.
-- **Fix idea:** give the scenario a way to wait for the loop that does not compete for the slot (for example an idle signal or a processed-event counter the loop publishes), instead of probes. Whether the engine should drop real players' actions while busy is part of item 7.
-- **Test:** `TestSpinalParasite` and the cards above pass 200 runs in a row under `-race`.
+### [x] 23. Scenario actions are dropped by the event loop's one-slot queue (Verified)
+- **Status:** Fixed. Tests: `game/match/eventloop_test.go`; the card tests below.
+- **Where:** `game/match/eventloop.go` (`schedule`, `start`), `tests/scenario/scenario.go`, `tests/cards/helpers_test.go`
+- **Problem:** Sequential events go through a channel with one slot. `schedule` drops an event when the slot is taken, and the loop drains the slot after every event, dropping whatever arrived meanwhile. The test harness sent actions while the loop was still busy, in two ways:
+  - `waitForIdleLoop` probed the loop with harmless `attack_player` messages, which took that slot too: a probe delivered late pushed out the test's next real action.
+  - `answerInTurn` and `cancelInTurn` returned as soon as any message followed the answer, often a state update, while the event that had waited on the prompt was still running; the next action was then dropped. `ActionUseTapAbility` could even accept that state update as its own answer.
+- **Fix:**
+  - The event loop counts the sequential events scheduled and not yet over (queued, running, or waiting on a prompt), and stops counting an event when it is dropped; `Match.HasPendingEvents` reports it. Checking takes no place in the queue.
+  - `waitForIdleLoop` waits on that count instead of probing.
+  - `answerInTurn` and `cancelInTurn` use the new `TestScenario.Mark` and `WaitForAnswerToSettle`: they return once the loop is idle, any player has been sent a new prompt (`action`, `show_cards_non_dismissible`) or told to wait on one, or the answer was refused.
+  - The engine still drops real players' actions that arrive while it is busy; whether it should is part of item 7.
+- **Measured under `-race`:** `TestSpinalParasite` failed 8 times in 200 runs before, 0 in 200 after. `TestBodaciousGiant`, `TestForcedFrenzy`, `TestQuillspikeRumbler`, `TestCometEyeTheSpectralSpud`, `TestEmergencyTyphoon`, `TestLuckyBall` and `TestWilyCarpenter`: 0 failures in 100 runs each. The whole server suite: 5 runs without a failure or race.
 
 ---
 
@@ -172,7 +178,6 @@ which was not copied here. They are not engine fixes, but the new server must no
 
 ## Not a fix, but tracked
 
-- **Flaky tests under `-race`:** see item 23.
 - **Running race tests on Windows without a C compiler:** run them in Docker with the host module cache (mount `go env GOMODCACHE` to `/go/pkg/mod`, `GOPROXY=off`, `GOFLAGS=-mod=mod`). Check `git status` afterwards: `go.mod` and `go.sum` must not change.
 - **Card test coverage gaps:** DM07 0/60, DM06 9/117, DM09 12/60, DM02–05 and DM08 have only a handful each.
 - **`HandleFx` cost:** runs every handler of every card in every zone, decks included, for every event, including the `GetPowerEvent` fired by each `GetPower` call. Profile before changing anything.

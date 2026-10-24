@@ -12,10 +12,6 @@ import (
 
 const actionTimeout = 2 * time.Second
 
-// eventLoopProbeID is deliberately not a valid card id so the probe attack in
-// WaitForEventLoop is always rejected without changing any match state.
-const eventLoopProbeID = "scenario-event-loop-probe"
-
 type TestScenario struct {
 	Match       *match.Match
 	connections map[*match.PlayerReference]*MockConnection
@@ -254,9 +250,9 @@ func (s *TestScenario) ActionEndTurn(player *match.PlayerReference) error {
 }
 
 // WaitForEventLoop blocks until the match event loop has finished whatever it
-// was processing. The loop drops sequential events that arrive while it is
-// busy, so an inert probe is resent until the engine answers it; the answer
-// proves that every earlier sequential event has run to completion.
+// was processing: every sequential event scheduled so far has run, or been
+// dropped by the busy loop. Events write their messages synchronously, so they
+// have reached the players' connections too.
 //
 // Call this before reading or mutating match state directly after a scenario
 // action, because an action can return while the engine is still executing the
@@ -295,73 +291,18 @@ func (s *TestScenario) settleUnlessPrompted(player *match.PlayerReference, since
 	})
 }
 
-// turnPlayer is the player whose turn it is according to the last state the
-// match sent. It is read from what the players received, which their mock
-// connections guard, rather than from the match's own fields, which the event
-// loop may be changing at the same moment. ok is false until a player has been
-// told it is their turn.
-func (s *TestScenario) turnPlayer() (player *match.PlayerReference, ok bool) {
-	for _, candidate := range []*match.PlayerReference{s.Match.Player1, s.Match.Player2} {
-		if state, err := s.LatestState(candidate, 0); err == nil && state.MyTurn {
-			return candidate, true
-		}
-	}
-
-	return nil, false
-}
-
-// waitForIdleLoop probes the event loop until it answers, or until stop
-// reports that there is no point waiting any longer.
+// waitForIdleLoop waits until the match has no sequential events pending, or
+// until stop reports that there is no point waiting any longer. It only reads
+// the match's pending count, so, unlike a probe event, waiting never takes the
+// event loop's single queue slot from the actions it waits for.
 func (s *TestScenario) waitForIdleLoop(stop func() bool) error {
-	players := []*match.PlayerReference{s.Match.Player1, s.Match.Player2}
-
 	deadline := time.Now().Add(actionTimeout)
-	for attempt := 0; time.Now().Before(deadline); attempt++ {
-		if stop() {
+	for time.Now().Before(deadline) {
+		if stop() || !s.Match.HasPendingEvents() {
 			return nil
 		}
 
-		// Only the turn player's probe is answered: an attack sent by the other
-		// player is dropped without a warning. Resolved on every attempt,
-		// because the work being waited on may be a turn transition, which
-		// sends the players a new state. Probes take the event loop's single
-		// queue slot from real actions, so each attempt sends only one; before
-		// any state says whose turn it is, they alternate between the players.
-		player, ok := s.turnPlayer()
-		if !ok {
-			player = players[attempt%len(players)]
-		}
-
-		conn, err := s.connectionFor(player)
-		if err != nil {
-			return err
-		}
-
-		start := conn.JSONWriteCount()
-
-		// An attack declared with an id no card can have is rejected with a
-		// warning and changes nothing about the match.
-		if err := s.send(player, struct {
-			Header string `json:"header"`
-			ID     string `json:"virtualId"`
-		}{
-			Header: "attack_player",
-			ID:     eventLoopProbeID,
-		}); err != nil {
-			return err
-		}
-
-		probeDeadline := time.Now().Add(20 * time.Millisecond)
-		for time.Now().Before(probeDeadline) {
-			for _, raw := range conn.JSONMessagesSince(start) {
-				var header server.Message
-				if err := json.Unmarshal([]byte(raw), &header); err == nil && header.Header == "warn" {
-					return nil
-				}
-			}
-
-			time.Sleep(time.Millisecond)
-		}
+		time.Sleep(time.Millisecond)
 	}
 
 	return fmt.Errorf("timed out waiting for the match event loop to become idle after %s", actionTimeout)
@@ -663,6 +604,64 @@ func (s *TestScenario) ResolveAttack(player *match.PlayerReference, shieldIDs ..
 	}
 
 	return s.settleUnlessPrompted(player, completionStart)
+}
+
+// MessageMark records how many messages each player had been sent at one
+// moment, so a later wait only looks at what came after it.
+type MessageMark map[*match.PlayerReference]int
+
+// Mark records how many messages each player has been sent so far.
+func (s *TestScenario) Mark() MessageMark {
+	mark := make(MessageMark, len(s.connections))
+	for player, conn := range s.connections {
+		mark[player] = conn.JSONWriteCount()
+	}
+
+	return mark
+}
+
+// WaitForAnswerToSettle waits, after player has answered a prompt, until what
+// the answer set in motion has finished. Take the mark before sending the
+// answer. It returns once:
+//   - the event loop has no events pending; or
+//   - any player has been sent a new prompt, or told to wait on one, since the
+//     mark: a prompt blocks the event loop until it is answered, so the caller
+//     answers it next. Prompts are "action" messages and the card previews
+//     that must be closed ("show_cards_non_dismissible"), which are all the
+//     engine waits on a player's answer for; or
+//   - player's answer was refused (action_error or warn): the prompt stays
+//     open.
+//
+// A state update is not a sign that the answer has been dealt with: the event
+// waiting on the prompt goes on running after it, and an action sent meanwhile
+// is dropped by the busy event loop.
+func (s *TestScenario) WaitForAnswerToSettle(player *match.PlayerReference, mark MessageMark) error {
+	return s.waitForIdleLoop(func() bool {
+		for other, since := range mark {
+			conn, err := s.connectionFor(other)
+			if err != nil {
+				continue
+			}
+
+			for _, raw := range conn.JSONMessagesSince(since) {
+				var header server.Message
+				if err := json.Unmarshal([]byte(raw), &header); err != nil {
+					continue
+				}
+
+				switch header.Header {
+				case "action", "show_cards_non_dismissible", "wait":
+					return true
+				case "action_error", "warn":
+					if other == player {
+						return true
+					}
+				}
+			}
+		}
+
+		return false
+	})
 }
 
 func (s *TestScenario) SubmitAction(player *match.PlayerReference, cardIDs ...string) error {
