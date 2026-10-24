@@ -295,20 +295,42 @@ func (s *TestScenario) settleUnlessPrompted(player *match.PlayerReference, since
 	})
 }
 
+// turnPlayer is the player whose turn it is according to the last state the
+// match sent. It is read from what the players received, which their mock
+// connections guard, rather than from the match's own fields, which the event
+// loop may be changing at the same moment. ok is false until a player has been
+// told it is their turn.
+func (s *TestScenario) turnPlayer() (player *match.PlayerReference, ok bool) {
+	for _, candidate := range []*match.PlayerReference{s.Match.Player1, s.Match.Player2} {
+		if state, err := s.LatestState(candidate, 0); err == nil && state.MyTurn {
+			return candidate, true
+		}
+	}
+
+	return nil, false
+}
+
 // waitForIdleLoop probes the event loop until it answers, or until stop
 // reports that there is no point waiting any longer.
 func (s *TestScenario) waitForIdleLoop(stop func() bool) error {
+	players := []*match.PlayerReference{s.Match.Player1, s.Match.Player2}
+
 	deadline := time.Now().Add(actionTimeout)
-	for time.Now().Before(deadline) {
+	for attempt := 0; time.Now().Before(deadline); attempt++ {
 		if stop() {
 			return nil
 		}
 
-		// Resolved on every attempt, because the work being waited on may be a
-		// turn transition. An attack sent by whoever is no longer the turn
-		// player is dropped without a warning, so a probe aimed at the player
-		// the turn started with would never be answered.
-		player := s.Match.CurrentPlayer()
+		// Only the turn player's probe is answered: an attack sent by the other
+		// player is dropped without a warning. Resolved on every attempt,
+		// because the work being waited on may be a turn transition, which
+		// sends the players a new state. Probes take the event loop's single
+		// queue slot from real actions, so each attempt sends only one; before
+		// any state says whose turn it is, they alternate between the players.
+		player, ok := s.turnPlayer()
+		if !ok {
+			player = players[attempt%len(players)]
+		}
 
 		conn, err := s.connectionFor(player)
 		if err != nil {

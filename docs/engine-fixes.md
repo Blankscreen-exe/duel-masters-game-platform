@@ -64,6 +64,13 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 - **Fix idea:** Only deliver an action when the player has an open, unresolved prompt (`ActionState`). Otherwise reject it with a warning and do not block. Make sure the disposal path does not log a stack trace.
 - **Test:** Send an action with no prompt open, then open a cancellable prompt. It must not be auto-cancelled. Dispose the match afterwards and check that no goroutine leaks.
 
+### [ ] 23. Scenario actions are dropped by the event loop's one-slot queue (Verified)
+- **Where:** `game/match/eventloop.go` (`schedule`, `start`), `tests/scenario/scenario.go` (`waitForIdleLoop`)
+- **Problem:** Sequential events go through a channel with one slot. `schedule` drops an event when the slot is taken, and the loop drains the slot after every event, dropping whatever arrived meanwhile. The scenario's `waitForIdleLoop` probes the loop with harmless `attack_player` messages, which take that slot too: a probe delivered late can push out the test's next real action, which then times out ("timed out waiting for scenario action after 2s") or never happens. Mostly seen under `-race`, which slows every goroutine down, so CI's race step fails now and then.
+- **Measured:** `TestSpinalParasite` ("does not restrict a creature it did not choose") fails about 3 times in 60 under `-race`; also seen in `TestBodaciousGiant`, `TestForcedFrenzy` and `TestQuillspikeRumbler` on the original upstream code.
+- **Fix idea:** give the scenario a way to wait for the loop that does not compete for the slot (for example an idle signal or a processed-event counter the loop publishes), instead of probes. Whether the engine should drop real players' actions while busy is part of item 7.
+- **Test:** `TestSpinalParasite` and the cards above pass 200 runs in a row under `-race`.
+
 ---
 
 ## Phase 3: card rules bugs
@@ -165,7 +172,7 @@ which was not copied here. They are not engine fixes, but the new server must no
 
 ## Not a fix, but tracked
 
-- **Flaky tests under `-race`:** card tests sometimes hit the scenario's 2s `actionTimeout` when run with the race detector. Seen on the original upstream code too, in `TestBodaciousGiant`, `TestForcedFrenzy` and `TestQuillspikeRumbler` (about 1 failure in 10–20 runs). Likely cause: the slow race build combined with the 2s limit, or sequential events dropped by the 1-slot queue (`game/match/eventloop.go`, related to item 7). Worth its own fix later.
+- **Flaky tests under `-race`:** see item 23.
 - **Running race tests on Windows without a C compiler:** run them in Docker with the host module cache (mount `go env GOMODCACHE` to `/go/pkg/mod`, `GOPROXY=off`, `GOFLAGS=-mod=mod`). Check `git status` afterwards: `go.mod` and `go.sum` must not change.
 - **Card test coverage gaps:** DM07 0/60, DM06 9/117, DM09 12/60, DM02–05 and DM08 have only a handful each.
 - **`HandleFx` cost:** runs every handler of every card in every zone, decks included, for every event, including the `GetPowerEvent` fired by each `GetPower` call. Profile before changing anything.
