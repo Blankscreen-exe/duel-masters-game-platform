@@ -1,0 +1,60 @@
+openapi: 3.0.3
+info:
+  title: Duel Masters Game Platform API
+  version: 0.1.0
+  description: >-
+    The HTTP API of the Go server. The Go handler interfaces and the TypeScript client are generated
+    from this file; edit it, then regenerate both.
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit
+servers:
+  - url: /api
+tags:
+  - name: system
+    description: The server itself.
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check that the server and its database are working
+      tags: [system]
+      responses:
+        "200":
+          description: The server and its database are working.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: The database is not answering.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status, database]
+      properties:
+        status:
+          description: Whether the server can serve requests.
+          $ref: "#/components/schemas/HealthStatus"
+        database:
+          description: Whether the database answers.
+          $ref: "#/components/schemas/HealthStatus"
+    HealthStatus:
+      type: string
+      enum: [ok, unavailable]
+    Error:
+      description: Returned with every error status.
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          description: A stable, machine-readable error code, such as "not_found".
+          type: string
+        message:
+          description: A readable explanation of the error.
+          type: string

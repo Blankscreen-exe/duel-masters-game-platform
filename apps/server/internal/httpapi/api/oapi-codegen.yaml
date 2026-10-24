@@ -1,0 +1,17 @@
+# Generates api.gen.go from api/openapi.yaml: the models, a strict server
+# interface and its standard library (net/http) routing. Run `go generate ./...`
+# from apps/server after changing the contract; CI fails if the output is stale.
+package: api
+output: api.gen.go
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+output-options:
+  # Keep every schema, including those only the hand-written handlers use,
+  # such as Error.
+  skip-prune: true
+compatibility:
+  # Name enum values after their type (HealthStatusOk), so values shared by
+  # several enums do not clash.
+  always-prefix-enum-values: true
