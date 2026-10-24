@@ -1,0 +1,5 @@
+# Images only receive what they build from; everything else stays out of the
+# build context.
+*
+!apps/server/
+apps/server/**/data/

@@ -1,6 +1,12 @@
 // Command server runs the Duel Masters Game Platform server. It is configured
 // with environment variables (see internal/config) and stops cleanly on
 // Ctrl+C or SIGTERM.
+//
+// Usage:
+//
+//	server              start the server
+//	server healthcheck  check the server started with the same configuration,
+//	                    exiting with 1 unless it is healthy
 package main
 
 import (
@@ -32,6 +38,14 @@ func run() error {
 	cfg, err := config.Load(os.Environ())
 	if err != nil {
 		return err
+	}
+
+	switch args := os.Args[1:]; {
+	case len(args) == 0:
+	case len(args) == 1 && args[0] == healthcheckCommand:
+		return checkHealth(ctx, cfg.HTTPAddr)
+	default:
+		return fmt.Errorf("unknown arguments %q; run without arguments to start the server, or with %q to check it", args, healthcheckCommand)
 	}
 
 	logger := logging.New(cfg.Log, os.Stdout)

@@ -9,6 +9,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev:server": "go -C apps/server run ./cmd/server",
     "test": "pnpm -r test && pnpm test:server",
     "test:server": "go -C apps/server test ./... -count=1 -timeout 300s",
     "test:race": "go -C apps/server test -race ./... -count=1 -timeout 300s",

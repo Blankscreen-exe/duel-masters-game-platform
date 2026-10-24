@@ -71,6 +71,15 @@ jobs:
       - name: Race
         run: go test -race ./... -count=1 -timeout 300s
 
+  docker:
+    name: Server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -f apps/server/Dockerfile -t duel-masters-server:ci .
+
   packages:
     name: Packages (type-check, test)
     runs-on: ubuntu-latest
