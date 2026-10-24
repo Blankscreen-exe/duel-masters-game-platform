@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duel Masters - themes</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-neutral-950 font-sans text-neutral-100">
+<main class="mx-auto max-w-4xl px-6 py-12">
+  <h1 class="text-3xl font-bold tracking-tight">Duel Masters - UI themes</h1>
+  <p class="mt-2 text-neutral-400">Mockups of the same screens (lobby and game screen) in different styles. Switch between the
+    lobby and the game screen with the buttons in the bottom right corner of each theme.</p>
+  <p class="mt-2 text-sm text-neutral-500">Card pictures load from the linked card database (<code>resources/duelmasters_db</code>), so open
+    these files straight from disk in a clone made with <code>--recurse-submodules</code>. The game board itself is drawn by
+    the duel board component; the mockups show how a theme frames and tints it. Battle Zone is the chosen theme
+    (see <code>design/SPEC.md</code>, section 11); the others are rejected alternatives kept for reference.</p>
+  <div id="themes" class="mt-8 grid gap-4 sm:grid-cols-2"></div>
+</main>
+<script>
+const THEMES = [
+  {
+    file: "theme-battle-zone.html",
+    name: "Battle Zone",
+    description: "Dark and modern like a current card game client: angled panels, metallic silver edges and the five civilization colours as accents.",
+    swatches: ["#07090e", "#0f141d", "#94a3b8", "#2563eb", "#fde047"],
+  },
+  {
+    file: "theme-shobu-anime.html",
+    name: "Shobu Anime",
+    description: "Loud like the 2004 anime and the card boxes: orange halftone background, thick black outlines, offset shadows and slanted titles.",
+    swatches: ["#ff6a00", "#e0261f", "#facc15", "#18181b", "#2b59d1"],
+  },
+  {
+    file: "theme-kaijudo-arcane.html",
+    name: "Kaijudo Arcane",
+    description: "The magical side of the lore: deep violet, gold trim, glowing edges and a summoning circle under the board.",
+    swatches: ["#0b0614", "#1d1036", "#7c3aed", "#fcd34d", "#fda4af"],
+  },
+  {
+    file: "theme-five-civilizations.html",
+    name: "Five Civilizations",
+    description: "Light and minimal: white panels and soft shadows, each section marked with a civilization colour. Easiest to read.",
+    swatches: ["#f1f5f9", "#ffffff", "#0f172a", "#3b82f6", "#ef4444"],
+  },
+];
+
+document.getElementById("themes").innerHTML = THEMES.map(
+  (theme) => `<a href="${theme.file}" class="block rounded-xl border border-neutral-800 bg-neutral-900 p-5 hover:border-neutral-600">
+    <div class="flex overflow-hidden rounded-md">${theme.swatches.map((colour) => `<span class="h-6 flex-1" style="background:${colour}"></span>`).join("")}</div>
+    <div class="mt-4 text-lg font-semibold">${theme.name}</div>
+    <p class="mt-1 text-sm text-neutral-400">${theme.description}</p>
+  </a>`,
+).join("");
+</script>
+</body>
+</html>

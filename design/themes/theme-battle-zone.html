@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duel Masters · Battle Zone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { display: ["'Rajdhani'", "sans-serif"], body: ["'Inter'", "sans-serif"] } } } };
+</script>
+</head>
+<body class="min-h-screen font-body text-slate-200 bg-[#07090e] bg-[radial-gradient(ellipse_at_top,#1a2233_0%,#07090e_60%)] bg-fixed">
+<div id="app"></div>
+<script>
+// Corners cut at an angle, like a modern card game client.
+const CUT = "[clip-path:polygon(14px_0,100%_0,100%_calc(100%-14px),calc(100%-14px)_100%,0_100%,0_14px)]";
+const CUT_SMALL = "[clip-path:polygon(8px_0,100%_0,100%_calc(100%-8px),calc(100%-8px)_100%,0_100%,0_8px)]";
+
+window.THEME = {
+  name: "Battle Zone",
+  T: {
+    header: "sticky top-0 z-30 flex items-center justify-between px-5 py-3 bg-gradient-to-b from-[#1b2230] to-[#0d1119] shadow-[0_8px_24px_rgba(0,0,0,.6)] after:absolute after:inset-x-0 after:-bottom-[3px] after:h-[3px] after:bg-[linear-gradient(90deg,#fde047_0_20%,#3b82f6_20%_40%,#52525b_40%_60%,#ef4444_60%_80%,#22c55e_80%)]",
+    logoMark: "h-6 w-6 rotate-45 bg-gradient-to-br from-slate-100 via-slate-400 to-slate-700 shadow-[0_0_12px_rgba(148,163,184,.6)]",
+    logo: "font-display text-2xl font-bold uppercase tracking-[0.18em] bg-gradient-to-b from-white to-slate-400 bg-clip-text text-transparent",
+    nav: "px-3 py-1.5 font-display text-sm font-semibold uppercase tracking-wider text-slate-400 hover:text-white",
+    navActive: "px-3 py-1.5 font-display text-sm font-semibold uppercase tracking-wider text-white border-b-2 border-sky-400",
+    avatar: `grid h-9 w-9 place-items-center bg-gradient-to-br from-slate-200 to-slate-500 font-display text-lg font-bold text-slate-900 ${CUT_SMALL}`,
+    avatarSmall: "grid h-7 w-7 place-items-center rounded-sm bg-slate-700 text-xs font-bold text-slate-100 ring-1 ring-slate-400/50",
+    tier: "inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400",
+    subtle: "text-slate-400",
+    pageTitle: "font-display text-4xl font-bold uppercase tracking-widest text-white",
+    panel: `bg-[#0f141d]/95 ring-1 ring-slate-500/40 shadow-[0_10px_30px_rgba(0,0,0,.5)] ${CUT}`,
+    panelCiv: { water: "border-t-2 border-blue-500", fire: "border-t-2 border-red-500", nature: "border-t-2 border-green-500", light: "border-t-2 border-yellow-300" },
+    panelHead: "flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-white/[0.07] to-transparent border-b border-slate-600/40",
+    panelTitle: "font-display text-base font-bold uppercase tracking-[0.15em] text-slate-100",
+    tableHead: "text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-700/60",
+    row: "border-b border-slate-800/80 hover:bg-white/[0.03]",
+    pillWaiting: "inline-block px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-300 bg-emerald-500/10 ring-1 ring-emerald-400/40",
+    pillPlaying: "inline-block px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-red-300 bg-red-500/10 ring-1 ring-red-400/40",
+    btn: `px-5 py-2 font-display font-bold uppercase tracking-wider text-slate-900 bg-gradient-to-b from-slate-100 via-slate-300 to-slate-500 hover:from-white ${CUT_SMALL}`,
+    btnAlt: `px-4 py-2 font-display font-semibold uppercase tracking-wider text-slate-200 bg-slate-800/80 ring-1 ring-inset ring-slate-500/50 hover:bg-slate-700 ${CUT_SMALL}`,
+    btnDanger: `px-4 py-2 font-display font-semibold uppercase tracking-wider text-red-100 bg-red-900/70 ring-1 ring-inset ring-red-400/50 hover:bg-red-800 ${CUT_SMALL}`,
+    btnSmall: "px-3 py-1 font-display text-sm font-bold uppercase tracking-wider text-slate-900 bg-gradient-to-b from-slate-100 to-slate-400 hover:from-white",
+    btnSmallAlt: "px-3 py-1 font-display text-sm font-semibold uppercase tracking-wider text-sky-200 bg-sky-500/10 ring-1 ring-inset ring-sky-400/50 hover:bg-sky-500/20",
+    input: "mt-1 block w-full bg-[#0a0e15] px-3 py-2 text-sm text-slate-100 ring-1 ring-inset ring-slate-600/60 placeholder:text-slate-500 focus:outline-none focus:ring-sky-400",
+    label: "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-400",
+    toggleOn: "flex-1 px-2 py-1.5 text-xs font-semibold uppercase tracking-wide bg-sky-500/20 text-sky-200 ring-1 ring-inset ring-sky-400/60",
+    toggleOff: "flex-1 px-2 py-1.5 text-xs font-semibold uppercase tracking-wide bg-slate-800/60 text-slate-400 ring-1 ring-inset ring-slate-700 hover:text-slate-200",
+    chatName: "font-semibold text-sky-300",
+    chatSystem: "text-xs italic text-amber-300/80",
+    chip: "px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 bg-slate-800/80 ring-1 ring-inset ring-slate-600/60",
+    playerBar: `flex items-center justify-between gap-3 px-4 py-2.5 bg-[#0f141d]/95 ring-1 ring-inset ring-slate-600/40 ${CUT_SMALL}`,
+    playerName: "font-display text-lg font-bold tracking-wide text-white",
+    mat: `flex min-h-[36rem] overflow-hidden ring-1 ring-inset ring-slate-500/40 bg-[linear-gradient(rgba(148,163,184,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,.05)_1px,transparent_1px),radial-gradient(ellipse_at_center,#16233a_0%,#0b1018_70%)] [background-size:32px_32px,32px_32px,100%_100%] ${CUT}`,
+    battleRow: "py-2 bg-white/[0.02] ring-1 ring-inset ring-slate-400/15",
+    zoneLabel: "text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500",
+    cardBack: "bg-[radial-gradient(circle_at_50%_40%,#334155_0%,#0f172a_70%)] ring-1 ring-slate-400/50 shadow-md",
+    shield: "bg-[linear-gradient(135deg,rgba(37,99,235,.75),rgba(30,64,175,.65)_40%,rgba(191,219,254,.65)_50%,rgba(30,64,175,.55)_60%,rgba(23,37,84,.8))] ring-1 ring-sky-300/50 shadow-md",
+    attacking: "ring-2 ring-amber-400 shadow-[0_0_18px_rgba(251,191,36,.6)] -translate-y-1",
+    phaseBar: "flex items-center gap-0.5 p-0.5 bg-black/50 ring-1 ring-slate-600/50 text-xs font-semibold uppercase tracking-wide",
+    phase: "px-3 py-1.5 text-slate-300",
+    phaseDone: "px-3 py-1.5 text-slate-600",
+    phaseActive: "px-3 py-1.5 bg-blue-600 text-white",
+    turnPill: "px-3 py-1.5 text-xs uppercase tracking-wide bg-black/50 ring-1 ring-slate-600/50 text-slate-400 [&_b]:text-white",
+    logPanel: "hidden w-64 shrink-0 border-l border-slate-600/40 bg-black/30 md:block",
+    logHead: "px-3 py-2 font-display text-sm font-bold uppercase tracking-widest text-slate-300 border-b border-slate-700/60",
+    logMine: "font-semibold text-sky-300",
+    logTheirs: "font-semibold text-red-300",
+  },
+};
+</script>
+<script src="mockup.js"></script>
+</body>
+</html>

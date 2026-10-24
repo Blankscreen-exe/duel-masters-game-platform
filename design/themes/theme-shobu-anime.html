@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duel Masters · Shobu Anime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800;900&display=swap">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { display: ["'Bangers'", "cursive"], body: ["'Nunito'", "sans-serif"] } } } };
+</script>
+</head>
+<body class="min-h-screen font-body text-zinc-900 bg-[#ff6a00] bg-[radial-gradient(circle,rgba(0,0,0,.13)_1.5px,transparent_1.6px),linear-gradient(160deg,#ffb020_0%,#ff6a00_45%,#e0261f_100%)] [background-size:14px_14px,100%_100%] bg-fixed">
+<div id="app"></div>
+<script>
+// Loud like the 2004 anime and the card boxes: thick black outlines, offset
+// shadows, slanted titles and halftone dots.
+const SLANT = "-skew-x-6";
+const POP = "border-[3px] border-black shadow-[4px_4px_0_#000] transition hover:-translate-y-0.5 hover:shadow-[6px_6px_0_#000] active:translate-y-0.5 active:shadow-[2px_2px_0_#000]";
+
+window.THEME = {
+  name: "Shobu Anime",
+  T: {
+    header: "sticky top-0 z-30 flex items-center justify-between px-5 py-2.5 bg-zinc-900 text-white border-b-4 border-black shadow-[0_6px_0_#facc15]",
+    logoMark: "h-8 w-8 rotate-12 rounded-full bg-gradient-to-br from-yellow-300 to-red-600 border-[3px] border-white shadow-[2px_2px_0_#000]",
+    logo: `font-display text-3xl tracking-wider text-yellow-300 [text-shadow:3px_3px_0_#dc2626,5px_5px_0_#000] ${SLANT}`,
+    nav: "px-3 py-1 font-display text-xl tracking-wide text-white/80 hover:text-yellow-300",
+    navActive: `px-3 py-1 font-display text-xl tracking-wide bg-yellow-300 text-black shadow-[3px_3px_0_#dc2626] ${SLANT}`,
+    avatar: "grid h-10 w-10 place-items-center rounded-full bg-yellow-300 font-display text-xl text-black border-[3px] border-black shadow-[2px_2px_0_#000]",
+    avatarSmall: "grid h-8 w-8 place-items-center rounded-full bg-orange-400 font-display text-lg text-black border-2 border-black",
+    tier: "inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase opacity-70",
+    subtle: "text-zinc-800/80",
+    pageTitle: `font-display text-6xl tracking-wide text-white [text-shadow:4px_4px_0_#000] ${SLANT}`,
+    panel: "bg-white border-4 border-black shadow-[8px_8px_0_#000]",
+    panelCiv: { water: "[&>header]:bg-blue-600", fire: "[&>header]:bg-red-600", nature: "[&>header]:bg-green-600", light: "[&>header]:bg-yellow-400" },
+    panelHead: "border-b-4 border-black px-4 py-2 bg-zinc-900",
+    panelTitle: `font-display text-2xl tracking-wider text-white [text-shadow:2px_2px_0_#000] ${SLANT}`,
+    tableHead: "text-xs font-black uppercase text-zinc-500 border-b-2 border-black",
+    row: "border-b-2 border-dashed border-zinc-300 hover:bg-yellow-100",
+    pillWaiting: `inline-block bg-green-500 px-2 py-0.5 text-xs font-black uppercase text-white border-2 border-black ${SLANT}`,
+    pillPlaying: `inline-block bg-red-600 px-2 py-0.5 text-xs font-black uppercase text-white border-2 border-black ${SLANT}`,
+    btn: `font-display text-2xl tracking-wider px-5 py-1.5 bg-yellow-300 text-black ${POP} ${SLANT}`,
+    btnAlt: `font-display text-xl tracking-wider px-4 py-1.5 bg-white text-black ${POP} ${SLANT}`,
+    btnDanger: `font-display text-xl tracking-wider px-4 py-1.5 bg-red-600 text-white ${POP} ${SLANT}`,
+    btnSmall: `font-display text-lg tracking-wider px-3 py-0.5 bg-yellow-300 text-black border-2 border-black shadow-[3px_3px_0_#000] ${SLANT}`,
+    btnSmallAlt: `font-display text-lg tracking-wider px-3 py-0.5 bg-sky-300 text-black border-2 border-black shadow-[3px_3px_0_#000] ${SLANT}`,
+    input: "mt-1 block w-full bg-white px-3 py-2 text-sm font-bold border-[3px] border-black shadow-[3px_3px_0_#000] focus:outline-none focus:bg-yellow-50",
+    label: "mb-1 block font-display text-xl tracking-wide text-black",
+    toggleOn: "flex-1 px-2 py-1.5 text-xs font-black uppercase bg-black text-yellow-300 border-2 border-black",
+    toggleOff: "flex-1 px-2 py-1.5 text-xs font-black uppercase bg-white text-black border-2 border-black hover:bg-yellow-100",
+    chatName: "font-black text-red-600",
+    chatSystem: "text-xs font-bold text-blue-700",
+    chip: `px-2.5 py-0.5 text-xs font-black uppercase bg-yellow-300 text-black border-2 border-black ${SLANT}`,
+    playerBar: "flex items-center justify-between gap-3 px-4 py-2 bg-white border-4 border-black shadow-[6px_6px_0_#000]",
+    playerName: "font-display text-2xl tracking-wide",
+    mat: "flex min-h-[36rem] overflow-hidden text-white border-4 border-black shadow-[8px_8px_0_#000] bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(255,255,255,.07)_0deg_8deg,transparent_8deg_16deg),radial-gradient(circle_at_center,#2b59d1_0%,#14286b_75%)]",
+    battleRow: "py-2 border-2 border-dashed border-white/40 bg-white/5",
+    zoneLabel: "font-display text-base tracking-wider text-yellow-300 [text-shadow:1px_1px_0_#000]",
+    cardBack: "bg-[radial-gradient(circle_at_50%_45%,#fde047_0%,#f97316_35%,#7c2d12_80%)] border-2 border-black",
+    shield: "bg-[linear-gradient(135deg,#60a5fa,#1d4ed8_45%,#bfdbfe_52%,#1e3a8a)] border-2 border-black",
+    attacking: "outline outline-4 outline-yellow-300 -translate-y-1 shadow-[4px_4px_0_#000]",
+    phaseBar: `flex items-center gap-0.5 bg-black p-1 border-2 border-white font-display text-lg tracking-wider ${SLANT}`,
+    phase: "px-3 py-0.5 text-white",
+    phaseDone: "px-3 py-0.5 text-white/40",
+    phaseActive: "px-3 py-0.5 bg-yellow-300 text-black",
+    turnPill: `bg-red-600 px-3 py-1 font-display text-xl tracking-wider text-white border-2 border-black [&_b]:font-normal [&_b]:text-yellow-300 ${SLANT}`,
+    logPanel: "hidden w-64 shrink-0 border-l-4 border-black bg-white text-black md:block",
+    logHead: "bg-zinc-900 px-3 py-1.5 font-display text-2xl tracking-wider text-yellow-300",
+    logMine: "font-black text-blue-700",
+    logTheirs: "font-black text-red-600",
+  },
+};
+</script>
+<script src="mockup.js"></script>
+</body>
+</html>
