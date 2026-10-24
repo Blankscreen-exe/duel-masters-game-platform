@@ -13,8 +13,9 @@ way to define its data and talk to either database.
 Use the **GORM** ORM:
 
 - Data is defined once as Go models; the same code runs on both databases.
-- SQLite through GORM's pure-Go driver (`github.com/glebarez/sqlite`, built on
-  `modernc.org/sqlite`), so the server builds without a C compiler. PostgreSQL through
+- SQLite through `github.com/ncruces/go-sqlite3/gormlite`, a pure-Go driver (SQLite compiled to
+  Go), so the server builds without a C compiler. It was chosen over `github.com/glebarez/sqlite`,
+  whose GORM driver has had no release since March 2024. PostgreSQL through
   `gorm.io/driver/postgres` (pgx).
 - Schema changes are **versioned migrations** written once in Go with
   `go-gormigrate/gormigrate`, recorded in a migrations table and applied in order at startup.
@@ -34,4 +35,5 @@ database. The rest of 0005 (the configuration switch, database-neutral backups) 
 ## Consequences
 
 - One set of models and migrations for both databases.
+- GORM logs through the server's `slog` logger (`logger.NewSlogLogger`).
 - Database-specific features are avoided unless both databases support them.

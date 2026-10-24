@@ -1,0 +1,105 @@
+package config
+
+import (
+	"log/slog"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestLoadUsesDefaults(t *testing.T) {
+	cfg, err := Load(nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, Development, cfg.Environment)
+	assert.Equal(t, "127.0.0.1:8080", cfg.HTTPAddr)
+	assert.Equal(t, "./data", cfg.DataDir)
+	assert.Equal(t, SQLite, cfg.Database.Driver)
+	assert.Equal(t, filepath.Join("./data", "platform.db"), cfg.Database.SQLitePath)
+	assert.Equal(t, slog.LevelInfo, cfg.Log.Level)
+	assert.Equal(t, LogText, cfg.Log.Format)
+}
+
+func TestLoadReadsEveryVariable(t *testing.T) {
+	cfg, err := Load([]string{
+		"APP_ENV=production",
+		"HTTP_ADDR=0.0.0.0:9000",
+		"DATA_DIR=/var/lib/platform",
+		"DB_DRIVER=postgres",
+		"POSTGRES_URL=postgres://user:secret@db:5432/platform",
+		"LOG_LEVEL=debug",
+		"LOG_FORMAT=text",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, Production, cfg.Environment)
+	assert.Equal(t, "0.0.0.0:9000", cfg.HTTPAddr)
+	assert.Equal(t, "/var/lib/platform", cfg.DataDir)
+	assert.Equal(t, Postgres, cfg.Database.Driver)
+	assert.Equal(t, "postgres://user:secret@db:5432/platform", cfg.Database.PostgresURL)
+	assert.Empty(t, cfg.Database.SQLitePath, "no SQLite file is chosen for PostgreSQL")
+	assert.Equal(t, slog.LevelDebug, cfg.Log.Level)
+	assert.Equal(t, LogText, cfg.Log.Format, "an explicit format wins over the environment's")
+}
+
+func TestLoadDefaultsDependOnOtherSettings(t *testing.T) {
+	t.Run("the SQLite file goes in the data folder", func(t *testing.T) {
+		cfg, err := Load([]string{"DATA_DIR=/srv/data"})
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join("/srv/data", "platform.db"), cfg.Database.SQLitePath)
+	})
+
+	t.Run("an explicit SQLite file is kept", func(t *testing.T) {
+		cfg, err := Load([]string{"SQLITE_PATH=/tmp/other.db"})
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/other.db", cfg.Database.SQLitePath)
+	})
+
+	t.Run("an empty data folder counts as unset", func(t *testing.T) {
+		cfg, err := Load([]string{"DATA_DIR="})
+		require.NoError(t, err)
+		assert.Equal(t, "./data", cfg.DataDir)
+	})
+
+	t.Run("production logs JSON", func(t *testing.T) {
+		cfg, err := Load([]string{"APP_ENV=production"})
+		require.NoError(t, err)
+		assert.Equal(t, LogJSON, cfg.Log.Format)
+	})
+}
+
+func TestLoadRefusesInvalidSettings(t *testing.T) {
+	tests := []struct {
+		name    string
+		environ []string
+		problem string
+	}{
+		{"unknown environment", []string{"APP_ENV=staging"}, "APP_ENV"},
+		{"address without a port", []string{"HTTP_ADDR=localhost"}, "HTTP_ADDR"},
+		{"unknown database", []string{"DB_DRIVER=mysql"}, "DB_DRIVER"},
+		{"postgres without an address", []string{"DB_DRIVER=postgres"}, "POSTGRES_URL is required"},
+		{"postgres address with sqlite", []string{"POSTGRES_URL=postgres://db/platform"}, "POSTGRES_URL is set"},
+		{"sqlite file with postgres", []string{"DB_DRIVER=postgres", "POSTGRES_URL=postgres://db/platform", "SQLITE_PATH=/tmp/x.db"}, "SQLITE_PATH is set"},
+		{"unknown log format", []string{"LOG_FORMAT=xml"}, "LOG_FORMAT"},
+		{"unknown log level", []string{"LOG_LEVEL=loud"}, "LOG_LEVEL"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := Load(test.environ)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), test.problem)
+		})
+	}
+}
+
+func TestLoadReportsEveryProblemAtOnce(t *testing.T) {
+	_, err := Load([]string{"APP_ENV=staging", "DB_DRIVER=mysql", "LOG_FORMAT=xml"})
+	require.Error(t, err)
+
+	for _, problem := range []string{"APP_ENV", "DB_DRIVER", "LOG_FORMAT"} {
+		assert.Contains(t, err.Error(), problem)
+	}
+}
