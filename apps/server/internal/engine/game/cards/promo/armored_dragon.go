@@ -1,0 +1,71 @@
+package promo
+
+import (
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/civ"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/family"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/fx"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/match"
+)
+
+// StarCryDragon ...
+func StarCryDragon(c *match.Card) {
+
+	c.Name = "Star-Cry Dragon"
+	c.Power = 8000
+	c.Civs = []string{civ.Fire}
+	c.Family = []string{family.ArmoredDragon}
+	c.ManaCost = 7
+	c.ManaRequirement = []string{civ.Fire}
+
+	c.Use(fx.Creature, fx.Doublebreaker, func(card *match.Card, ctx *match.Context) {
+
+		if card.Zone != match.BATTLEZONE {
+			return
+		}
+
+		if event, ok := ctx.Event.(*match.GetPowerEvent); ok && event.Card.Player == card.Player && event.Card.ID != card.ID {
+
+			if event.Card.HasFamily(family.ArmoredDragon) {
+				event.Power += 3000
+			}
+		}
+
+	})
+}
+
+// VelyrikaDragon ...
+func VelyrikaDragon(c *match.Card) {
+
+	c.Name = "Velyrika Dragon"
+	c.Power = 7000
+	c.Civs = []string{civ.Fire}
+	c.Family = []string{family.ArmoredDragon}
+	c.ManaCost = 7
+	c.ManaRequirement = []string{civ.Fire}
+
+	c.Use(fx.Creature, fx.Doublebreaker, fx.When(fx.Summoned, func(card *match.Card, ctx *match.Context) {
+
+		fx.SearchDeckTakeCards(
+			card,
+			ctx,
+			1,
+			func(x *match.Card) bool { return x.HasFamily(family.ArmoredDragon) },
+			"Armored Dragon",
+		)
+
+	}))
+}
+
+// UberdragonZaschack ...
+func UberdragonZaschack(c *match.Card) {
+
+	c.Name = "Uberdragon Zaschack"
+	c.Power = 11000
+	c.Civs = []string{civ.Fire}
+	c.Family = []string{family.ArmoredDragon}
+	c.ManaCost = 9
+	c.ManaRequirement = []string{civ.Fire}
+
+	// Crew breaker-Armored Dragon
+	c.Use(fx.Creature, fx.Evolution, fx.CrewBreaker(fx.CountOtherOwnCreaturesWithFamily([]string{family.ArmoredDragon})))
+}

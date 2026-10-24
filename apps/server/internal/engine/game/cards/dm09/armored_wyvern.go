@@ -1,0 +1,68 @@
+package dm09
+
+import (
+	"fmt"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/civ"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/family"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/fx"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/match"
+)
+
+// BaleskBajTheTimeburner ...
+func BaleskBajTheTimeburner(c *match.Card) {
+
+	c.Name = "Balesk Baj, the Timeburner"
+	c.Power = 8000
+	c.Civs = []string{civ.Fire}
+	c.Family = []string{family.ArmoredWyvern}
+	c.ManaCost = 9
+	c.ManaRequirement = []string{civ.Fire}
+
+	attacked := false
+
+	c.Use(fx.Creature, fx.Doublebreaker, fx.Evolution,
+		func(card *match.Card, ctx *match.Context) {
+			if _, ok := ctx.Event.(*match.UntapStep); ok {
+				attacked = false
+			}
+		},
+		fx.When(fx.WheneverThisAttacksPlayerAndIsntBlocked, func(card *match.Card, ctx *match.Context) {
+			if card.Zone != match.BATTLEZONE {
+				attacked = false
+				return
+			}
+
+			attacked = true
+		}),
+		fx.When(fx.EndOfMyTurn, func(card *match.Card, ctx *match.Context) {
+			// The "return to hand" and "take an extra turn" clauses are
+			// independent triggered abilities. Whether this one can resolve
+			// must not affect the other, which checks attacked on the later
+			// EndOfTurnStep.
+			if card.Zone != match.BATTLEZONE {
+				return
+			}
+
+			ctx.ScheduleAfter(func() {
+				_, err := card.Player.MoveCard(card.ID, match.BATTLEZONE, match.HAND, card.ID)
+
+				if err == nil {
+					ctx.Match.ReportActionInChat(card.Player, fmt.Sprintf("%s was returned to the %s's hand", card.Name, card.Player.Username()))
+				}
+			})
+		}),
+		func(card *match.Card, ctx *match.Context) {
+			if _, ok := ctx.Event.(*match.EndOfTurnStep); ok {
+				ctx.ScheduleAfter(func() {
+					if attacked {
+						attacked = false
+						ctx.InterruptFlow()
+						ctx.Match.ReportActionInChat(card.Player, fmt.Sprintf("%s's effect: You will take an extra turn after this one.", card.Name))
+						ctx.Match.BeginNewTurn(true)
+					}
+				})
+			}
+		},
+	)
+
+}

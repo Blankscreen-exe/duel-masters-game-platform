@@ -1,0 +1,41 @@
+package dm05
+
+import (
+	"fmt"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/civ"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/cnd"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/family"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/fx"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/match"
+)
+
+// BalloonshroomQ ...
+func BalloonshroomQ(c *match.Card) {
+
+	c.Name = "Balloonshroom Q"
+	c.Power = 2000
+	c.Civs = []string{civ.Nature}
+	c.Family = []string{family.BalloonMushroom, family.Survivor}
+	c.ManaCost = 4
+	c.ManaRequirement = []string{civ.Nature}
+
+	c.Use(fx.Creature, fx.Survivor, func(card *match.Card, ctx *match.Context) {
+
+		if card.Zone != match.BATTLEZONE {
+			return
+		}
+
+		if event, ok := ctx.Event.(*match.CreatureDestroyed); ok &&
+			event.Card.Player == card.Player &&
+			event.Card.HasCondition(cnd.Survivor) {
+
+			ctx.InterruptFlow()
+
+			card.Player.MoveCard(event.Card.ID, match.BATTLEZONE, match.MANAZONE, card.ID)
+			event.Card.Tapped = false
+			ctx.Match.ReportActionInChat(card.Player, fmt.Sprintf("%s was destroyed by %s and moved to the mana zone", event.Card.Name, event.Source.Name))
+
+		}
+
+	})
+}
