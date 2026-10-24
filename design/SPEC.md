@@ -72,9 +72,19 @@ Browser ──HTTP──▶ Next.js (pages) ──/api, /ws──▶ Go server �
 
 ## 3. Accounts and roles
 
-- Players sign up and log in with a **name and password** (as in Triple Triad: Argon2id hashes,
-  sessions stored as hashes, login throttling).
-- Roles: **player** and **admin**. The first admin is created on first startup.
+- Players sign up and log in with a **name and password**, with the same rules as Triple Triad:
+  - names are 3 to 20 letters, numbers, underscores or hyphens, unique regardless of case;
+  - passwords are 8 to 128 characters, stored as Argon2id hashes (OWASP settings);
+  - a login answers a wrong name and a wrong password alike, in the same time, and an account
+    refuses logins for 15 minutes after 5 wrong passwords;
+  - a login lasts 30 days in an HttpOnly, SameSite=Lax cookie (HTTPS-only in production); the
+    database stores only a hash of each session token;
+  - changing the password needs the current one and ends the account's other sessions.
+- Admins can close sign-ups with the `accounts.signups_open` setting; existing players can still
+  log in.
+- Roles: **player** and **admin**. **The first account to sign up becomes the admin**, as in Triple
+  Triad; the server warns in its log at startup while no account exists, so the owner signs up
+  first.
 - Banned players cannot log in or play; a ban ends their open sessions at once.
 - No email **(default)**: a forgotten password is reset by an admin.
 

@@ -50,9 +50,16 @@ type Config struct {
 	HTTPAddr string `env:"HTTP_ADDR" envDefault:"127.0.0.1:8080"`
 	// DataDir holds the server's files, including the SQLite database. An
 	// empty value counts as unset.
-	DataDir  string `env:"DATA_DIR" envDefault:"./data"`
-	Database Database
-	Log      Log
+	DataDir string `env:"DATA_DIR" envDefault:"./data"`
+	// SecureCookiesSetting is SECURE_COOKIES as given, nil when unset.
+	SecureCookiesSetting *bool `env:"SECURE_COOKIES"`
+	// SecureCookies makes browsers send the session cookie over HTTPS only. It
+	// is on in production and off in development unless SECURE_COOKIES says
+	// otherwise; turn it off only when players reach the server over plain
+	// HTTP, such as on a home network.
+	SecureCookies bool `env:"-"`
+	Database      Database
+	Log           Log
 }
 
 // Database selects and locates the database.
@@ -97,6 +104,11 @@ func Load(environ []string) (Config, error) {
 func (c *Config) applyDefaults() {
 	if c.Database.Driver == SQLite && c.Database.SQLitePath == "" {
 		c.Database.SQLitePath = filepath.Join(c.DataDir, sqliteFileName)
+	}
+
+	c.SecureCookies = c.Environment == Production
+	if c.SecureCookiesSetting != nil {
+		c.SecureCookies = *c.SecureCookiesSetting
 	}
 
 	if c.Log.Format == "" {

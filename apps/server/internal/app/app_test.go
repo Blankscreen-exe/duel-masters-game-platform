@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 )
 
 func testConfig(t *testing.T) config.Config {
@@ -87,4 +89,60 @@ func TestNewRefusesADatabaseItCannotReach(t *testing.T) {
 
 	_, err := New(context.Background(), cfg, quietLogger())
 	assert.Error(t, err)
+}
+
+func TestNewWarnsWhileThereAreNoAccounts(t *testing.T) {
+	cfg := testConfig(t)
+	const warning = "there are no accounts yet"
+
+	var logs bytes.Buffer
+	app, err := New(context.Background(), cfg, slog.New(slog.NewTextHandler(&logs, nil)))
+	require.NoError(t, err)
+	assert.Contains(t, logs.String(), warning)
+
+	_, _, err = app.auth.SignUp(context.Background(), "Shobu", "correct horse battery staple")
+	require.NoError(t, err)
+	require.NoError(t, store.Close(app.db))
+
+	logs.Reset()
+	app, err = New(context.Background(), cfg, slog.New(slog.NewTextHandler(&logs, nil)))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close(app.db)) })
+	assert.NotContains(t, logs.String(), warning)
+}
+
+func TestServeDeletesExpiredSessions(t *testing.T) {
+	app, err := New(context.Background(), testConfig(t), quietLogger())
+	require.NoError(t, err)
+
+	_, live, err := app.auth.SignUp(context.Background(), "Shobu", "correct horse battery staple")
+	require.NoError(t, err)
+
+	var userID string
+	require.NoError(t, app.db.Raw("SELECT id FROM users").Scan(&userID).Error)
+	past := time.Now().UTC().Add(-time.Hour)
+	require.NoError(t, app.db.Exec("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)", "expired-session", userID, past, past).Error)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	served := make(chan error, 1)
+	go func() { served <- app.Serve(ctx, listener) }()
+
+	countSessions := func() int64 {
+		var count int64
+		require.NoError(t, app.db.Table("sessions").Count(&count).Error)
+		return count
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for countSessions() != 1 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Equal(t, int64(1), countSessions(), "the expired session is deleted when the server starts; the live one stays")
+
+	_, err = app.auth.Authenticate(context.Background(), live.Token)
+	assert.NoError(t, err)
+
+	cancel()
+	assert.NoError(t, <-served)
 }

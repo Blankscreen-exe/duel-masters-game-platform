@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 )
 
@@ -26,23 +27,29 @@ type Pinger interface {
 // Dependencies are what the handlers need.
 type Dependencies struct {
 	DB     Pinger
+	Auth   *auth.Service
 	Logger *slog.Logger
+	// SecureCookies makes the session cookie HTTPS-only.
+	SecureCookies bool
 }
 
 // handlers implements the operations of the API contract.
 type handlers struct {
-	db Pinger
+	db            Pinger
+	auth          *auth.Service
+	secureCookies bool
 }
 
 var _ api.StrictServerInterface = (*handlers)(nil)
 
 // NewHandler returns the API: every operation of the contract under /api,
 // JSON errors for unknown endpoints and methods, and the middleware that logs
-// requests, recovers from panics and bounds request bodies.
+// requests, recovers from panics, bounds request bodies, refuses changes not
+// sent as JSON and reads the session cookie.
 func NewHandler(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
-	strict := api.NewStrictHandlerWithOptions(&handlers{db: deps.DB}, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(&handlers{db: deps.DB, auth: deps.Auth, secureCookies: deps.SecureCookies}, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: badRequest,
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			deps.Logger.ErrorContext(r.Context(), "handling a request failed", "method", r.Method, "path", r.URL.Path, "error", err)
@@ -53,10 +60,13 @@ func NewHandler(deps Dependencies) http.Handler {
 		BaseURL:          basePath,
 		BaseRouter:       mux,
 		ErrorHandlerFunc: badRequest,
+		// Only requests matching an operation are held to its rules, so a
+		// wrong path or method is answered 404 or 405, not 415.
+		Middlewares: []api.MiddlewareFunc{requireJSON},
 	})
 	mux.HandleFunc(basePath+"/", unknownEndpoint(mux))
 
-	return logRequests(deps.Logger, recoverPanics(deps.Logger, limitBodies(maxRequestBodyBytes, mux)))
+	return logRequests(deps.Logger, recoverPanics(deps.Logger, limitBodies(maxRequestBodyBytes, readSession(mux))))
 }
 
 func badRequest(w http.ResponseWriter, _ *http.Request, err error) {

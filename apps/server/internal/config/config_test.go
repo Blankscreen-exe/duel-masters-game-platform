@@ -20,6 +20,29 @@ func TestLoadUsesDefaults(t *testing.T) {
 	assert.Equal(t, filepath.Join("./data", "platform.db"), cfg.Database.SQLitePath)
 	assert.Equal(t, slog.LevelInfo, cfg.Log.Level)
 	assert.Equal(t, LogText, cfg.Log.Format)
+	assert.False(t, cfg.SecureCookies, "development serves plain HTTP")
+}
+
+func TestSecureCookies(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		environ []string
+		want    bool
+	}{
+		{"on in production", []string{"APP_ENV=production"}, true},
+		{"off in development", nil, false},
+		{"turned off in production", []string{"APP_ENV=production", "SECURE_COOKIES=false"}, false},
+		{"turned on in development", []string{"SECURE_COOKIES=true"}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := Load(test.environ)
+			require.NoError(t, err)
+			assert.Equal(t, test.want, cfg.SecureCookies)
+		})
+	}
+
+	_, err := Load([]string{"SECURE_COOKIES=maybe"})
+	assert.Error(t, err)
 }
 
 func TestLoadReadsEveryVariable(t *testing.T) {

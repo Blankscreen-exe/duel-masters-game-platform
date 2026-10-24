@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"log/slog"
+	"mime"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -96,6 +97,27 @@ func recoverPanics(logger *slog.Logger, next http.Handler) http.Handler {
 			}
 			writeError(w, http.StatusInternalServerError, codeInternal, "Something went wrong.")
 		}()
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requireJSON refuses requests that change something (POST, PUT, PATCH,
+// DELETE) unless they are sent as JSON. A browser sends JSON to another site
+// only after asking that site's permission, which this server never gives, so
+// a page elsewhere cannot make a logged-in player's browser change anything
+// here (cross-site request forgery). Reading (GET, HEAD) needs no body.
+func requireJSON(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		default:
+			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if err != nil || mediaType != "application/json" {
+				writeError(w, http.StatusUnsupportedMediaType, codeUnsupportedMediaType, "Send this request as JSON, with Content-Type: application/json.")
+				return
+			}
+		}
 
 		next.ServeHTTP(w, r)
 	})

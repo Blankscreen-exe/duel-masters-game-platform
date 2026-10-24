@@ -48,6 +48,7 @@ The server is configured with environment variables, checked at startup:
 | `POSTGRES_URL` |                            | PostgreSQL address, required with `DB_DRIVER=postgres`.      |
 | `LOG_LEVEL`    | `info`                     | `debug`, `info`, `warn` or `error`                           |
 | `LOG_FORMAT`   | `text` (`json` in production) | `text` or `json`                                           |
+| `SECURE_COOKIES` | `false` (`true` in production) | Send the login cookie over HTTPS only. Turn off only for plain HTTP, such as a home network. |
 
 The database tests run on SQLite and, when `TEST_POSTGRES_URL` points at a PostgreSQL server
 (for example `postgres://test:test@127.0.0.1:5432/platform_test?sslmode=disable`), on PostgreSQL
@@ -60,6 +61,9 @@ Changes to the rules engine follow
 [`apps/server/internal/engine/CONTRIBUTING.md`](apps/server/internal/engine/CONTRIBUTING.md).
 Known engine bugs and the order we fix them in are in
 [`docs/engine-fixes.md`](docs/engine-fixes.md).
+
+The first account to sign up becomes the admin, so sign up straight after the first start; the
+server warns in its log until an account exists.
 
 ## Running with Docker
 

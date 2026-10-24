@@ -5,6 +5,12 @@ info:
   description: >-
     The HTTP API of the Go server. The Go handler interfaces and the TypeScript client are generated
     from this file; edit it, then regenerate both.
+
+
+    Requests that change something (POST, PUT, PATCH, DELETE) must be sent as JSON with
+    `Content-Type: application/json`, which browsers cannot do across sites without permission;
+    other content types are refused with 415. Logged-in requests carry the session cookie set by
+    sign-up and login.
   license:
     name: MIT
     url: https://opensource.org/license/mit
@@ -13,6 +19,8 @@ servers:
 tags:
   - name: system
     description: The server itself.
+  - name: auth
+    description: Accounts, logging in and out, and passwords.
 paths:
   /health:
     get:
@@ -32,7 +40,178 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /auth/signup:
+    post:
+      operationId: signUp
+      summary: Create an account and log it in
+      description: The first account ever created becomes the admin.
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "201":
+          description: The account was created and is logged in.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SetSessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "403":
+          description: An admin has closed sign-ups (code "signups_closed").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The username is taken, in any case (code "username_taken").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/login:
+    post:
+      operationId: logIn
+      summary: Log in
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200":
+          description: Logged in.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SetSessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          description: >-
+            Wrong username or password (code "invalid_credentials"). The answer does not say which.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyAttempts"
+  /auth/logout:
+    post:
+      operationId: logOut
+      summary: Log out
+      description: Ends this session. Logging out without a session is not an error.
+      tags: [auth]
+      responses:
+        "204":
+          description: Logged out.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/ClearSessionCookie"
+  /auth/me:
+    get:
+      operationId: getCurrentAccount
+      summary: The account that is logged in
+      tags: [auth]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The logged-in account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /auth/password:
+    post:
+      operationId: changePassword
+      summary: Change the password
+      description: >-
+        Needs the current password. Every other session of the account ends; this one stays logged
+        in.
+      tags: [auth]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChange"
+      responses:
+        "204":
+          description: The password was changed.
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: The current password is wrong (code "wrong_password").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyAttempts"
 components:
+  securitySchemes:
+    sessionCookie:
+      description: The session cookie set by sign-up and login. It is HttpOnly and SameSite=Lax.
+      type: apiKey
+      in: cookie
+      name: session
+  headers:
+    SetSessionCookie:
+      description: Sets the session cookie.
+      schema:
+        type: string
+    ClearSessionCookie:
+      description: Removes the session cookie.
+      schema:
+        type: string
+    RetryAfter:
+      description: Seconds to wait before trying again.
+      schema:
+        type: integer
+  responses:
+    InvalidInput:
+      description: >-
+        The request is not valid JSON (code "bad_request"), or a field breaks its rules (code
+        "invalid_input", with the field named).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthenticated:
+      description: Not logged in, or the session has expired (code "unauthenticated").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyAttempts:
+      description: >-
+        Too many wrong passwords for this account; try again later (code "too_many_attempts").
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     Health:
       type: object
@@ -47,6 +226,44 @@ components:
     HealthStatus:
       type: string
       enum: [ok, unavailable]
+    Credentials:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          description: 3 to 20 letters, numbers, underscores or hyphens.
+          type: string
+        password:
+          description: 8 to 128 characters.
+          type: string
+          format: password
+    PasswordChange:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          description: 8 to 128 characters.
+          type: string
+          format: password
+    Account:
+      type: object
+      required: [id, username, role, createdAt]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        createdAt:
+          type: string
+          format: date-time
+    Role:
+      type: string
+      enum: [player, admin]
     Error:
       description: Returned with every error status.
       type: object
@@ -57,4 +274,7 @@ components:
           type: string
         message:
           description: A readable explanation of the error.
+          type: string
+        field:
+          description: The request field at fault, for "invalid_input" errors.
           type: string

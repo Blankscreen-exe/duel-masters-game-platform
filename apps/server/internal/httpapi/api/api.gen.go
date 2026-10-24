@@ -11,6 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/oapi-codegen/runtime"
 )
 
 // Defines values for HealthStatus.
@@ -31,10 +34,48 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for Role.
+const (
+	RoleAdmin  Role = "admin"
+	RolePlayer Role = "player"
+)
+
+// Valid indicates whether the value is a known member of the Role enum.
+func (e Role) Valid() bool {
+	switch e {
+	case RoleAdmin:
+		return true
+	case RolePlayer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Account defines model for Account.
+type Account struct {
+	CreatedAt time.Time `json:"createdAt"`
+	Id        string    `json:"id"`
+	Role      Role      `json:"role"`
+	Username  string    `json:"username"`
+}
+
+// Credentials defines model for Credentials.
+type Credentials struct {
+	// Password 8 to 128 characters.
+	Password string `json:"password"`
+
+	// Username 3 to 20 letters, numbers, underscores or hyphens.
+	Username string `json:"username"`
+}
+
 // Error Returned with every error status.
 type Error struct {
 	// Code A stable, machine-readable error code, such as "not_found".
 	Code string `json:"code"`
+
+	// Field The request field at fault, for "invalid_input" errors.
+	Field *string `json:"field,omitempty"`
 
 	// Message A readable explanation of the error.
 	Message string `json:"message"`
@@ -49,8 +90,52 @@ type Health struct {
 // HealthStatus defines model for HealthStatus.
 type HealthStatus string
 
+// PasswordChange defines model for PasswordChange.
+type PasswordChange struct {
+	CurrentPassword string `json:"currentPassword"`
+
+	// NewPassword 8 to 128 characters.
+	NewPassword string `json:"newPassword"`
+}
+
+// Role defines model for Role.
+type Role string
+
+// InvalidInput Returned with every error status.
+type InvalidInput = Error
+
+// TooManyAttempts Returned with every error status.
+type TooManyAttempts = Error
+
+// Unauthenticated Returned with every error status.
+type Unauthenticated = Error
+
+// LogInJSONRequestBody defines body for LogIn for application/json ContentType.
+type LogInJSONRequestBody = Credentials
+
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody = PasswordChange
+
+// SignUpJSONRequestBody defines body for SignUp for application/json ContentType.
+type SignUpJSONRequestBody = Credentials
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// LogIn Log in
+	// (POST /auth/login)
+	LogIn(w http.ResponseWriter, r *http.Request)
+	// LogOut Log out
+	// (POST /auth/logout)
+	LogOut(w http.ResponseWriter, r *http.Request)
+	// GetCurrentAccount The account that is logged in
+	// (GET /auth/me)
+	GetCurrentAccount(w http.ResponseWriter, r *http.Request)
+	// ChangePassword Change the password
+	// (POST /auth/password)
+	ChangePassword(w http.ResponseWriter, r *http.Request)
+	// SignUp Create an account and log it in
+	// (POST /auth/signup)
+	SignUp(w http.ResponseWriter, r *http.Request)
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -64,6 +149,76 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// LogIn operation middleware
+func (siw *ServerInterfaceWrapper) LogIn(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LogIn(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LogOut operation middleware
+func (siw *ServerInterfaceWrapper) LogOut(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LogOut(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCurrentAccount operation middleware
+func (siw *ServerInterfaceWrapper) GetCurrentAccount(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCurrentAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangePassword(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ChangePassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SignUp operation middleware
+func (siw *ServerInterfaceWrapper) SignUp(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SignUp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
@@ -200,8 +355,310 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.GetHealth)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/signup", wrapper.SignUp)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/login", wrapper.LogIn)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.LogOut)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/me", wrapper.GetCurrentAccount)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/password", wrapper.ChangePassword)
 
 	return m
+}
+
+type InvalidInputJSONResponse Error
+
+type TooManyAttemptsResponseHeaders struct {
+	RetryAfter *int
+}
+type TooManyAttemptsJSONResponse struct {
+	Body Error
+
+	Headers TooManyAttemptsResponseHeaders
+}
+
+type UnauthenticatedJSONResponse Error
+
+type LogInRequestObject struct {
+	Body *LogInJSONRequestBody
+}
+
+type LogInResponseObject interface {
+	VisitLogInResponse(w http.ResponseWriter) error
+}
+
+type LogIn200ResponseHeaders struct {
+	SetCookie *string
+}
+
+type LogIn200JSONResponse struct {
+	Body    Account
+	Headers LogIn200ResponseHeaders
+}
+
+func (response LogIn200JSONResponse) VisitLogInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LogIn400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response LogIn400JSONResponse) VisitLogInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LogIn401JSONResponse Error
+
+func (response LogIn401JSONResponse) VisitLogInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LogIn429JSONResponse struct{ TooManyAttemptsJSONResponse }
+
+func (response LogIn429JSONResponse) VisitLogInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LogOutRequestObject struct {
+}
+
+type LogOutResponseObject interface {
+	VisitLogOutResponse(w http.ResponseWriter) error
+}
+
+type LogOut204ResponseHeaders struct {
+	SetCookie *string
+}
+
+type LogOut204Response struct {
+	Headers LogOut204ResponseHeaders
+}
+
+func (response LogOut204Response) VisitLogOutResponse(w http.ResponseWriter) error {
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(204)
+	return nil
+}
+
+type GetCurrentAccountRequestObject struct {
+}
+
+type GetCurrentAccountResponseObject interface {
+	VisitGetCurrentAccountResponse(w http.ResponseWriter) error
+}
+
+type GetCurrentAccount200JSONResponse Account
+
+func (response GetCurrentAccount200JSONResponse) VisitGetCurrentAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCurrentAccount401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetCurrentAccount401JSONResponse) VisitGetCurrentAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangePasswordRequestObject struct {
+	Body *ChangePasswordJSONRequestBody
+}
+
+type ChangePasswordResponseObject interface {
+	VisitChangePasswordResponse(w http.ResponseWriter) error
+}
+
+type ChangePassword204Response struct {
+}
+
+func (response ChangePassword204Response) VisitChangePasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ChangePassword400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response ChangePassword400JSONResponse) VisitChangePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangePassword401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ChangePassword401JSONResponse) VisitChangePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangePassword403JSONResponse Error
+
+func (response ChangePassword403JSONResponse) VisitChangePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangePassword429JSONResponse struct{ TooManyAttemptsJSONResponse }
+
+func (response ChangePassword429JSONResponse) VisitChangePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SignUpRequestObject struct {
+	Body *SignUpJSONRequestBody
+}
+
+type SignUpResponseObject interface {
+	VisitSignUpResponse(w http.ResponseWriter) error
+}
+
+type SignUp201ResponseHeaders struct {
+	SetCookie *string
+}
+
+type SignUp201JSONResponse struct {
+	Body    Account
+	Headers SignUp201ResponseHeaders
+}
+
+func (response SignUp201JSONResponse) VisitSignUpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SignUp400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response SignUp400JSONResponse) VisitSignUpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SignUp403JSONResponse Error
+
+func (response SignUp403JSONResponse) VisitSignUpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SignUp409JSONResponse Error
+
+func (response SignUp409JSONResponse) VisitSignUpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetHealthRequestObject struct {
@@ -241,6 +698,21 @@ func (response GetHealth503JSONResponse) VisitGetHealthResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// LogIn Log in
+	// (POST /auth/login)
+	LogIn(ctx context.Context, request LogInRequestObject) (LogInResponseObject, error)
+	// LogOut Log out
+	// (POST /auth/logout)
+	LogOut(ctx context.Context, request LogOutRequestObject) (LogOutResponseObject, error)
+	// GetCurrentAccount The account that is logged in
+	// (GET /auth/me)
+	GetCurrentAccount(ctx context.Context, request GetCurrentAccountRequestObject) (GetCurrentAccountResponseObject, error)
+	// ChangePassword Change the password
+	// (POST /auth/password)
+	ChangePassword(ctx context.Context, request ChangePasswordRequestObject) (ChangePasswordResponseObject, error)
+	// SignUp Create an account and log it in
+	// (POST /auth/signup)
+	SignUp(ctx context.Context, request SignUpRequestObject) (SignUpResponseObject, error)
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -283,6 +755,147 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// LogIn operation middleware
+func (sh *strictHandler) LogIn(w http.ResponseWriter, r *http.Request) {
+	var request LogInRequestObject
+
+	var body LogInJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LogIn(ctx, request.(LogInRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LogIn")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LogInResponseObject); ok {
+		if err := validResponse.VisitLogInResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LogOut operation middleware
+func (sh *strictHandler) LogOut(w http.ResponseWriter, r *http.Request) {
+	var request LogOutRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LogOut(ctx, request.(LogOutRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LogOut")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LogOutResponseObject); ok {
+		if err := validResponse.VisitLogOutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCurrentAccount operation middleware
+func (sh *strictHandler) GetCurrentAccount(w http.ResponseWriter, r *http.Request) {
+	var request GetCurrentAccountRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCurrentAccount(ctx, request.(GetCurrentAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCurrentAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCurrentAccountResponseObject); ok {
+		if err := validResponse.VisitGetCurrentAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ChangePassword operation middleware
+func (sh *strictHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	var request ChangePasswordRequestObject
+
+	var body ChangePasswordJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ChangePassword(ctx, request.(ChangePasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ChangePassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ChangePasswordResponseObject); ok {
+		if err := validResponse.VisitChangePasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SignUp operation middleware
+func (sh *strictHandler) SignUp(w http.ResponseWriter, r *http.Request) {
+	var request SignUpRequestObject
+
+	var body SignUpJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SignUp(ctx, request.(SignUpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SignUp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SignUpResponseObject); ok {
+		if err := validResponse.VisitSignUpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetHealth operation middleware
