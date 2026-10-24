@@ -18,6 +18,7 @@ const migrationsTable = "schema_migrations"
 func migrations() []*gormigrate.Migration {
 	return []*gormigrate.Migration{
 		migration0001Settings(),
+		migration0002Accounts(),
 	}
 }
 
