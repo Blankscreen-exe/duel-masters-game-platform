@@ -1,0 +1,10 @@
+{
+  // The build leaves the tests out of the published package. This checks them
+  // together with the code they exercise, since Vitest itself does not
+  // type-check.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "exclude": ["node_modules", "dist"]
+}

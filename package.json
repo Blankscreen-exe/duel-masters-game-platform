@@ -1,0 +1,17 @@
+{
+  "name": "duel-masters-game-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted online Duel Masters with accounts, decks, a lobby, ratings and an admin panel.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "pnpm -r test && pnpm test:server",
+    "test:server": "go -C apps/server test ./... -count=1 -timeout 300s",
+    "test:race": "go -C apps/server test -race ./... -count=1 -timeout 300s",
+    "vet": "go -C apps/server vet ./..."
+  }
+}
