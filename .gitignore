@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+build/
+bin/
+*.tsbuildinfo
+next-env.d.ts
+
+# Go
+*.exe
+*.test
+*.out
+
+# Tests
+coverage/
+playwright-report/
+test-results/
+
+# Runtime data (database, uploads, backups)
+data/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,3 @@
+[submodule "resources/duelmasters_db"]
+	path = resources/duelmasters_db
+	url = https://github.com/Blankscreen-exe/duelmasters_db.git
