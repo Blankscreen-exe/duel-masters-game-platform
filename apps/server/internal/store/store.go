@@ -50,8 +50,9 @@ func Open(ctx context.Context, cfg config.Database, logger *slog.Logger) (*gorm.
 		// gorm.ErrDuplicatedKey, and a broken foreign key as
 		// gorm.ErrForeignKeyViolated.
 		TranslateError: true,
-		// Timestamps are stored in UTC on both databases.
-		NowFunc: func() time.Time { return time.Now().UTC() },
+		// Timestamps are UTC and kept to the microsecond, the precision
+		// PostgreSQL stores, so a time held in memory equals the one read back.
+		NowFunc: func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) },
 	})
 	if err != nil {
 		return nil, fmt.Errorf("opening the %s database: %w", cfg.Driver, err)
