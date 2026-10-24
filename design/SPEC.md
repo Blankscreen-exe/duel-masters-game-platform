@@ -39,6 +39,9 @@ These apply to every part of the project and outrank convenience.
   connection (`/ws/*`) to the Go server, so there is one origin and one login cookie.
 - All environment-specific values (ports, data folder, card resources folder, database, secrets)
   come from environment variables, validated at startup.
+- **One Go server per database.** Live games are held in the server's memory, so a second server
+  on the same database would not see them. Migrations therefore run from a single server at
+  startup.
 
 ## 2. Tech stack and architecture
 
