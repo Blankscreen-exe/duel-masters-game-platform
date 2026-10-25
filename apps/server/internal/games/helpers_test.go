@@ -163,7 +163,6 @@ func newFixture(t *testing.T, db *gorm.DB) fixture {
 	}
 }
 
-// deck is a legal deck: 4 copies of each of the ten cards.
 // standing is a player's rating columns, as a test reads them.
 type standing struct{ Rating, Wins, Losses, Streak int }
 
@@ -175,6 +174,7 @@ func (f fixture) standing(t *testing.T, userID string) standing {
 	return row
 }
 
+// deck is a legal deck: 4 copies of each of the ten cards.
 func (f fixture) deck(name string) decks.Deck {
 	return decks.Deck{ID: name, Name: name, Cards: gamestest.LegalDeck(f.cardIDs)}
 }

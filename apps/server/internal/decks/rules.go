@@ -154,11 +154,15 @@ func Civilizations(entries []Entry, known map[string]cards.Card) []string {
 	for civilization := range present {
 		found = append(found, civilization)
 	}
-	slices.SortFunc(found, func(a, b string) int {
-		return cmp.Or(cmp.Compare(civilizationRank(a), civilizationRank(b)), cmp.Compare(a, b))
-	})
+	slices.SortFunc(found, CompareCivilizations)
 
 	return found
+}
+
+// CompareCivilizations orders civilizations in the game's order, any it does
+// not know last, by name.
+func CompareCivilizations(a, b string) int {
+	return cmp.Or(cmp.Compare(civilizationRank(a), civilizationRank(b)), cmp.Compare(a, b))
 }
 
 func civilizationRank(civilization string) int {
