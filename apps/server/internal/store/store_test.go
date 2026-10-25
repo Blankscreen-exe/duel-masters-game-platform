@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,4 +130,59 @@ func TestOpenSQLiteConnectionsCanOpenAtTheSameTime(t *testing.T) {
 	for _, err := range errs {
 		assert.NoError(t, err)
 	}
+}
+
+func TestTimesSortAndCompareAsTimes(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		// As RFC 3339 text, without its trailing zeros, the earlier of these
+		// two times sorted after the later.
+		earlier := time.Date(2026, 10, 26, 12, 0, 0, 123_400_000, time.UTC)
+		later := time.Date(2026, 10, 26, 12, 0, 0, 123_450_000, time.UTC)
+		for key, at := range map[string]time.Time{"test.later": later, "test.earlier": earlier} {
+			require.NoError(t, db.Exec("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)", key, "x", at).Error)
+		}
+
+		var ordered []string
+		require.NoError(t, db.Raw("SELECT key FROM settings ORDER BY updated_at").Scan(&ordered).Error)
+		assert.Equal(t, []string{"test.earlier", "test.later"}, ordered)
+
+		var after []string
+		require.NoError(t, db.Raw("SELECT key FROM settings WHERE updated_at > ?", earlier).Scan(&after).Error)
+		assert.Equal(t, []string{"test.later"}, after)
+
+		var read time.Time
+		require.NoError(t, db.Raw("SELECT updated_at FROM settings WHERE key = ?", "test.later").Scan(&read).Error)
+		assert.True(t, later.Equal(read), "read back as written: %s", read)
+	})
+}
+
+func TestMigrateRewritesSQLiteTimesAsNumbers(t *testing.T) {
+	db := storetest.OpenUnmigrated(t, config.SQLite)
+	require.NoError(t, store.MigrateTo(db, "0008_add_ratings"))
+
+	// Times as the driver used to write them: RFC 3339 text.
+	for key, at := range map[string]string{"test.later": "2026-10-26T12:00:00.12345Z", "test.earlier": "2026-10-26T12:00:00.1234Z"} {
+		require.NoError(t, db.Exec("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)", key, "x", at).Error)
+	}
+	var ordered []string
+	require.NoError(t, db.Raw("SELECT key FROM settings ORDER BY updated_at").Scan(&ordered).Error)
+	require.Equal(t, []string{"test.later", "test.earlier"}, ordered, "text sorted wrongly")
+
+	require.NoError(t, store.Migrate(db))
+
+	var kinds []string
+	require.NoError(t, db.Raw("SELECT DISTINCT typeof(updated_at) FROM settings").Scan(&kinds).Error)
+	assert.Equal(t, []string{"integer"}, kinds)
+	ordered = nil
+	require.NoError(t, db.Raw("SELECT key FROM settings ORDER BY updated_at").Scan(&ordered).Error)
+	assert.Equal(t, []string{"test.earlier", "test.later"}, ordered)
+
+	var read time.Time
+	require.NoError(t, db.Raw("SELECT updated_at FROM settings WHERE key = ?", "test.earlier").Scan(&read).Error)
+	assert.True(t, time.Date(2026, 10, 26, 12, 0, 0, 123_400_000, time.UTC).Equal(read), "the same time: %s", read)
+
+	require.NoError(t, store.RollbackTo(db, "0008_add_ratings"))
+	var texts []string
+	require.NoError(t, db.Raw("SELECT updated_at FROM settings ORDER BY key").Scan(&texts).Error)
+	assert.Equal(t, []string{"2026-10-26T12:00:00.1234Z", "2026-10-26T12:00:00.12345Z"}, texts, "undone, back to text")
 }

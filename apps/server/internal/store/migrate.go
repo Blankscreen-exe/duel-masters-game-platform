@@ -25,6 +25,7 @@ func migrations() []*gormigrate.Migration {
 		migration0006LobbyChat(),
 		migration0007Games(),
 		migration0008Ratings(),
+		migration0009SQLiteTimesAsNumbers(),
 	}
 }
 
@@ -33,17 +34,19 @@ func migrations() []*gormigrate.Migration {
 // database that has run migrations this server does not know, such as one
 // last used by a newer version.
 func Migrate(db *gorm.DB) error {
-	m := gormigrate.New(db, &gormigrate.Options{
+	if err := migrator(db).Migrate(); err != nil {
+		return fmt.Errorf("migrating the database: %w", err)
+	}
+
+	return nil
+}
+
+func migrator(db *gorm.DB) *gormigrate.Gormigrate {
+	return gormigrate.New(db, &gormigrate.Options{
 		TableName:                 migrationsTable,
 		IDColumnName:              "id",
 		IDColumnSize:              255,
 		UseTransaction:            true,
 		ValidateUnknownMigrations: true,
 	}, migrations())
-
-	if err := m.Migrate(); err != nil {
-		return fmt.Errorf("migrating the database: %w", err)
-	}
-
-	return nil
 }

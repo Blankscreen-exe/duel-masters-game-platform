@@ -134,7 +134,8 @@ func storedDeck(entries []decks.Entry) []storedEntry {
 	return stored
 }
 
-// record is a finished game as history keeps it.
+// record is a finished game as history keeps it, with its times as the
+// database stores them, so the players are told of it as history shows it.
 func record(done finished) Record {
 	result, game := done.result, done.live.game
 
@@ -148,8 +149,8 @@ func record(done finished) Record {
 		WinnerID:    result.WinnerID,
 		Ending:      Ending(result.Ending),
 		Turns:       result.Turns,
-		StartedAt:   result.StartedAt.UTC(),
-		EndedAt:     result.EndedAt.UTC(),
+		StartedAt:   result.StartedAt.UTC().Truncate(time.Microsecond),
+		EndedAt:     result.EndedAt.UTC().Truncate(time.Microsecond),
 		Counted:     result.Counted,
 		Visible:     game.Visible,
 		Matchmaking: game.Matchmaking,

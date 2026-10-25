@@ -7,6 +7,7 @@ require (
 	github.com/go-gormigrate/gormigrate/v2 v2.1.7
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/ncruces/go-sqlite3 v0.34.0
 	github.com/ncruces/go-sqlite3/gormlite v0.34.0
 	github.com/oapi-codegen/runtime v1.8.0
 	github.com/sirupsen/logrus v1.9.1
@@ -31,7 +32,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/ncruces/go-sqlite3 v0.34.0 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v2 v2.1.35300 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/oapi-codegen/oapi-codegen/v2 v2.8.1 // indirect

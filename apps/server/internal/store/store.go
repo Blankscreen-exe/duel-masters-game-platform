@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ncruces/go-sqlite3"
 	"github.com/ncruces/go-sqlite3/gormlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -128,7 +129,11 @@ func dialectorFor(cfg config.Database) (gorm.Dialector, error) {
 //     useWriteAheadLog);
 //   - immediate transactions, which take the write lock when they begin and so
 //     cannot fail half way when two connections write at once. SQLite allows
-//     one writer at a time, so transactions run one after another.
+//     one writer at a time, so transactions run one after another;
+//   - times stored as microseconds since 1970, which sort and compare as
+//     times, whatever their time zone, to PostgreSQL's precision. The
+//     driver's default, RFC 3339 text, leaves out trailing zeros, so
+//     12:00:00.1234 sorts after 12:00:00.12345.
 func sqliteDSN(path string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return "", fmt.Errorf("creating the folder for the SQLite database: %w", err)
@@ -139,6 +144,7 @@ func sqliteDSN(path string) (string, error) {
 	query.Add("_pragma", "foreign_keys(1)")
 	query.Add("_pragma", "synchronous(normal)")
 	query.Set("_txlock", "immediate")
+	query.Set("_timefmt", string(sqlite3.TimeFormatUnixMicro))
 
 	return (&url.URL{Scheme: "file", Opaque: filepath.ToSlash(path), RawQuery: query.Encode()}).String(), nil
 }
