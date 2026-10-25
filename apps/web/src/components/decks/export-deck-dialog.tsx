@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalClose } from '@/components/ui/modal';
-import { deckText, type Outcome } from '@/lib/deck-actions';
+import type { Outcome } from '@/lib/api/outcome';
+import { deckText } from '@/lib/deck-actions';
 import { notify } from '@/lib/notifications';
 
 interface ExportDeckDialogProps {

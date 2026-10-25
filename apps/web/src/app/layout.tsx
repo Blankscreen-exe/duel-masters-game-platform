@@ -1,8 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
-import { SiteFooter } from '@/components/site-footer';
-import { SiteHeader } from '@/components/site-header';
-import { TabBar } from '@/components/tab-bar';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 
@@ -36,10 +33,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={`${rajdhani.variable} ${inter.variable}`}>
       <body className="flex flex-col">
-        <SiteHeader />
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{children}</main>
-        <SiteFooter />
-        <TabBar />
+        {children}
         <Toaster />
       </body>
     </html>
