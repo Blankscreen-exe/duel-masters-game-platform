@@ -33,7 +33,16 @@ const (
 	// sendQueue is how many messages may wait for a slow connection before it
 	// is dropped, so one stuck tab never holds up everyone else.
 	sendQueue = 64
+	// closeWait is how long a connection told to stop has to send its close
+	// message before it is closed under it, as a stuck one would never send
+	// it.
+	closeWait = time.Second
 )
+
+// CloseSignedOut is the close code of the connections of a player put out of
+// the site, such as by a ban, so their pages know they are logged out. Codes
+// from 4000 are the application's own.
+const CloseSignedOut = 4001
 
 // Viewer is who a connection belongs to. A visitor has no user id.
 type Viewer struct {
@@ -122,13 +131,22 @@ type client struct {
 	viewer Viewer
 	send   chan []byte
 	// gone is closed once the connection is to stop, by whichever side
-	// notices first.
-	gone     chan struct{}
-	goneOnce sync.Once
+	// notices first; closeCode, set just before, is the code the browser is
+	// sent as it closes.
+	gone      chan struct{}
+	goneOnce  sync.Once
+	closeCode int
 }
 
 func (c *client) stop() {
-	c.goneOnce.Do(func() { close(c.gone) })
+	c.stopWith(websocket.CloseGoingAway)
+}
+
+func (c *client) stopWith(code int) {
+	c.goneOnce.Do(func() {
+		c.closeCode = code
+		close(c.gone)
+	})
 }
 
 // Serve keeps a websocket connection, already upgraded, until it closes or
@@ -147,6 +165,14 @@ func (h *Hub) Serve(conn *websocket.Conn, viewer Viewer) error {
 		defer close(written)
 		h.write(c)
 	}()
+	go func() {
+		<-c.gone
+		select {
+		case <-written:
+		case <-time.After(closeWait):
+			_ = conn.Close()
+		}
+	}()
 
 	h.read(c)
 	c.stop()
@@ -158,19 +184,14 @@ func (h *Hub) Serve(conn *websocket.Conn, viewer Viewer) error {
 }
 
 // read reads until the connection fails, answering pings and keeping it
-// alive. Browsers send nothing else that matters.
+// alive. Browsers send nothing else that matters. Once the connection is
+// told to stop, it is closed, which ends the read.
 func (h *Hub) read(c *client) {
 	c.conn.SetReadLimit(maxMessageSize)
 	_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
 		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
-
-	// Closing the connection when it is told to stop ends the read below.
-	go func() {
-		<-c.gone
-		_ = c.conn.Close()
-	}()
 
 	for {
 		if _, _, err := c.conn.ReadMessage(); err != nil {
@@ -179,15 +200,18 @@ func (h *Hub) read(c *client) {
 	}
 }
 
-// write sends the connection its messages and pings, until it stops.
+// write sends the connection its messages and pings, until it stops, and
+// then closes it: after the close message, when it was told to stop, so the
+// browser learns why.
 func (h *Hub) write(c *client) {
 	ping := time.NewTicker(pingPeriod)
 	defer ping.Stop()
+	defer func() { _ = c.conn.Close() }()
 
 	for {
 		select {
 		case <-c.gone:
-			_ = c.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, ""), time.Now().Add(writeWait))
+			_ = c.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(c.closeCode, ""), time.Now().Add(writeWait))
 			return
 		case message := <-c.send:
 			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
@@ -240,6 +264,10 @@ func (h *Hub) remove(c *client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	if _, kept := h.clients[c]; !kept {
+		// Disconnect has already taken it out.
+		return
+	}
 	delete(h.clients, c)
 	if !c.viewer.LoggedIn() {
 		return
@@ -269,6 +297,32 @@ func (h *Hub) goOffline(uid string) {
 	h.mu.Unlock()
 
 	h.presenceChanged(viewer)
+}
+
+// Disconnect closes every live connection of a player with CloseSignedOut
+// and sends them offline at once, without the delay a closed tab has, as when
+// they are banned. Their pages connect again as a visitor's.
+func (h *Hub) Disconnect(userID string) {
+	h.mu.Lock()
+	clients := h.byUser[userID]
+	delete(h.byUser, userID)
+	for c := range clients {
+		delete(h.clients, c)
+	}
+	if timer, waiting := h.leaving[userID]; waiting {
+		timer.Stop()
+		delete(h.leaving, userID)
+	}
+	viewer, online := h.viewers[userID]
+	delete(h.viewers, userID)
+	h.mu.Unlock()
+
+	for c := range clients {
+		c.stopWith(CloseSignedOut)
+	}
+	if online {
+		h.presenceChanged(viewer)
+	}
 }
 
 // Broadcast sends a message to every connection, visitors included.

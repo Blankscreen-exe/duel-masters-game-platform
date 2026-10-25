@@ -274,3 +274,31 @@ func TestBroadcastPlayersLeavesVisitorsOut(t *testing.T) {
 	assert.Equal(t, "lobby", receive(t, player)["type"])
 	nothingArrives(t, visitor)
 }
+
+func TestDisconnectPutsAPlayerOutAtOnce(t *testing.T) {
+	hub, presence := newHub(t, time.Minute)
+	server := testServer(t, hub)
+
+	firstTab := dial(t, server, "u1", "Shobu")
+	secondTab := dial(t, server, "u1", "Shobu")
+	other := dial(t, server, "u2", "Kokujo")
+	waitUntil(t, func() bool { return hub.Connections() == 3 }, "every tab should be open")
+
+	hub.Disconnect("u1")
+
+	assert.False(t, hub.IsOnline("u1"), "offline at once, without the delay a closed tab has")
+	assert.Equal(t, []Viewer{{UserID: "u2", Username: "Kokujo"}}, hub.Online())
+	names := presence.names()
+	require.Len(t, names, 3, "Shobu and Kokujo came online, then Shobu left")
+	assert.ElementsMatch(t, []string{"Shobu", "Kokujo"}, names[:2])
+	assert.Equal(t, "Shobu", names[2])
+	for _, tab := range []*websocket.Conn{firstTab, secondTab} {
+		require.NoError(t, tab.SetReadDeadline(time.Now().Add(testTimeout)))
+		_, _, err := tab.ReadMessage()
+		assert.True(t, websocket.IsCloseError(err, CloseSignedOut), "the page should learn it is logged out, got %v", err)
+	}
+	waitUntil(t, func() bool { return hub.Connections() == 1 }, "only Kokujo's tab should be left")
+
+	hub.SendTo("u2", map[string]string{"type": "still_here"})
+	assert.Equal(t, "still_here", receive(t, other)["type"])
+}
