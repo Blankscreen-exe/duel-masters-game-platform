@@ -2,6 +2,8 @@ import type { DuelFinishedMessage } from '@duel-masters/duel-board';
 import Link from 'next/link';
 import { buttonClasses } from '@/components/ui/button';
 import { describeResult } from '@/lib/game-result';
+import type { GameViewer } from './game-viewer';
+import { RematchPanel } from './rematch-panel';
 
 const HEADLINE_COLOUR = {
   won: 'text-civ-light',
@@ -12,14 +14,12 @@ const HEADLINE_COLOUR = {
 /** The site's result screen, shown on the board once a game has ended. */
 export function GameResultPanel({
   message,
-  viewerId,
-  isPlayer,
+  viewer,
 }: {
   readonly message: DuelFinishedMessage;
-  readonly viewerId: string;
-  readonly isPlayer: boolean;
+  readonly viewer: GameViewer;
 }) {
-  const result = describeResult(message, viewerId, isPlayer);
+  const result = describeResult(message, viewer.id, viewer.isPlayer);
 
   return (
     <div className="p-6 text-center text-white">
@@ -33,7 +33,11 @@ export function GameResultPanel({
           <li key={detail}>{detail}</li>
         ))}
       </ul>
-      <Link href="/play" className={buttonClasses('primary', 'mt-6')}>
+      {viewer.isPlayer && (
+        <RematchPanel gameId={message.duelId} viewerName={viewer.username} decks={viewer.decks} />
+      )}
+      {/* Leaving the result screen declines a rematch still being decided. */}
+      <Link href="/play" className={buttonClasses('secondary', 'mt-4 w-full')}>
         Back to the lobby
       </Link>
     </div>

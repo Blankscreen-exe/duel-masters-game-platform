@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import type { GameViewer } from './game-viewer';
 
 /** The board, loaded in the browser only (see GameBoard). */
 const GameBoard = dynamic(() => import('./game-board'), {
@@ -12,10 +13,6 @@ const GameBoard = dynamic(() => import('./game-board'), {
   ),
 });
 
-export function GameScreen(props: {
-  readonly gameId: string;
-  readonly viewerId: string;
-  readonly isPlayer: boolean;
-}) {
+export function GameScreen(props: { readonly gameId: string; readonly viewer: GameViewer }) {
   return <GameBoard {...props} />;
 }

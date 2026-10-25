@@ -1,4 +1,5 @@
 import type { DuelFinishedMessage } from '@duel-masters/duel-board';
+import { minutesAndSeconds } from './time-text';
 
 /** What the result screen says about a finished game. */
 export interface GameResult {
@@ -52,8 +53,6 @@ function endingText(message: DuelFinishedMessage, viewerWon: boolean): string {
 }
 
 function playedText(message: DuelFinishedMessage): string {
-  const minutes = Math.floor(message.durationSeconds / 60);
-  const seconds = message.durationSeconds % 60;
   const turns = message.turns === 1 ? '1 turn' : `${String(message.turns)} turns`;
-  return `${turns} in ${String(minutes)}:${String(seconds).padStart(2, '0')}.`;
+  return `${turns} in ${minutesAndSeconds(message.durationSeconds)}.`;
 }

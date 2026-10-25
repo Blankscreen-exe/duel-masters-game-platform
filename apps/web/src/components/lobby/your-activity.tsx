@@ -6,7 +6,7 @@ import { Button, buttonClasses } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
 import type { components } from '@/lib/api/schema';
 import { inviteLink } from '@/lib/lobby';
-import { cancelOpenGame, type OpenGame } from '@/lib/lobby-actions';
+import { cancelOpenGame, declineRematch, type OpenGame } from '@/lib/lobby-actions';
 import { notify } from '@/lib/notifications';
 import { useSiteOrigin } from '@/lib/use-site-origin';
 
@@ -38,7 +38,37 @@ export function YourActivity({ activity, hosted }: YourActivityProps) {
     return <HostedGame openGameId={activity.gameId} hosted={hosted} />;
   }
 
+  if (activity.kind === 'rematch' && activity.gameId) {
+    return <UndecidedRematch gameId={activity.gameId} />;
+  }
+
   return null;
+}
+
+/**
+ * A rematch still being decided, as the lobby shows it: for a player who came back here without
+ * declining it, such as with the browser's back button. Declining frees them to play.
+ */
+function UndecidedRematch({ gameId }: { readonly gameId: string }) {
+  const [pending, setPending] = useState(false);
+
+  async function decline() {
+    setPending(true);
+    const outcome = await declineRematch(gameId);
+    setPending(false);
+    if (!outcome.ok) notify(outcome.message);
+  }
+
+  return (
+    <Panel accent="light" className="flex flex-wrap items-center justify-between gap-4 p-4">
+      <p className="font-display text-lg font-semibold text-white">
+        A rematch of your last game is waiting for your answer.
+      </p>
+      <Button variant="secondary" disabled={pending} onClick={() => void decline()}>
+        Decline the rematch
+      </Button>
+    </Panel>
+  );
 }
 
 function HostedGame({

@@ -19,6 +19,8 @@ export function describeActivity(activity: PlayerActivity | null | undefined): s
       return activity.formatName ? `Quick match in ${activity.formatName}` : 'Quick match';
     case 'playing':
       return 'Playing';
+    case 'rematch':
+      return 'Deciding on a rematch';
     default:
       return 'In the lobby';
   }

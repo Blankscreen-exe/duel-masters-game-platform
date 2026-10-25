@@ -37,6 +37,7 @@ describe('describeActivity', () => {
     expect(describeActivity({ kind: 'queued', formatName: 'Open' })).toBe('Quick match in Open');
     expect(describeActivity({ kind: 'queued' })).toBe('Quick match');
     expect(describeActivity({ kind: 'playing', gameId: 'g1' })).toBe('Playing');
+    expect(describeActivity({ kind: 'rematch', gameId: 'g1' })).toBe('Deciding on a rematch');
     expect(describeActivity(null)).toBe('In the lobby');
     expect(describeActivity(undefined)).toBe('In the lobby');
   });
