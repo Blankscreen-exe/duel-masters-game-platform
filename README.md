@@ -6,8 +6,9 @@ rules engine and duel board from the [`duel-masters`](https://github.com/sindres
 project, maintained here.
 
 > **Status:** early build. The rules engine (`apps/server/internal/engine`), the duel board
-> (`packages/duel-board`) and the server foundation (configuration, database, settings, health
-> check, Docker) are in place; accounts, decks, the lobby and the website come next. The full
+> (`packages/duel-board`), the server foundation, accounts, the card catalogue and the first
+> website pages (`apps/web`: home, sign up, log in, cards) are in place; decks, the lobby and
+> games come next. The full
 > specification lives in [`design/SPEC.md`](design/SPEC.md) and the reasons behind each decision
 > in [`docs/adr/`](docs/adr/).
 
@@ -31,7 +32,8 @@ Node.js 24+ and pnpm 11+ (`corepack enable` sets up the pinned pnpm version).
 ```bash
 pnpm install
 pnpm dev:server    # the server on http://127.0.0.1:8080 (check it at /api/health)
-pnpm test          # type-checks and tests the packages, then runs the server tests
+pnpm dev:web       # the website on http://localhost:3000, in a second terminal
+pnpm test          # tests the website and packages, then runs the server tests
 pnpm test:race     # server tests with the race detector (needs a C compiler)
 pnpm vet           # go vet on the server
 ```
@@ -55,8 +57,18 @@ The database tests run on SQLite and, when `TEST_POSTGRES_URL` points at a Postg
 (for example `postgres://test:test@127.0.0.1:5432/platform_test?sslmode=disable`), on PostgreSQL
 too, each test in its own schema.
 
-After changing [`api/openapi.yaml`](api/openapi.yaml), regenerate the server code with
-`go generate ./...` in `apps/server`.
+The website passes every `/api` request on to the server, so the browser sees one site. It has one
+setting:
+
+| Variable        | Default                 | Description                 |
+| --------------- | ----------------------- | --------------------------- |
+| `GO_SERVER_URL` | `http://127.0.0.1:8080` | Where the Go server listens |
+
+In `apps/web`, `pnpm lint`, `pnpm typecheck`, `pnpm format` and `pnpm build` check, format and
+build the website.
+
+After changing [`api/openapi.yaml`](api/openapi.yaml), regenerate the server code and the
+website's API types with `pnpm api:generate`.
 
 Changes to the rules engine follow
 [`apps/server/internal/engine/CONTRIBUTING.md`](apps/server/internal/engine/CONTRIBUTING.md).
