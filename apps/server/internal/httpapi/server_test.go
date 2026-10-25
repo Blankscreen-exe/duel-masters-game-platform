@@ -24,6 +24,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
@@ -81,7 +82,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), rematch.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), ratings.Settings(), rematch.Settings())...)
 	require.NoError(t, err)
 
 	clock := clocktest.New(time.Now())
@@ -95,7 +96,8 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 	t.Cleanup(func() { require.NoError(t, hub.Close(context.Background())) })
 	live := NewLiveUpdates(hub)
 
-	gameService := games.NewService(db, catalogue, siteSettings, logger)
+	ratingService := ratings.NewService(db, siteSettings)
+	gameService := games.NewService(db, catalogue, siteSettings, ratingService, logger)
 	gamestest.Run(t, gameService)
 	lobbyService := lobby.NewService(lobby.Dependencies{
 		Decks: deckService, Formats: formatService, Games: gameService, Directory: live,

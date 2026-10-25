@@ -24,6 +24,7 @@ func migrations() []*gormigrate.Migration {
 		migration0005Decks(),
 		migration0006LobbyChat(),
 		migration0007Games(),
+		migration0008Ratings(),
 	}
 }
 

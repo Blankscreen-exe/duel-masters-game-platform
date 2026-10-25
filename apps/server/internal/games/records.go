@@ -2,7 +2,10 @@ package games
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/match"
@@ -27,8 +30,29 @@ type RecordPlayer struct {
 	ID       string
 	Username string
 	DeckName string
-	// Deck is the deck as played.
-	Deck []decks.Entry
+	// Deck is the deck as played, and Civilizations its civilizations, in
+	// the game's order.
+	Deck          []decks.Entry
+	Civilizations []string
+	// Rating is what the game did to the player's rating: nil for a game
+	// that did not count.
+	Rating *RatingChange
+}
+
+// RatingChange is what a game did to a player's rating.
+type RatingChange struct {
+	// Change is the points won, above zero, or lost, below.
+	Change int
+	// Rating is the rating after the game.
+	Rating int
+}
+
+// Rater rates the games that count, in the transaction that saves them, so
+// a game is never saved without its rating changes, nor rated unsaved.
+type Rater interface {
+	// Rate applies a won game that counted to both players' ratings and
+	// returns what it did to the host's and to the guest's.
+	Rate(tx *gorm.DB, game Record) (host, guest RatingChange, err error)
 }
 
 // Record is a finished game, as match history keeps it.
@@ -57,26 +81,40 @@ func (r Record) Duration() time.Duration {
 	return max(r.EndedAt.Sub(r.StartedAt), 0)
 }
 
+// Rated reports whether the game moves its players' ratings: it counted, and
+// one of them won.
+func (r Record) Rated() bool {
+	return r.Counted && r.WinnerID != ""
+}
+
 // gameRow is a row of the games table.
 type gameRow struct {
-	ID            string `gorm:"primaryKey"`
-	Name          string
-	FormatID      *string
-	FormatName    string
-	HostID        string
-	HostDeckName  string
-	HostDeck      []storedEntry `gorm:"serializer:json"`
-	GuestID       string
-	GuestDeckName string
-	GuestDeck     []storedEntry `gorm:"serializer:json"`
-	WinnerID      *string
-	Ending        string
-	Turns         int
-	StartedAt     time.Time
-	EndedAt       time.Time
-	Counted       bool
-	Visible       bool
-	Matchmaking   bool
+	ID           string `gorm:"primaryKey"`
+	Name         string
+	FormatID     *string
+	FormatName   string
+	HostID       string
+	HostDeckName string
+	HostDeck     []storedEntry `gorm:"serializer:json"`
+	// HostCivilizations and GuestCivilizations are empty for games finished
+	// before history kept them.
+	HostCivilizations  []string `gorm:"serializer:json"`
+	HostRatingChange   *int
+	HostRating         *int
+	GuestID            string
+	GuestDeckName      string
+	GuestDeck          []storedEntry `gorm:"serializer:json"`
+	GuestCivilizations []string      `gorm:"serializer:json"`
+	GuestRatingChange  *int
+	GuestRating        *int
+	WinnerID           *string
+	Ending             string
+	Turns              int
+	StartedAt          time.Time
+	EndedAt            time.Time
+	Counted            bool
+	Visible            bool
+	Matchmaking        bool
 }
 
 func (gameRow) TableName() string { return "games" }
@@ -105,8 +143,8 @@ func record(done finished) Record {
 		Name:        game.Name,
 		FormatID:    game.FormatID,
 		FormatName:  game.FormatName,
-		Host:        RecordPlayer{ID: game.Host.ID, Username: game.Host.Username, DeckName: game.Host.DeckName, Deck: done.live.hostDeck},
-		Guest:       RecordPlayer{ID: game.Guest.ID, Username: game.Guest.Username, DeckName: game.Guest.DeckName, Deck: done.live.guestDeck},
+		Host:        recordPlayer(game.Host, done.live.hostDeck),
+		Guest:       recordPlayer(game.Guest, done.live.guestDeck),
 		WinnerID:    result.WinnerID,
 		Ending:      Ending(result.Ending),
 		Turns:       result.Turns,
@@ -118,40 +156,38 @@ func record(done finished) Record {
 	}
 }
 
-// save writes a finished game to the history and tells the listener. A game
-// that cannot be saved is logged with everything needed to save it by hand.
+func recordPlayer(player Player, deck []decks.Entry) RecordPlayer {
+	return RecordPlayer{
+		ID:            player.ID,
+		Username:      player.Username,
+		DeckName:      player.DeckName,
+		Deck:          deck,
+		Civilizations: player.Civilizations,
+	}
+}
+
+// save writes a finished game to the history, rating it if it counts, and
+// tells the listeners. A game that cannot be saved is logged with everything
+// needed to save it by hand.
 func (s *Service) save(done finished) {
 	finishedGame := record(done)
-
-	row := gameRow{
-		ID:            finishedGame.ID,
-		Name:          finishedGame.Name,
-		FormatName:    finishedGame.FormatName,
-		HostID:        finishedGame.Host.ID,
-		HostDeckName:  finishedGame.Host.DeckName,
-		HostDeck:      storedDeck(finishedGame.Host.Deck),
-		GuestID:       finishedGame.Guest.ID,
-		GuestDeckName: finishedGame.Guest.DeckName,
-		GuestDeck:     storedDeck(finishedGame.Guest.Deck),
-		Ending:        string(finishedGame.Ending),
-		Turns:         finishedGame.Turns,
-		StartedAt:     finishedGame.StartedAt,
-		EndedAt:       finishedGame.EndedAt,
-		Counted:       finishedGame.Counted,
-		Visible:       finishedGame.Visible,
-		Matchmaking:   finishedGame.Matchmaking,
-	}
-	if finishedGame.FormatID != "" {
-		row.FormatID = &finishedGame.FormatID
-	}
-	if finishedGame.WinnerID != "" {
-		row.WinnerID = &finishedGame.WinnerID
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), saveTimeout)
 	defer cancel()
 
-	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if finishedGame.Rated() {
+			host, guest, err := s.rater.Rate(tx, finishedGame)
+			if err != nil {
+				return fmt.Errorf("rating the game: %w", err)
+			}
+			finishedGame.Host.Rating, finishedGame.Guest.Rating = &host, &guest
+		}
+
+		row := newGameRow(finishedGame)
+		return tx.Create(&row).Error
+	})
+	if err != nil {
 		s.logger.Error("saving a finished game failed", "error", err, "game", finishedGame)
 		return
 	}
@@ -161,4 +197,41 @@ func (s *Service) save(done finished) {
 		"turns", finishedGame.Turns, "duration", finishedGame.Duration().Round(time.Second), "counted", finishedGame.Counted)
 
 	s.notify(func(l Listener) { l.GameFinished(finishedGame) })
+}
+
+// newGameRow is a finished game as the games table keeps it.
+func newGameRow(finishedGame Record) gameRow {
+	row := gameRow{
+		ID:                 finishedGame.ID,
+		Name:               finishedGame.Name,
+		FormatName:         finishedGame.FormatName,
+		HostID:             finishedGame.Host.ID,
+		HostDeckName:       finishedGame.Host.DeckName,
+		HostDeck:           storedDeck(finishedGame.Host.Deck),
+		HostCivilizations:  finishedGame.Host.Civilizations,
+		GuestID:            finishedGame.Guest.ID,
+		GuestDeckName:      finishedGame.Guest.DeckName,
+		GuestDeck:          storedDeck(finishedGame.Guest.Deck),
+		GuestCivilizations: finishedGame.Guest.Civilizations,
+		Ending:             string(finishedGame.Ending),
+		Turns:              finishedGame.Turns,
+		StartedAt:          finishedGame.StartedAt,
+		EndedAt:            finishedGame.EndedAt,
+		Counted:            finishedGame.Counted,
+		Visible:            finishedGame.Visible,
+		Matchmaking:        finishedGame.Matchmaking,
+	}
+	if finishedGame.FormatID != "" {
+		row.FormatID = &finishedGame.FormatID
+	}
+	if finishedGame.WinnerID != "" {
+		row.WinnerID = &finishedGame.WinnerID
+	}
+	if rating := finishedGame.Host.Rating; rating != nil {
+		row.HostRatingChange, row.HostRating = &rating.Change, &rating.Rating
+	}
+	if rating := finishedGame.Guest.Rating; rating != nil {
+		row.GuestRatingChange, row.GuestRating = &rating.Change, &rating.Rating
+	}
+	return row
 }

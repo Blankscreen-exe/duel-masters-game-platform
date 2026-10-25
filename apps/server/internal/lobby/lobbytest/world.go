@@ -16,6 +16,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -81,6 +82,7 @@ type World struct {
 	DB        *gorm.DB
 	Lobby     *lobby.Service
 	Games     *games.Service
+	Ratings   *ratings.Service
 	Decks     *decks.Service
 	Settings  *settings.Service
 	Directory *Directory
@@ -107,7 +109,7 @@ func NewWorld(t *testing.T, db *gorm.DB, extra ...settings.Definition) *World {
 	ctx := context.Background()
 
 	catalogue, ids := gamestest.RealCards(t, db)
-	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), slices.Concat(lobby.Settings(), games.Settings(), decks.Settings(), extra)...)
+	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), slices.Concat(lobby.Settings(), games.Settings(), decks.Settings(), ratings.Settings(), extra)...)
 	require.NoError(t, err)
 	formatService := formats.NewService(db)
 	list, err := formatService.List(ctx)
@@ -144,7 +146,8 @@ func NewWorld(t *testing.T, db *gorm.DB, extra ...settings.Definition) *World {
 	w.Kokujo = newPlayer("Kokujo")
 	w.Mimi = newPlayer("Mimi")
 
-	w.Games = games.NewService(db, catalogue, siteSettings, storetest.Logger())
+	w.Ratings = ratings.NewService(db, siteSettings)
+	w.Games = games.NewService(db, catalogue, siteSettings, w.Ratings, storetest.Logger())
 	w.Lobby = lobby.NewService(lobby.Dependencies{
 		Decks:      w.Decks,
 		Formats:    formatService,

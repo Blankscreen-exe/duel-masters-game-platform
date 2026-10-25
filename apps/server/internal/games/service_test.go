@@ -19,21 +19,27 @@ import (
 
 // savedGame is a row of the games table as a test reads it.
 type savedGame struct {
-	ID            string
-	Name          string
-	FormatID      *string
-	FormatName    string
-	HostID        string
-	HostDeckName  string
-	HostDeck      string
-	GuestID       string
-	GuestDeckName string
-	WinnerID      *string
-	Ending        string
-	Turns         int
-	Counted       bool
-	Visible       bool
-	Matchmaking   bool
+	ID           string
+	Name         string
+	FormatID     *string
+	FormatName   string
+	HostID       string
+	HostDeckName string
+	HostDeck     string
+	// HostCivilizations is JSON.
+	HostCivilizations string
+	HostRatingChange  *int
+	HostRating        *int
+	GuestID           string
+	GuestDeckName     string
+	GuestRatingChange *int
+	GuestRating       *int
+	WinnerID          *string
+	Ending            string
+	Turns             int
+	Counted           bool
+	Visible           bool
+	Matchmaking       bool
 }
 
 func saved(t *testing.T, db *gorm.DB) []savedGame {
@@ -144,6 +150,8 @@ func TestAGameIsPlayedAndSaved(t *testing.T) {
 		assert.Equal(t, "Fire Rush", record.Host.DeckName)
 		assert.Equal(t, f.deck("Fire Rush").Cards, record.Host.Deck)
 		assert.False(t, record.Counted, "a game of a few seconds does not count")
+		assert.Nil(t, record.Host.Rating, "nor moves ratings")
+		assert.Nil(t, record.Guest.Rating)
 
 		rows := saved(t, db)
 		require.Len(t, rows, 1)
@@ -155,11 +163,16 @@ func TestAGameIsPlayedAndSaved(t *testing.T) {
 		assert.Equal(t, f.shobu.ID, row.HostID)
 		assert.Equal(t, "Fire Rush", row.HostDeckName)
 		assert.Contains(t, row.HostDeck, `{"cardId":"A001","count":4}`)
+		assert.JSONEq(t, `["Fire"]`, row.HostCivilizations)
 		assert.Equal(t, f.kokujo.ID, row.GuestID)
 		assert.Equal(t, f.kokujo.ID, *row.WinnerID)
 		assert.Equal(t, "surrender", row.Ending)
 		assert.False(t, row.Counted)
 		assert.True(t, row.Visible)
+		assert.Nil(t, row.HostRatingChange)
+		assert.Nil(t, row.GuestRatingChange)
+		assert.Equal(t, standing{Rating: 1000}, f.standing(t, f.shobu.ID), "ratings stay as they were")
+		assert.Equal(t, standing{Rating: 1000}, f.standing(t, f.kokujo.ID))
 
 		require.Eventually(t, func() bool { return len(f.heard.closedGames()) == 1 }, waitTimeout, 5*time.Millisecond)
 		ended := f.heard.endedGames()
@@ -192,6 +205,49 @@ func TestALongEnoughGameCounts(t *testing.T) {
 		row := saved(t, db)[0]
 		assert.True(t, row.Counted)
 		assert.Equal(t, f.shobu.ID, *row.WinnerID)
+
+		// Equally rated, so each rating moves by half the speed.
+		assert.Equal(t, 16, *row.HostRatingChange)
+		assert.Equal(t, 1016, *row.HostRating)
+		assert.Equal(t, -16, *row.GuestRatingChange)
+		assert.Equal(t, 984, *row.GuestRating)
+		assert.Equal(t, standing{Rating: 1016, Wins: 1, Streak: 1}, f.standing(t, f.shobu.ID))
+		assert.Equal(t, standing{Rating: 984, Losses: 1, Streak: -1}, f.standing(t, f.kokujo.ID))
+
+		require.Len(t, f.heard.records(), 1)
+		record := f.heard.records()[0]
+		assert.Equal(t, &games.RatingChange{Change: 16, Rating: 1016}, record.Host.Rating)
+		assert.Equal(t, &games.RatingChange{Change: -16, Rating: 984}, record.Guest.Rating)
+	})
+}
+
+func TestAGameThatCannotBeRatedIsNotSaved(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db)
+		_, err := f.settings.Set(context.Background(), games.MinimumCountedDuration.Key, "0")
+		require.NoError(t, err)
+		f.rater.fail(errors.New("the database went away"))
+		game := f.start(t, true, false)
+
+		shobu, kokujo := gamestest.Play(t, f.games, game)
+		kokujo.Say(map[string]any{"header": "resign"})
+		shobu.WaitFor(t, "duel_finished")
+
+		require.Eventually(t, func() bool { return f.rater.timesAsked() == 1 }, waitTimeout, 5*time.Millisecond)
+
+		// Games are saved in order, so once the next one is, the first was
+		// dealt with.
+		f.rater.fail(nil)
+		next := f.start(t, true, false)
+		shobu, kokujo = gamestest.Play(t, f.games, next)
+		kokujo.Say(map[string]any{"header": "resign"})
+		shobu.WaitFor(t, "duel_finished")
+		require.Eventually(t, func() bool { return len(saved(t, db)) == 1 }, waitTimeout, 5*time.Millisecond)
+
+		assert.Equal(t, next.ID, saved(t, db)[0].ID, "a game is never saved without its ratings")
+		require.Len(t, f.heard.records(), 1)
+		assert.Equal(t, next.ID, f.heard.records()[0].ID)
+		assert.Equal(t, standing{Rating: 1016, Wins: 1, Streak: 1}, f.standing(t, f.shobu.ID), "the first game moved nothing")
 	})
 }
 

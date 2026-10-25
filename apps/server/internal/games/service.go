@@ -191,6 +191,7 @@ type Service struct {
 	db        *gorm.DB
 	catalogue *cards.Catalogue
 	settings  *settings.Service
+	rater     Rater
 	logger    *slog.Logger
 	system    *match.MatchSystem
 
@@ -204,14 +205,16 @@ type Service struct {
 
 var _ match.Observer = (*Service)(nil)
 
-// NewService returns the games service. Listeners join with Listen.
-func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.Service, logger *slog.Logger) *Service {
+// NewService returns the games service, saving the games that count with
+// the ratings rater gives them. Listeners join with Listen.
+func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.Service, rater Rater, logger *slog.Logger) *Service {
 	registerCards()
 
 	s := &Service{
 		db:        db,
 		catalogue: catalogue,
 		settings:  siteSettings,
+		rater:     rater,
 		logger:    logger,
 		live:      map[string]*liveGame{},
 		results:   make(chan finished, resultQueue),

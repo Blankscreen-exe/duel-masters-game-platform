@@ -159,3 +159,13 @@ func TestSchemaDeletesSessionsWithTheirUser(t *testing.T) {
 		assert.Equal(t, []string{"s3"}, left)
 	})
 }
+
+func TestSchemaStartsPlayersAtTheStartingRating(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Alice", "player"))
+
+		var standing struct{ Rating, Wins, Losses, Streak int }
+		require.NoError(t, db.Raw("SELECT rating, wins, losses, streak FROM users WHERE id = ?", "u1").Scan(&standing).Error)
+		assert.Equal(t, struct{ Rating, Wins, Losses, Streak int }{Rating: 1000}, standing)
+	})
+}

@@ -26,6 +26,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
@@ -94,7 +95,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		return nil, err
 	}
 
-	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), rematch.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), ratings.Settings(), rematch.Settings())...)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +124,8 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	hub := realtime.NewHub(realtime.Options{OfflineAfter: offlineAfter, Logger: logger.With("component", "realtime")})
 	live := httpapi.NewLiveUpdates(hub)
 
-	gameService := games.NewService(db, catalogue, siteSettings, logger.With("component", "games"))
+	ratingService := ratings.NewService(db, siteSettings)
+	gameService := games.NewService(db, catalogue, siteSettings, ratingService, logger.With("component", "games"))
 	lobbyService := lobby.NewService(lobby.Dependencies{
 		Decks:     deckService,
 		Formats:   formatService,

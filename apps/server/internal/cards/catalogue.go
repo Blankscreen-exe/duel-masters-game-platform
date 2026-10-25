@@ -10,6 +10,8 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/paging"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
 )
 
@@ -94,7 +96,7 @@ func (c *Catalogue) Search(ctx context.Context, filter Filter) (Page, error) {
 
 	query := c.db.WithContext(ctx).Model(&cardRow{}).Where("in_database = ?", true)
 	if filter.Query != "" {
-		query = query.Where(`search_text LIKE ? ESCAPE '\'`, "%"+escapeLike(searchText(filter.Query))+"%")
+		query = query.Where(store.Contains("search_text", searchText(filter.Query)))
 	}
 	if len(filter.Civilizations) > 0 {
 		query = query.Where("id IN (?)", c.db.Model(&civilizationRow{}).Select("card_id").Where("civilization IN ?", filter.Civilizations))
@@ -145,13 +147,17 @@ func (c *Catalogue) Search(ctx context.Context, filter Filter) (Page, error) {
 func normalizeFilter(filter *Filter) error {
 	filter.Query = strings.TrimSpace(filter.Query)
 
-	switch {
-	case utf8.RuneCountInString(filter.Query) > MaxQueryLength:
+	if utf8.RuneCountInString(filter.Query) > MaxQueryLength {
 		return validation.New("query", fmt.Sprintf("must be at most %d characters", MaxQueryLength))
-	case filter.Page < 0:
-		return validation.New("page", "must be 1 or more")
-	case filter.PageSize < 0 || filter.PageSize > MaxPageSize:
-		return validation.New("pageSize", fmt.Sprintf("must be between 1 and %d", MaxPageSize))
+	}
+
+	page := paging.Request{Page: filter.Page, PageSize: filter.PageSize}
+	if err := page.Normalize(DefaultPageSize, MaxPageSize); err != nil {
+		return err
+	}
+	filter.Page, filter.PageSize = page.Page, page.PageSize
+
+	switch {
 	case filter.MinCost != nil && *filter.MinCost < 0:
 		return validation.New("minCost", "must be 0 or more")
 	case filter.MaxCost != nil && *filter.MaxCost < 0:
@@ -160,20 +166,7 @@ func normalizeFilter(filter *Filter) error {
 		return validation.New("minCost", "must not be above maxCost")
 	}
 
-	if filter.Page == 0 {
-		filter.Page = 1
-	}
-	if filter.PageSize == 0 {
-		filter.PageSize = DefaultPageSize
-	}
-
 	return nil
-}
-
-// escapeLike makes the LIKE wildcards % and _, and the escape character
-// itself, match literally.
-func escapeLike(text string) string {
-	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(text)
 }
 
 // Card returns a card still in the card database by its id. It returns
