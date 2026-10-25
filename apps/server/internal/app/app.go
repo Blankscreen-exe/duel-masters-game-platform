@@ -27,6 +27,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -62,6 +63,7 @@ type App struct {
 	games      *games.Service
 	lobby      *lobby.Service
 	quickMatch *matchmaking.Service
+	rematches  *rematch.Service
 	server     *http.Server
 }
 
@@ -92,7 +94,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		return nil, err
 	}
 
-	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), rematch.Settings())...)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +142,16 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		Logger:    logger.With("component", "matchmaking"),
 		Now:       time.Now,
 	})
-	hub.Watch(presence{lobby: lobbyService, quickMatch: quickMatch})
+	rematches := rematch.NewService(rematch.Dependencies{
+		Lobby:     lobbyService,
+		Games:     gameService,
+		Directory: live,
+		Settings:  siteSettings,
+		Listener:  live,
+		Logger:    logger.With("component", "rematch"),
+		Now:       time.Now,
+	})
+	hub.Watch(presence{lobby: lobbyService, quickMatch: quickMatch, rematches: rematches})
 
 	return &App{
 		logger:     logger,
@@ -150,6 +161,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		games:      gameService,
 		lobby:      lobbyService,
 		quickMatch: quickMatch,
+		rematches:  rematches,
 		server: &http.Server{
 			Handler: httpapi.NewHandler(httpapi.Dependencies{
 				DB:            sqlDB,
@@ -161,6 +173,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 				Games:         gameService,
 				Lobby:         lobbyService,
 				QuickMatch:    quickMatch,
+				Rematches:     rematches,
 				Hub:           hub,
 				Upgrader:      realtime.NewUpgrader(cfg.SiteOrigins),
 				Logger:        httpLogger,
@@ -189,6 +202,7 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 	background.Go(func() { a.games.Run(backgroundCtx) })
 	background.Go(func() { a.lobby.Run(backgroundCtx) })
 	background.Go(func() { a.quickMatch.Run(backgroundCtx) })
+	background.Go(func() { a.rematches.Run(backgroundCtx) })
 
 	// Games and live connections are taken over from the HTTP server, which
 	// does not wait for them, so they are closed here: running games are
@@ -251,14 +265,17 @@ func (a *App) cleanUpSessions(ctx context.Context) {
 	}
 }
 
-// presence tells the lobby and quick match when players come and go, so a
-// player who leaves the site leaves their open game and the queue.
+// presence tells the lobby, quick match and rematches when players come and
+// go, so a player who leaves the site leaves their open game, the queue and
+// any rematch.
 type presence struct {
 	lobby      *lobby.Service
 	quickMatch *matchmaking.Service
+	rematches  *rematch.Service
 }
 
 func (p presence) PresenceChanged(viewer realtime.Viewer) {
 	p.lobby.PresenceChanged(viewer.UserID)
 	p.quickMatch.PresenceChanged(viewer.UserID)
+	p.rematches.PresenceChanged(viewer.UserID)
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
 )
 
 // basePath is where the API is served, matching the contract's server URL.
@@ -46,6 +47,8 @@ type Dependencies struct {
 	Lobby     *lobby.Service
 	// QuickMatch runs quick match.
 	QuickMatch *matchmaking.Service
+	// Rematches runs the rematches of games just ended.
+	Rematches *rematch.Service
 	// Hub keeps the live connections, which Upgrader opens for the site's
 	// pages only.
 	Hub      *realtime.Hub
@@ -66,6 +69,7 @@ type handlers struct {
 	games         *games.Service
 	lobby         *lobby.Service
 	quickMatch    *matchmaking.Service
+	rematches     *rematch.Service
 	hub           *realtime.Hub
 	upgrader      *websocket.Upgrader
 	secureCookies bool
@@ -90,6 +94,7 @@ func NewHandler(deps Dependencies) http.Handler {
 		games:         deps.Games,
 		lobby:         deps.Lobby,
 		quickMatch:    deps.QuickMatch,
+		rematches:     deps.Rematches,
 		hub:           deps.Hub,
 		upgrader:      deps.Upgrader,
 		secureCookies: deps.SecureCookies,

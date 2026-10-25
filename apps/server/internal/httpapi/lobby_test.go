@@ -58,11 +58,7 @@ func (s playServer) player(t *testing.T, name string) player {
 	tab, _, err := openLive(t, s.live, session, testSiteOrigin)
 	require.NoError(t, err)
 
-	entries := make([]api.DeckEntry, 0, len(s.cardIDs))
-	for _, id := range s.cardIDs {
-		entries = append(entries, api.DeckEntry{CardId: id, Count: 4})
-	}
-	deck := s.createDeck(t, session, api.DeckInput{Name: name + "'s deck", Cards: entries})
+	deck := s.createDeck(t, session, api.DeckInput{Name: name + "'s deck", Cards: fullDeck(s.cardIDs)})
 
 	require.Eventually(t, func() bool {
 		for _, viewer := range s.hub.Online() {
@@ -132,6 +128,38 @@ func gameMessage(t *testing.T, conn *websocket.Conn, headers ...string) map[stri
 	}
 }
 
+// play connects a game's two players over game sockets, as the duel board
+// does, and takes the game through its coin toss: the caller calls heads and
+// the winner plays first. It returns their sockets once play has begun.
+func (s playServer) play(t *testing.T, hostPlayer, guestPlayer player, gameID string) (host, guest *websocket.Conn) {
+	t.Helper()
+
+	host, _, err := s.openGameSocket(t, hostPlayer.session, gameID)
+	require.NoError(t, err)
+	guest, _, err = s.openGameSocket(t, guestPlayer.session, gameID)
+	require.NoError(t, err)
+	for _, conn := range []*websocket.Conn{host, guest} {
+		require.NoError(t, conn.WriteJSON(map[string]any{"header": "join_match"}))
+	}
+
+	// The host is told either to call the toss or who calls it.
+	caller, other := host, guest
+	if gameMessage(t, host, "choose_toss", "toss_being_chosen")["header"] == "toss_being_chosen" {
+		caller, other = guest, host
+	}
+	require.NoError(t, caller.WriteJSON(map[string]any{"header": "toss_chosen", "prediction": 1}))
+	result := gameMessage(t, other, "toss_result")
+	chooser := host
+	if result["winner"].(map[string]any)["username"] == guestPlayer.name {
+		chooser = guest
+	}
+	gameMessage(t, chooser, "choose_turn")
+	require.NoError(t, chooser.WriteJSON(map[string]any{"header": "turn_chosen", "player": 1}))
+	gameMessage(t, host, "state_update")
+
+	return host, guest
+}
+
 func (s playServer) openGame(t *testing.T, host player, input api.OpenGameInput) api.OpenGame {
 	t.Helper()
 
@@ -182,28 +210,7 @@ func TestTwoPlayersPlayAGameThroughTheSite(t *testing.T) {
 	assert.Equal(t, api.GameRoleSpectator, watching.Role)
 
 	// Both play over real game sockets, as the duel board does.
-	host, _, err := site.openGameSocket(t, shobu.session, gameID)
-	require.NoError(t, err)
-	guest, _, err := site.openGameSocket(t, kokujo.session, gameID)
-	require.NoError(t, err)
-	for _, conn := range []*websocket.Conn{host, guest} {
-		require.NoError(t, conn.WriteJSON(map[string]any{"header": "join_match"}))
-	}
-
-	// The host is told either to call the toss or who calls it.
-	caller, other := host, guest
-	if gameMessage(t, host, "choose_toss", "toss_being_chosen")["header"] == "toss_being_chosen" {
-		caller, other = guest, host
-	}
-	require.NoError(t, caller.WriteJSON(map[string]any{"header": "toss_chosen", "prediction": 1}))
-	result := gameMessage(t, other, "toss_result")
-	chooser := host
-	if result["winner"].(map[string]any)["username"] == "Kokujo" {
-		chooser = guest
-	}
-	gameMessage(t, chooser, "choose_turn")
-	require.NoError(t, chooser.WriteJSON(map[string]any{"header": "turn_chosen", "player": 1}))
-	gameMessage(t, host, "state_update")
+	host, guest := site.play(t, shobu, kokujo, gameID)
 
 	require.NoError(t, guest.WriteJSON(map[string]any{"header": "resign"}))
 	finished := gameMessage(t, host, "duel_finished")

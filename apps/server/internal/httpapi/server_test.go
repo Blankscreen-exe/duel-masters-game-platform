@@ -25,6 +25,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -80,7 +81,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), rematch.Settings())...)
 	require.NoError(t, err)
 
 	clock := clocktest.New(time.Now())
@@ -103,6 +104,9 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 	quickMatch := matchmaking.NewService(matchmaking.Dependencies{
 		Lobby: lobbyService, Games: gameService, Directory: live, Listener: live, Logger: logger, Now: clock.Now,
 	})
+	rematches := rematch.NewService(rematch.Dependencies{
+		Lobby: lobbyService, Games: gameService, Directory: live, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
+	})
 
 	return testServer{
 		handler: NewHandler(Dependencies{
@@ -115,6 +119,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 			Games:         gameService,
 			Lobby:         lobbyService,
 			QuickMatch:    quickMatch,
+			Rematches:     rematches,
 			Hub:           hub,
 			Upgrader:      realtime.NewUpgrader([]string{testSiteOrigin}),
 			Logger:        logger,

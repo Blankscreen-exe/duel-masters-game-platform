@@ -29,8 +29,8 @@ tags:
     description: The lobby chat, which everyone can read and players can write in.
   - name: lobby
     description: >-
-      Open games waiting for an opponent, listed or reached by invite link, and quick match. A
-      player hosts, waits in quick match or plays one game at a time.
+      Open games waiting for an opponent, listed or reached by invite link, quick match, and
+      rematches. A player hosts, waits in quick match, plays or decides on a rematch, one at a time.
   - name: games
     description: >-
       Running games: their players play, and other players watch listed games that allow it, over
@@ -623,6 +623,132 @@ paths:
           description: No longer waiting.
         "401":
           $ref: "#/components/responses/Unauthenticated"
+  /rematches/{gameId}:
+    parameters:
+      - name: gameId
+        in: path
+        required: true
+        description: The game that ended.
+        schema:
+          type: string
+    get:
+      operationId: getRematch
+      summary: The rematch of a game that just ended, for its players
+      description: >-
+        When a game ends with both players on the site, they are offered a rematch at once, until
+        either declines, leaves the site or the offer runs out (expiresAt). Changes reach both
+        players on the live connection (RealtimeRematch, RealtimeRematchEnded).
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The rematch, as this player sees it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rematch"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: declineRematch
+      summary: Decline the rematch, or leave it for the lobby
+      description: It ends for both players, who are told on the live connection (RealtimeRematchEnded).
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: The rematch will not be played.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /rematches/{gameId}/deck:
+    parameters:
+      - name: gameId
+        in: path
+        required: true
+        description: The game that ended.
+        schema:
+          type: string
+    put:
+      operationId: chooseRematchDeck
+      summary: Switch to another deck for the rematch
+      description: >-
+        One of the player's decks, legal in the game's format. The other player agreed to the deck
+        they were shown, so a different one takes back their agreement.
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RematchDeckInput"
+      responses:
+        "200":
+          description: The rematch, with the deck chosen.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rematch"
+        "400":
+          $ref: "#/components/responses/InvalidDeckOrInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /rematches/{gameId}/ready:
+    parameters:
+      - name: gameId
+        in: path
+        required: true
+        description: The game that ended.
+        schema:
+          type: string
+    post:
+      operationId: agreeToRematch
+      summary: Offer the rematch, or accept the other player's
+      description: >-
+        Agrees to play the decks shown. Once both players agree, the new game starts, in the same
+        format and with the same options, its coin toss called by the loser of the last game, and
+        both are told on the live connection (RealtimeGameStarted) to go to it.
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Agreed; waiting for the other player.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rematch"
+        "201":
+          description: Both agreed, and the new game started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameStarted"
+        "400":
+          $ref: "#/components/responses/InvalidDeckOrInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/GamesPaused"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            The other player's deck no longer keeps to the format (code "opponent_deck_not_legal"):
+            they must choose another, and both agree again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /games/{gameId}:
     get:
       operationId: getLiveGame
@@ -1390,13 +1516,14 @@ components:
     PlayerActivity:
       description: >-
         What a player is doing: hosting an open game (with its id), waiting for a quick match (with
-        the format's name) or playing (with the game's id).
+        the format's name), playing (with the game's id) or deciding on a rematch (with the id of the
+        game that ended).
       type: object
       required: [kind]
       properties:
         kind:
           type: string
-          enum: [hosting, queued, playing]
+          enum: [hosting, queued, playing, rematch]
         gameId:
           type: string
         formatName:
@@ -1607,6 +1734,8 @@ components:
         - $ref: "#/components/schemas/RealtimeQuickMatchQueue"
         - $ref: "#/components/schemas/RealtimeGameStarted"
         - $ref: "#/components/schemas/RealtimeOpenGameExpired"
+        - $ref: "#/components/schemas/RealtimeRematch"
+        - $ref: "#/components/schemas/RealtimeRematchEnded"
       discriminator:
         propertyName: type
         mapping:
@@ -1616,6 +1745,8 @@ components:
           quick_match_queue: "#/components/schemas/RealtimeQuickMatchQueue"
           game_started: "#/components/schemas/RealtimeGameStarted"
           open_game_expired: "#/components/schemas/RealtimeOpenGameExpired"
+          rematch: "#/components/schemas/RealtimeRematch"
+          rematch_ended: "#/components/schemas/RealtimeRematchEnded"
     RealtimeSiteStats:
       description: How many players are online and games running, for everyone.
       type: object
@@ -1657,6 +1788,95 @@ components:
           type: string
           enum: [game_started]
         gameId:
+          type: string
+    Rematch:
+      description: A rematch being decided, as one of its players sees it.
+      type: object
+      required: [gameId, name, formatId, formatName, you, opponent, expiresAt]
+      properties:
+        gameId:
+          description: The game that ended.
+          type: string
+        name:
+          type: string
+        formatId:
+          type: string
+        formatName:
+          type: string
+        you:
+          $ref: "#/components/schemas/RematchSeat"
+        opponent:
+          $ref: "#/components/schemas/RematchSeat"
+        tossCallerId:
+          description: >-
+            The player who calls the new game's coin toss, the loser of the last game; absent after
+            a game without a winner, for either at random.
+          type: string
+        expiresAt:
+          description: When the offer runs out.
+          type: string
+          format: date-time
+    RematchSeat:
+      type: object
+      required: [id, username, deck, ready]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        deck:
+          $ref: "#/components/schemas/RematchDeck"
+        ready:
+          description: The player agrees to play the decks shown.
+          type: boolean
+    RematchDeck:
+      description: A deck chosen for a rematch, shown by name and civilizations only.
+      type: object
+      required: [name, civilizations]
+      properties:
+        id:
+          description: Only for the player's own deck.
+          type: string
+        name:
+          type: string
+        civilizations:
+          type: array
+          items:
+            type: string
+    RematchDeckInput:
+      type: object
+      required: [deckId]
+      properties:
+        deckId:
+          type: string
+    RealtimeRematch:
+      description: A rematch the player decides on, as it now is. Sent to its players.
+      type: object
+      required: [type, rematch]
+      properties:
+        type:
+          type: string
+          enum: [rematch]
+        rematch:
+          $ref: "#/components/schemas/Rematch"
+    RealtimeRematchEnded:
+      description: >-
+        A rematch will not be played: a player declined, a player left the site, or the offer ran
+        out. Sent to its players, who go back to the lobby.
+      type: object
+      required: [type, gameId, reason]
+      properties:
+        type:
+          type: string
+          enum: [rematch_ended]
+        gameId:
+          description: The game that ended.
+          type: string
+        reason:
+          type: string
+          enum: [declined, left, expired]
+        by:
+          description: The username of the player who declined or left; absent when it ran out.
           type: string
     RealtimeOpenGameExpired:
       description: Nobody joined the player's open game in time, so it closed. Sent to its host.

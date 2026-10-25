@@ -89,6 +89,7 @@ const (
 	PlayerActivityKindHosting PlayerActivityKind = "hosting"
 	PlayerActivityKindPlaying PlayerActivityKind = "playing"
 	PlayerActivityKindQueued  PlayerActivityKind = "queued"
+	PlayerActivityKindRematch PlayerActivityKind = "rematch"
 )
 
 // Valid indicates whether the value is a known member of the PlayerActivityKind enum.
@@ -99,6 +100,8 @@ func (e PlayerActivityKind) Valid() bool {
 	case PlayerActivityKindPlaying:
 		return true
 	case PlayerActivityKindQueued:
+		return true
+	case PlayerActivityKindRematch:
 		return true
 	default:
 		return false
@@ -174,6 +177,57 @@ const (
 func (e RealtimeQuickMatchQueueType) Valid() bool {
 	switch e {
 	case RealtimeQuickMatchQueueTypeQuickMatchQueue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeRematchType.
+const (
+	RealtimeRematchTypeRematch RealtimeRematchType = "rematch"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeRematchType enum.
+func (e RealtimeRematchType) Valid() bool {
+	switch e {
+	case RealtimeRematchTypeRematch:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeRematchEndedReason.
+const (
+	RealtimeRematchEndedReasonDeclined RealtimeRematchEndedReason = "declined"
+	RealtimeRematchEndedReasonExpired  RealtimeRematchEndedReason = "expired"
+	RealtimeRematchEndedReasonLeft     RealtimeRematchEndedReason = "left"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeRematchEndedReason enum.
+func (e RealtimeRematchEndedReason) Valid() bool {
+	switch e {
+	case RealtimeRematchEndedReasonDeclined:
+		return true
+	case RealtimeRematchEndedReasonExpired:
+		return true
+	case RealtimeRematchEndedReasonLeft:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeRematchEndedType.
+const (
+	RealtimeRematchEndedTypeRematchEnded RealtimeRematchEndedType = "rematch_ended"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeRematchEndedType enum.
+func (e RealtimeRematchEndedType) Valid() bool {
+	switch e {
+	case RealtimeRematchEndedTypeRematchEnded:
 		return true
 	default:
 		return false
@@ -547,7 +601,7 @@ type LobbyPerson struct {
 
 // OnlinePlayer defines model for OnlinePlayer.
 type OnlinePlayer struct {
-	// Activity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name) or playing (with the game's id).
+	// Activity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name), playing (with the game's id) or deciding on a rematch (with the id of the game that ended).
 	Activity *PlayerActivity `json:"activity,omitempty"`
 	Id       string          `json:"id"`
 	Username string          `json:"username"`
@@ -590,7 +644,7 @@ type PasswordChange struct {
 	NewPassword string `json:"newPassword"`
 }
 
-// PlayerActivity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name) or playing (with the game's id).
+// PlayerActivity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name), playing (with the game's id) or deciding on a rematch (with the id of the game that ended).
 type PlayerActivity struct {
 	FormatName *string            `json:"formatName,omitempty"`
 	GameId     *string            `json:"gameId,omitempty"`
@@ -687,6 +741,33 @@ type RealtimeQuickMatchQueue struct {
 // RealtimeQuickMatchQueueType defines model for RealtimeQuickMatchQueue.Type.
 type RealtimeQuickMatchQueueType string
 
+// RealtimeRematch A rematch the player decides on, as it now is. Sent to its players.
+type RealtimeRematch struct {
+	// Rematch A rematch being decided, as one of its players sees it.
+	Rematch Rematch             `json:"rematch"`
+	Type    RealtimeRematchType `json:"type"`
+}
+
+// RealtimeRematchType defines model for RealtimeRematch.Type.
+type RealtimeRematchType string
+
+// RealtimeRematchEnded A rematch will not be played: a player declined, a player left the site, or the offer ran out. Sent to its players, who go back to the lobby.
+type RealtimeRematchEnded struct {
+	// By The username of the player who declined or left; absent when it ran out.
+	By *string `json:"by,omitempty"`
+
+	// GameId The game that ended.
+	GameId string                     `json:"gameId"`
+	Reason RealtimeRematchEndedReason `json:"reason"`
+	Type   RealtimeRematchEndedType   `json:"type"`
+}
+
+// RealtimeRematchEndedReason defines model for RealtimeRematchEnded.Reason.
+type RealtimeRematchEndedReason string
+
+// RealtimeRematchEndedType defines model for RealtimeRematchEnded.Type.
+type RealtimeRematchEndedType string
+
 // RealtimeSiteStats How many players are online and games running, for everyone.
 type RealtimeSiteStats struct {
 	Stats SiteStats             `json:"stats"`
@@ -695,6 +776,48 @@ type RealtimeSiteStats struct {
 
 // RealtimeSiteStatsType defines model for RealtimeSiteStats.Type.
 type RealtimeSiteStatsType string
+
+// Rematch A rematch being decided, as one of its players sees it.
+type Rematch struct {
+	// ExpiresAt When the offer runs out.
+	ExpiresAt  time.Time `json:"expiresAt"`
+	FormatId   string    `json:"formatId"`
+	FormatName string    `json:"formatName"`
+
+	// GameId The game that ended.
+	GameId   string      `json:"gameId"`
+	Name     string      `json:"name"`
+	Opponent RematchSeat `json:"opponent"`
+
+	// TossCallerId The player who calls the new game's coin toss, the loser of the last game; absent after a game without a winner, for either at random.
+	TossCallerId *string     `json:"tossCallerId,omitempty"`
+	You          RematchSeat `json:"you"`
+}
+
+// RematchDeck A deck chosen for a rematch, shown by name and civilizations only.
+type RematchDeck struct {
+	Civilizations []string `json:"civilizations"`
+
+	// Id Only for the player's own deck.
+	Id   *string `json:"id,omitempty"`
+	Name string  `json:"name"`
+}
+
+// RematchDeckInput defines model for RematchDeckInput.
+type RematchDeckInput struct {
+	DeckId string `json:"deckId"`
+}
+
+// RematchSeat defines model for RematchSeat.
+type RematchSeat struct {
+	// Deck A deck chosen for a rematch, shown by name and civilizations only.
+	Deck RematchDeck `json:"deck"`
+	Id   string      `json:"id"`
+
+	// Ready The player agrees to play the decks shown.
+	Ready    bool   `json:"ready"`
+	Username string `json:"username"`
+}
 
 // Role defines model for Role.
 type Role string
@@ -798,6 +921,9 @@ type JoinOpenGameJSONRequestBody = JoinGameInput
 
 // EnterQuickMatchJSONRequestBody defines body for EnterQuickMatch for application/json ContentType.
 type EnterQuickMatchJSONRequestBody = QuickMatchInput
+
+// ChooseRematchDeckJSONRequestBody defines body for ChooseRematchDeck for application/json ContentType.
+type ChooseRematchDeckJSONRequestBody = RematchDeckInput
 
 // AsRealtimeChatMessage returns the union data inside the RealtimeMessage as a RealtimeChatMessage
 func (t RealtimeMessage) AsRealtimeChatMessage() (RealtimeChatMessage, error) {
@@ -1003,6 +1129,74 @@ func (t *RealtimeMessage) MergeRealtimeOpenGameExpired(v RealtimeOpenGameExpired
 	return err
 }
 
+// AsRealtimeRematch returns the union data inside the RealtimeMessage as a RealtimeRematch
+func (t RealtimeMessage) AsRealtimeRematch() (RealtimeRematch, error) {
+	var body RealtimeRematch
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeRematch overwrites any union data inside the RealtimeMessage as the provided RealtimeRematch
+func (t *RealtimeMessage) FromRealtimeRematch(v RealtimeRematch) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"rematch"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeRematch performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeRematch
+func (t *RealtimeMessage) MergeRealtimeRematch(v RealtimeRematch) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"rematch"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRealtimeRematchEnded returns the union data inside the RealtimeMessage as a RealtimeRematchEnded
+func (t RealtimeMessage) AsRealtimeRematchEnded() (RealtimeRematchEnded, error) {
+	var body RealtimeRematchEnded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeRematchEnded overwrites any union data inside the RealtimeMessage as the provided RealtimeRematchEnded
+func (t *RealtimeMessage) FromRealtimeRematchEnded(v RealtimeRematchEnded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"rematch_ended"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeRematchEnded performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeRematchEnded
+func (t *RealtimeMessage) MergeRealtimeRematchEnded(v RealtimeRematchEnded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"rematch_ended"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t RealtimeMessage) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -1027,6 +1221,10 @@ func (t RealtimeMessage) ValueByDiscriminator() (interface{}, error) {
 		return t.AsRealtimeOpenGameExpired()
 	case "quick_match_queue":
 		return t.AsRealtimeQuickMatchQueue()
+	case "rematch":
+		return t.AsRealtimeRematch()
+	case "rematch_ended":
+		return t.AsRealtimeRematchEnded()
 	case "site_stats":
 		return t.AsRealtimeSiteStats()
 	default:
@@ -1142,6 +1340,18 @@ type ServerInterface interface {
 	// OpenRealtime Open the live connection
 	// (GET /realtime)
 	OpenRealtime(w http.ResponseWriter, r *http.Request)
+	// DeclineRematch Decline the rematch, or leave it for the lobby
+	// (DELETE /rematches/{gameId})
+	DeclineRematch(w http.ResponseWriter, r *http.Request, gameId string)
+	// GetRematch The rematch of a game that just ended, for its players
+	// (GET /rematches/{gameId})
+	GetRematch(w http.ResponseWriter, r *http.Request, gameId string)
+	// ChooseRematchDeck Switch to another deck for the rematch
+	// (PUT /rematches/{gameId}/deck)
+	ChooseRematchDeck(w http.ResponseWriter, r *http.Request, gameId string)
+	// AgreeToRematch Offer the rematch, or accept the other player's
+	// (POST /rematches/{gameId}/ready)
+	AgreeToRematch(w http.ResponseWriter, r *http.Request, gameId string)
 	// GetSiteStats How many players are online and games running
 	// (GET /stats)
 	GetSiteStats(w http.ResponseWriter, r *http.Request)
@@ -1897,6 +2107,110 @@ func (siw *ServerInterfaceWrapper) OpenRealtime(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// DeclineRematch operation middleware
+func (siw *ServerInterfaceWrapper) DeclineRematch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "gameId" -------------
+	var gameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "gameId", r.PathValue("gameId"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeclineRematch(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRematch operation middleware
+func (siw *ServerInterfaceWrapper) GetRematch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "gameId" -------------
+	var gameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "gameId", r.PathValue("gameId"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRematch(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ChooseRematchDeck operation middleware
+func (siw *ServerInterfaceWrapper) ChooseRematchDeck(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "gameId" -------------
+	var gameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "gameId", r.PathValue("gameId"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ChooseRematchDeck(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AgreeToRematch operation middleware
+func (siw *ServerInterfaceWrapper) AgreeToRematch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "gameId" -------------
+	var gameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "gameId", r.PathValue("gameId"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AgreeToRematch(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSiteStats operation middleware
 func (siw *ServerInterfaceWrapper) GetSiteStats(w http.ResponseWriter, r *http.Request) {
 
@@ -2054,6 +2368,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/quick-match", wrapper.LeaveQuickMatch)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/quick-match", wrapper.GetQuickMatch)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/quick-match", wrapper.EnterQuickMatch)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/rematches/{gameId}", wrapper.DeclineRematch)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rematches/{gameId}", wrapper.GetRematch)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/rematches/{gameId}/deck", wrapper.ChooseRematchDeck)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rematches/{gameId}/ready", wrapper.AgreeToRematch)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/games/{gameId}", wrapper.GetLiveGame)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/games/{gameId}/socket", wrapper.OpenGameSocket)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/formats", wrapper.ListFormats)
@@ -3685,6 +4003,271 @@ func (response OpenRealtime403Response) VisitOpenRealtimeResponse(w http.Respons
 	return nil
 }
 
+type DeclineRematchRequestObject struct {
+	GameId string `json:"gameId"`
+}
+
+type DeclineRematchResponseObject interface {
+	VisitDeclineRematchResponse(w http.ResponseWriter) error
+}
+
+type DeclineRematch204Response struct {
+}
+
+func (response DeclineRematch204Response) VisitDeclineRematchResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeclineRematch401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response DeclineRematch401JSONResponse) VisitDeclineRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeclineRematch404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeclineRematch404JSONResponse) VisitDeclineRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRematchRequestObject struct {
+	GameId string `json:"gameId"`
+}
+
+type GetRematchResponseObject interface {
+	VisitGetRematchResponse(w http.ResponseWriter) error
+}
+
+type GetRematch200JSONResponse Rematch
+
+func (response GetRematch200JSONResponse) VisitGetRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRematch401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetRematch401JSONResponse) VisitGetRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRematch404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetRematch404JSONResponse) VisitGetRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChooseRematchDeckRequestObject struct {
+	GameId string `json:"gameId"`
+	Body   *ChooseRematchDeckJSONRequestBody
+}
+
+type ChooseRematchDeckResponseObject interface {
+	VisitChooseRematchDeckResponse(w http.ResponseWriter) error
+}
+
+type ChooseRematchDeck200JSONResponse Rematch
+
+func (response ChooseRematchDeck200JSONResponse) VisitChooseRematchDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChooseRematchDeck400JSONResponse struct{ InvalidDeckOrInputJSONResponse }
+
+func (response ChooseRematchDeck400JSONResponse) VisitChooseRematchDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChooseRematchDeck401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ChooseRematchDeck401JSONResponse) VisitChooseRematchDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChooseRematchDeck404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ChooseRematchDeck404JSONResponse) VisitChooseRematchDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AgreeToRematchRequestObject struct {
+	GameId string `json:"gameId"`
+}
+
+type AgreeToRematchResponseObject interface {
+	VisitAgreeToRematchResponse(w http.ResponseWriter) error
+}
+
+type AgreeToRematch200JSONResponse Rematch
+
+func (response AgreeToRematch200JSONResponse) VisitAgreeToRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AgreeToRematch201JSONResponse GameStarted
+
+func (response AgreeToRematch201JSONResponse) VisitAgreeToRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AgreeToRematch400JSONResponse struct{ InvalidDeckOrInputJSONResponse }
+
+func (response AgreeToRematch400JSONResponse) VisitAgreeToRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AgreeToRematch401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response AgreeToRematch401JSONResponse) VisitAgreeToRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AgreeToRematch403JSONResponse struct{ GamesPausedJSONResponse }
+
+func (response AgreeToRematch403JSONResponse) VisitAgreeToRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AgreeToRematch404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AgreeToRematch404JSONResponse) VisitAgreeToRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AgreeToRematch409JSONResponse Error
+
+func (response AgreeToRematch409JSONResponse) VisitAgreeToRematchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSiteStatsRequestObject struct {
 }
 
@@ -3804,6 +4387,18 @@ type StrictServerInterface interface {
 	// OpenRealtime Open the live connection
 	// (GET /realtime)
 	OpenRealtime(ctx context.Context, request OpenRealtimeRequestObject) (OpenRealtimeResponseObject, error)
+	// DeclineRematch Decline the rematch, or leave it for the lobby
+	// (DELETE /rematches/{gameId})
+	DeclineRematch(ctx context.Context, request DeclineRematchRequestObject) (DeclineRematchResponseObject, error)
+	// GetRematch The rematch of a game that just ended, for its players
+	// (GET /rematches/{gameId})
+	GetRematch(ctx context.Context, request GetRematchRequestObject) (GetRematchResponseObject, error)
+	// ChooseRematchDeck Switch to another deck for the rematch
+	// (PUT /rematches/{gameId}/deck)
+	ChooseRematchDeck(ctx context.Context, request ChooseRematchDeckRequestObject) (ChooseRematchDeckResponseObject, error)
+	// AgreeToRematch Offer the rematch, or accept the other player's
+	// (POST /rematches/{gameId}/ready)
+	AgreeToRematch(ctx context.Context, request AgreeToRematchRequestObject) (AgreeToRematchResponseObject, error)
 	// GetSiteStats How many players are online and games running
 	// (GET /stats)
 	GetSiteStats(ctx context.Context, request GetSiteStatsRequestObject) (GetSiteStatsResponseObject, error)
@@ -4705,6 +5300,117 @@ func (sh *strictHandler) OpenRealtime(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(OpenRealtimeResponseObject); ok {
 		if err := validResponse.VisitOpenRealtimeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeclineRematch operation middleware
+func (sh *strictHandler) DeclineRematch(w http.ResponseWriter, r *http.Request, gameId string) {
+	var request DeclineRematchRequestObject
+
+	request.GameId = gameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeclineRematch(ctx, request.(DeclineRematchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeclineRematch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeclineRematchResponseObject); ok {
+		if err := validResponse.VisitDeclineRematchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRematch operation middleware
+func (sh *strictHandler) GetRematch(w http.ResponseWriter, r *http.Request, gameId string) {
+	var request GetRematchRequestObject
+
+	request.GameId = gameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRematch(ctx, request.(GetRematchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRematch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRematchResponseObject); ok {
+		if err := validResponse.VisitGetRematchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ChooseRematchDeck operation middleware
+func (sh *strictHandler) ChooseRematchDeck(w http.ResponseWriter, r *http.Request, gameId string) {
+	var request ChooseRematchDeckRequestObject
+
+	request.GameId = gameId
+
+	var body ChooseRematchDeckJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ChooseRematchDeck(ctx, request.(ChooseRematchDeckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ChooseRematchDeck")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ChooseRematchDeckResponseObject); ok {
+		if err := validResponse.VisitChooseRematchDeckResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AgreeToRematch operation middleware
+func (sh *strictHandler) AgreeToRematch(w http.ResponseWriter, r *http.Request, gameId string) {
+	var request AgreeToRematchRequestObject
+
+	request.GameId = gameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AgreeToRematch(ctx, request.(AgreeToRematchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AgreeToRematch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AgreeToRematchResponseObject); ok {
+		if err := validResponse.VisitAgreeToRematchResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

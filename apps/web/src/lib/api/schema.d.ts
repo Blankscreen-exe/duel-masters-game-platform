@@ -375,6 +375,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rematches/{gameId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The game that ended. */
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * The rematch of a game that just ended, for its players
+         * @description When a game ends with both players on the site, they are offered a rematch at once, until either declines, leaves the site or the offer runs out (expiresAt). Changes reach both players on the live connection (RealtimeRematch, RealtimeRematchEnded).
+         */
+        get: operations["getRematch"];
+        put?: never;
+        post?: never;
+        /**
+         * Decline the rematch, or leave it for the lobby
+         * @description It ends for both players, who are told on the live connection (RealtimeRematchEnded).
+         */
+        delete: operations["declineRematch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rematches/{gameId}/deck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The game that ended. */
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Switch to another deck for the rematch
+         * @description One of the player's decks, legal in the game's format. The other player agreed to the deck they were shown, so a different one takes back their agreement.
+         */
+        put: operations["chooseRematchDeck"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rematches/{gameId}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The game that ended. */
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Offer the rematch, or accept the other player's
+         * @description Agrees to play the decks shown. Once both players agree, the new game starts, in the same format and with the same options, its coin toss called by the loser of the last game, and both are told on the live connection (RealtimeGameStarted) to go to it.
+         */
+        post: operations["agreeToRematch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/games/{gameId}": {
         parameters: {
             query?: never;
@@ -732,10 +805,10 @@ export interface components {
             id: string;
             username: string;
         };
-        /** @description What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name) or playing (with the game's id). */
+        /** @description What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name), playing (with the game's id) or deciding on a rematch (with the id of the game that ended). */
         PlayerActivity: {
             /** @enum {string} */
-            kind: "hosting" | "queued" | "playing";
+            kind: "hosting" | "queued" | "playing" | "rematch";
             gameId?: string;
             formatName?: string;
         };
@@ -843,7 +916,7 @@ export interface components {
             role: components["schemas"]["GameRole"];
         };
         /** @description A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. Visitors receive only the chat and the site's numbers. */
-        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"];
+        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"] | components["schemas"]["RealtimeRematch"] | components["schemas"]["RealtimeRematchEnded"];
         /** @description How many players are online and games running, for everyone. */
         RealtimeSiteStats: {
             /**
@@ -879,6 +952,63 @@ export interface components {
              */
             type: "game_started";
             gameId: string;
+        };
+        /** @description A rematch being decided, as one of its players sees it. */
+        Rematch: {
+            /** @description The game that ended. */
+            gameId: string;
+            name: string;
+            formatId: string;
+            formatName: string;
+            you: components["schemas"]["RematchSeat"];
+            opponent: components["schemas"]["RematchSeat"];
+            /** @description The player who calls the new game's coin toss, the loser of the last game; absent after a game without a winner, for either at random. */
+            tossCallerId?: string;
+            /**
+             * Format: date-time
+             * @description When the offer runs out.
+             */
+            expiresAt: string;
+        };
+        RematchSeat: {
+            id: string;
+            username: string;
+            deck: components["schemas"]["RematchDeck"];
+            /** @description The player agrees to play the decks shown. */
+            ready: boolean;
+        };
+        /** @description A deck chosen for a rematch, shown by name and civilizations only. */
+        RematchDeck: {
+            /** @description Only for the player's own deck. */
+            id?: string;
+            name: string;
+            civilizations: string[];
+        };
+        RematchDeckInput: {
+            deckId: string;
+        };
+        /** @description A rematch the player decides on, as it now is. Sent to its players. */
+        RealtimeRematch: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "rematch";
+            rematch: components["schemas"]["Rematch"];
+        };
+        /** @description A rematch will not be played: a player declined, a player left the site, or the offer ran out. Sent to its players, who go back to the lobby. */
+        RealtimeRematchEnded: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "rematch_ended";
+            /** @description The game that ended. */
+            gameId: string;
+            /** @enum {string} */
+            reason: "declined" | "left" | "expired";
+            /** @description The username of the player who declined or left; absent when it ran out. */
+            by?: string;
         };
         /** @description Nobody joined the player's open game in time, so it closed. Sent to its host. */
         RealtimeOpenGameExpired: {
@@ -1640,6 +1770,129 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthenticated"];
+        };
+    };
+    getRematch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The game that ended. */
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rematch, as this player sees it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rematch"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    declineRematch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The game that ended. */
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rematch will not be played. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    chooseRematchDeck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The game that ended. */
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RematchDeckInput"];
+            };
+        };
+        responses: {
+            /** @description The rematch, with the deck chosen. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rematch"];
+                };
+            };
+            400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    agreeToRematch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The game that ended. */
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Agreed; waiting for the other player. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rematch"];
+                };
+            };
+            /** @description Both agreed, and the new game started. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameStarted"];
+                };
+            };
+            400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["GamesPaused"];
+            404: components["responses"]["NotFound"];
+            /** @description The other player's deck no longer keeps to the format (code "opponent_deck_not_legal"): they must choose another, and both agree again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getLiveGame: {

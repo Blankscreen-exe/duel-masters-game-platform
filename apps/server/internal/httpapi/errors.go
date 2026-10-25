@@ -26,13 +26,14 @@ const (
 	codeTooManyDecks = "too_many_decks"
 	codeTooFast      = "too_fast"
 
-	codeDeckNotLegal     = "deck_not_legal"
-	codeGamesPaused      = "games_paused"
-	codeBusy             = "busy"
-	codeNotHost          = "not_host"
-	codeOwnGame          = "own_game"
-	codeHostDeckNotLegal = "host_deck_not_legal"
-	codeNotWatchable     = "not_watchable"
+	codeDeckNotLegal         = "deck_not_legal"
+	codeGamesPaused          = "games_paused"
+	codeBusy                 = "busy"
+	codeNotHost              = "not_host"
+	codeOwnGame              = "own_game"
+	codeHostDeckNotLegal     = "host_deck_not_legal"
+	codeOpponentDeckNotLegal = "opponent_deck_not_legal"
+	codeNotWatchable         = "not_watchable"
 )
 
 // apiError is the contract's Error body.

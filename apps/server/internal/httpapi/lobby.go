@@ -238,6 +238,8 @@ func busyRefusal(err error) (api.Error, bool) {
 		message = "You are already hosting a game. Cancel it first."
 	case lobby.Queued:
 		message = fmt.Sprintf("You are already waiting for a quick match in %s. Leave it first.", busy.Current.FormatName)
+	case lobby.Rematching:
+		message = "You are deciding on a rematch. Accept or decline it first."
 	}
 
 	return apiError(codeBusy, message), true
