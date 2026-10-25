@@ -112,34 +112,106 @@ func (s playServer) openGameSocket(t *testing.T, session *http.Cookie, gameID st
 	return conn, response, err
 }
 
-// gameMessage reads a game socket until a message with one of the headers
-// arrives.
-func gameMessage(t *testing.T, conn *websocket.Conn, headers ...string) map[string]any {
+// gameConn is a game socket a test plays over, as the duel board does. Its
+// messages are read as they arrive, so a test can wait for one while
+// repeating an answer (see sayUntil).
+type gameConn struct {
+	conn     *websocket.Conn
+	messages chan map[string]any
+}
+
+// readGame starts reading a game socket's messages until it closes or the
+// test ends.
+func readGame(t *testing.T, conn *websocket.Conn) *gameConn {
+	game := &gameConn{conn: conn, messages: make(chan map[string]any, 256)}
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	t.Cleanup(func() {
+		close(done)
+		_ = conn.Close()
+		<-stopped
+	})
+
+	go func() {
+		defer close(stopped)
+		defer close(game.messages)
+		for {
+			var message map[string]any
+			if err := conn.ReadJSON(&message); err != nil {
+				return
+			}
+			select {
+			case game.messages <- message:
+			case <-done:
+				return
+			}
+		}
+	}()
+	return game
+}
+
+// WriteJSON sends a message to the game.
+func (g *gameConn) WriteJSON(message any) error {
+	return g.conn.WriteJSON(message)
+}
+
+// next returns the next message with one of the headers, or nil once wait
+// has passed.
+func (g *gameConn) next(t *testing.T, wait <-chan time.Time, headers ...string) map[string]any {
 	t.Helper()
 
-	deadline := time.Now().Add(5 * time.Second)
 	for {
-		require.NoError(t, conn.SetReadDeadline(deadline))
-		var message map[string]any
-		require.NoError(t, conn.ReadJSON(&message), "waiting for %v", headers)
-		if slices.Contains(headers, message["header"].(string)) {
-			return message
+		select {
+		case message, open := <-g.messages:
+			require.True(t, open, "the game socket closed while waiting for %v", headers)
+			if slices.Contains(headers, message["header"].(string)) {
+				return message
+			}
+		case <-wait:
+			return nil
 		}
 	}
+}
+
+// gameMessage waits for a message with one of the headers.
+func gameMessage(t *testing.T, game *gameConn, headers ...string) map[string]any {
+	t.Helper()
+
+	message := game.next(t, time.After(gamestest.Timeout), headers...)
+	require.NotNil(t, message, "waiting for %v", headers)
+	return message
+}
+
+// sayUntil sends a message to the game until one with the header arrives on
+// listener, as gamestest.Pipe.SayUntil does, and for the same reason: the
+// engine drops an answer sent while it is still busy.
+func sayUntil(t *testing.T, speaker *gameConn, message map[string]any, listener *gameConn, header string) map[string]any {
+	t.Helper()
+
+	deadline := time.Now().Add(gamestest.Timeout)
+	for time.Now().Before(deadline) {
+		require.NoError(t, speaker.WriteJSON(message))
+		if reply := listener.next(t, time.After(gamestest.ResendEvery), header); reply != nil {
+			return reply
+		}
+	}
+	require.Failf(t, "no reply", "waiting for %q", header)
+	return nil
 }
 
 // play connects a game's two players over game sockets, as the duel board
 // does, and takes the game through its coin toss: the caller calls heads and
 // the winner plays first. It returns their sockets once play has begun.
-func (s playServer) play(t *testing.T, hostPlayer, guestPlayer player, gameID string) (host, guest *websocket.Conn) {
+func (s playServer) play(t *testing.T, hostPlayer, guestPlayer player, gameID string) (host, guest *gameConn) {
 	t.Helper()
 
-	host, _, err := s.openGameSocket(t, hostPlayer.session, gameID)
+	hostSocket, _, err := s.openGameSocket(t, hostPlayer.session, gameID)
 	require.NoError(t, err)
-	guest, _, err = s.openGameSocket(t, guestPlayer.session, gameID)
+	guestSocket, _, err := s.openGameSocket(t, guestPlayer.session, gameID)
 	require.NoError(t, err)
-	for _, conn := range []*websocket.Conn{host, guest} {
-		require.NoError(t, conn.WriteJSON(map[string]any{"header": "join_match"}))
+	host, guest = readGame(t, hostSocket), readGame(t, guestSocket)
+	for _, game := range []*gameConn{host, guest} {
+		require.NoError(t, game.WriteJSON(map[string]any{"header": "join_match"}))
 	}
 
 	// The host is told either to call the toss or who calls it.
@@ -147,15 +219,13 @@ func (s playServer) play(t *testing.T, hostPlayer, guestPlayer player, gameID st
 	if gameMessage(t, host, "choose_toss", "toss_being_chosen")["header"] == "toss_being_chosen" {
 		caller, other = guest, host
 	}
-	require.NoError(t, caller.WriteJSON(map[string]any{"header": "toss_chosen", "prediction": 1}))
-	result := gameMessage(t, other, "toss_result")
+	result := sayUntil(t, caller, map[string]any{"header": "toss_chosen", "prediction": 1}, other, "toss_result")
 	chooser := host
 	if result["winner"].(map[string]any)["username"] == guestPlayer.name {
 		chooser = guest
 	}
 	gameMessage(t, chooser, "choose_turn")
-	require.NoError(t, chooser.WriteJSON(map[string]any{"header": "turn_chosen", "player": 1}))
-	gameMessage(t, host, "state_update")
+	sayUntil(t, chooser, map[string]any{"header": "turn_chosen", "player": 1}, host, "state_update")
 
 	return host, guest
 }
