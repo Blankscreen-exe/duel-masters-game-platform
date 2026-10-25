@@ -14,6 +14,8 @@ import {
   USERNAME_MIN_LENGTH,
   USERNAME_PATTERN,
 } from '@/lib/credentials';
+import { textField } from '@/lib/form-data';
+import { bannedMessage } from '@/lib/moderation';
 
 interface AuthFormProps {
   readonly mode: 'login' | 'signup';
@@ -67,7 +69,7 @@ export function AuthForm({ mode, next }: AuthFormProps) {
         router.refresh();
         return;
       }
-      setError(errorMessage(failure));
+      setError(failure?.code === 'banned' ? bannedMessage(failure) : errorMessage(failure));
     } catch {
       setError(UNREACHABLE);
     } finally {
@@ -132,10 +134,4 @@ export function AuthForm({ mode, next }: AuthFormProps) {
       </p>
     </Panel>
   );
-}
-
-/** A text box's value; empty if the form has no such text box. */
-function textField(form: FormData, name: string): string {
-  const value = form.get(name);
-  return typeof value === 'string' ? value : '';
 }

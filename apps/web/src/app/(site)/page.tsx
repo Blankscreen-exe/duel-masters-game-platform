@@ -78,7 +78,12 @@ export default async function HomePage() {
         )}
         {chat.data && (
           <Panel title="Lobby chat" className="flex max-h-[28rem] flex-col">
-            <LobbyChat initial={chat.data} canPost={account !== null} className="flex-1" />
+            <LobbyChat
+              initial={chat.data}
+              canPost={account !== null}
+              mute={account?.mute}
+              className="flex-1"
+            />
           </Panel>
         )}
       </div>

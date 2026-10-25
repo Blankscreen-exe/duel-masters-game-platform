@@ -1,5 +1,11 @@
 import type { components } from '../api/schema';
 
+/**
+ * The close code of a live connection the server closes as it puts the player out of the site, by
+ * a ban or a new password: the page is then logged out.
+ */
+export const SIGNED_OUT_CLOSE_CODE = 4001;
+
 /** A message on the live connection, told apart by its type (api/openapi.yaml, RealtimeMessage). */
 export type LiveMessage = components['schemas']['RealtimeMessage'];
 export type LiveMessageType = LiveMessage['type'];

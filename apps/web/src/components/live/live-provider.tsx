@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import {
   createContext,
   useContext,
@@ -12,10 +13,12 @@ import {
   LiveListeners,
   parseLiveMessage,
   reconnectDelay,
+  SIGNED_OUT_CLOSE_CODE,
   socketUrl,
   type LiveMessageOf,
   type LiveMessageType,
 } from '@/lib/live/messages';
+import { notify } from '@/lib/notifications';
 
 interface LiveContextValue {
   listeners: LiveListeners;
@@ -32,12 +35,18 @@ const UNKNOWN = Symbol('unknown account');
 /**
  * Keeps this tab's live connection to the server, reconnecting whenever it drops, and passes its
  * messages to the components listening. Rendered once, in the root layout; LiveSession says who
- * is logged in, so logging in or out reconnects as the new account.
+ * is logged in, so logging in or out reconnects as the new account. When the server puts the
+ * player out of the site, the page is drawn again, logged out.
  */
 export function LiveProvider({ children }: { readonly children: ReactNode }) {
+  const router = useRouter();
   const [listeners] = useState(() => new LiveListeners());
   const [connected, setConnected] = useState(false);
   const [account, setAccount] = useState<string | null | typeof UNKNOWN>(UNKNOWN);
+  const signedOut = useEffectEvent(() => {
+    notify('You have been logged out.');
+    router.refresh();
+  });
 
   useEffect(() => {
     if (account === UNKNOWN) return;
@@ -57,8 +66,9 @@ export function LiveProvider({ children }: { readonly children: ReactNode }) {
         const message = parseLiveMessage(event.data);
         if (message) listeners.emit(message);
       };
-      socket.onclose = () => {
+      socket.onclose = (event: CloseEvent) => {
         setConnected(false);
+        if (event.code === SIGNED_OUT_CLOSE_CODE) signedOut();
         if (stopped) return;
         retry = window.setTimeout(connect, reconnectDelay(attempt));
         attempt += 1;

@@ -3,10 +3,13 @@ import { profileHref } from '@/lib/players';
 import { getCurrentAccount } from '@/lib/session';
 import { LogOutButton } from './log-out-button';
 import { RankBadge } from './players/rank-badge';
-import { RankRefresh } from './players/rank-refresh';
+import { AccountRefresh } from './players/account-refresh';
 import { buttonClasses } from './ui/button';
 
-/** Log in and sign up for visitors; once logged in, the player's name, rank and log out. */
+/**
+ * Log in and sign up for visitors; once logged in, the player's name, rank and log out, and the way
+ * into the admin panel for admins.
+ */
 export async function UserMenu() {
   const account = await getCurrentAccount();
 
@@ -25,7 +28,7 @@ export async function UserMenu() {
 
   return (
     <div className="flex items-center gap-3">
-      <RankRefresh accountId={account.id} />
+      <AccountRefresh accountId={account.id} />
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-100">
         <Link
           href={profileHref(account.username)}
@@ -44,9 +47,13 @@ export async function UserMenu() {
           <RankBadge rank={account.rank} />
         </span>
         {account.role === 'admin' && (
-          <span className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-accent uppercase ring-1 ring-accent/50 ring-inset">
+          <Link
+            href="/admin"
+            title="The admin panel"
+            className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-accent uppercase ring-1 ring-accent/50 transition ring-inset hover:bg-accent/15 hover:text-white"
+          >
             Admin
-          </span>
+          </Link>
         )}
       </span>
       <LogOutButton />

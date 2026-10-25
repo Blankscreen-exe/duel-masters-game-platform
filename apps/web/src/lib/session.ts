@@ -1,5 +1,5 @@
 import 'server-only';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { cache } from 'react';
 import type { Account } from './api/client';
 import { serverApi } from './api/server';
@@ -25,6 +25,17 @@ export const getCurrentAccount = cache(async (): Promise<Account | null> => {
 export async function requireAccount(returnTo: string): Promise<Account> {
   const account = await getCurrentAccount();
   if (!account) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
+
+  return account;
+}
+
+/**
+ * The logged-in admin, for the admin panel's pages. A visitor is sent to log in, as for any page
+ * for players; a player is answered as if the page did not exist.
+ */
+export async function requireAdmin(returnTo: string): Promise<Account> {
+  const account = await requireAccount(returnTo);
+  if (account.role !== 'admin') notFound();
 
   return account;
 }

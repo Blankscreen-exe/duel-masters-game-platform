@@ -7,6 +7,7 @@ import { useLiveMessage } from '@/components/live/live-provider';
 import { Button } from '@/components/ui/button';
 import { api, errorMessage, UNREACHABLE } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { inForce, mutedMessage, type Penalty } from '@/lib/moderation';
 
 type ChatMessage = components['schemas']['ChatMessage'];
 
@@ -19,11 +20,14 @@ interface LobbyChatProps {
   readonly initial: readonly ChatMessage[];
   /** Whether the viewer may post: players can, visitors only read. */
   readonly canPost: boolean;
+  /** The player's mute, while an admin has muted them: they read, but do not post. */
+  readonly mute?: Penalty;
   readonly className?: string;
 }
 
 /** The lobby chat: everyone reads it, players write in it, and new messages arrive live. */
-export function LobbyChat({ initial, canPost, className = '' }: LobbyChatProps) {
+export function LobbyChat({ initial, canPost, mute, className = '' }: LobbyChatProps) {
+  const muted = useMuted(mute);
   const [messages, setMessages] = useState<readonly ChatMessage[]>(initial);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +86,11 @@ export function LobbyChat({ initial, canPost, className = '' }: LobbyChatProps) 
         )}
       </ol>
 
-      {canPost ? (
+      {canPost && muted ? (
+        <p role="status" className="border-t border-slate-700/60 px-4 py-3 text-sm text-slate-400">
+          {mutedMessage(muted)}
+        </p>
+      ) : canPost ? (
         <form onSubmit={(event) => void post(event)} className="border-t border-slate-700/60 p-3">
           {error && (
             <p role="alert" className="mb-2 text-xs text-red-300">
@@ -118,4 +126,27 @@ export function LobbyChat({ initial, canPost, className = '' }: LobbyChatProps) 
       )}
     </div>
   );
+}
+
+/**
+ * The player's mute while it lasts: a timed mute lifts itself on screen when it ends, as it does on
+ * the server.
+ */
+function useMuted(mute: Penalty | undefined): Penalty | null {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (mute?.until === undefined) return;
+    const timer = window.setTimeout(
+      () => {
+        setNow(Date.now());
+      },
+      Math.max(0, Date.parse(mute.until) - Date.now()),
+    );
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [mute?.until]);
+
+  return inForce(mute, now) ? mute : null;
 }

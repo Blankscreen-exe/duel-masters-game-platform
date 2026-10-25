@@ -98,7 +98,7 @@ export function LobbyView({
           </Panel>
           <div className="grid gap-6 xl:grid-cols-2">
             <Panel title="Lobby chat" className="flex max-h-[28rem] flex-col">
-              <LobbyChat initial={chat} canPost className="flex-1" />
+              <LobbyChat initial={chat} canPost mute={account.mute} className="flex-1" />
             </Panel>
             <div className="space-y-6">
               <Panel title="Games running" actions={<Count n={lobby.runningGames.length} />}>
