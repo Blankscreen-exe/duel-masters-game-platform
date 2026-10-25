@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -62,8 +64,13 @@ type Config struct {
 	// otherwise; turn it off only when players reach the server over plain
 	// HTTP, such as on a home network.
 	SecureCookies bool `env:"-"`
-	Database      Database
-	Log           Log
+	// SiteOrigins are the addresses players open the site from, such as
+	// https://duelmasters.example, comma-separated. Live connections from any
+	// other page are refused. Development defaults to the Next.js site on
+	// port 3000; production must set them.
+	SiteOrigins []string `env:"SITE_ORIGINS" envSeparator:","`
+	Database    Database
+	Log         Log
 }
 
 // Database selects and locates the database.
@@ -115,6 +122,13 @@ func (c *Config) applyDefaults() {
 		c.SecureCookies = *c.SecureCookiesSetting
 	}
 
+	if len(c.SiteOrigins) == 0 && c.Environment == Development {
+		c.SiteOrigins = []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	}
+	for i, origin := range c.SiteOrigins {
+		c.SiteOrigins[i] = strings.TrimRight(strings.TrimSpace(origin), "/")
+	}
+
 	if c.Log.Format == "" {
 		c.Log.Format = LogText
 		if c.Environment == Production {
@@ -152,6 +166,15 @@ func (c *Config) validate() error {
 		problems = append(problems, fmt.Errorf("DB_DRIVER must be %q or %q, got %q", SQLite, Postgres, c.Database.Driver))
 	}
 
+	if len(c.SiteOrigins) == 0 {
+		problems = append(problems, errors.New("SITE_ORIGINS is required in production: the addresses players open the site from, such as https://duelmasters.example"))
+	}
+	for _, origin := range c.SiteOrigins {
+		if !isOrigin(origin) {
+			problems = append(problems, fmt.Errorf("SITE_ORIGINS must be addresses such as https://duelmasters.example, without a path, got %q", origin))
+		}
+	}
+
 	if err := c.Log.Level.UnmarshalText([]byte(c.Log.LevelName)); err != nil {
 		problems = append(problems, fmt.Errorf("LOG_LEVEL must be debug, info, warn or error, got %q", c.Log.LevelName))
 	}
@@ -163,4 +186,16 @@ func (c *Config) validate() error {
 	}
 
 	return errors.Join(problems...)
+}
+
+// isOrigin reports whether text is an origin: a scheme of http or https and a
+// host, with nothing after them.
+func isOrigin(text string) bool {
+	parsed, err := url.Parse(text)
+	if err != nil {
+		return false
+	}
+
+	return (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != "" &&
+		parsed.Path == "" && parsed.RawQuery == "" && parsed.Fragment == "" && parsed.User == nil
 }

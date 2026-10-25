@@ -52,6 +52,7 @@ The server is configured with environment variables, checked at startup:
 | `LOG_LEVEL`    | `info`                     | `debug`, `info`, `warn` or `error`                           |
 | `LOG_FORMAT`   | `text` (`json` in production) | `text` or `json`                                           |
 | `SECURE_COOKIES` | `false` (`true` in production) | Send the login cookie over HTTPS only. Turn off only for plain HTTP, such as a home network. |
+| `SITE_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` in development; required in production | The addresses players open the site from, comma-separated. Live connections from other pages are refused. |
 
 The database tests run on SQLite and, when `TEST_POSTGRES_URL` points at a PostgreSQL server
 (for example `postgres://test:test@127.0.0.1:5432/platform_test?sslmode=disable`), on PostgreSQL

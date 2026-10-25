@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,16 +19,24 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
+
+// testSiteOrigin is the site the test server accepts live connections from.
+const testSiteOrigin = "http://site.test"
 
 // testServer is the API with every feature, on a fresh SQLite database and a
 // small card database. The data layer's own tests cover PostgreSQL.
 type testServer struct {
 	handler  http.Handler
 	settings *settings.Service
+	hub      *realtime.Hub
+	// clock is the time the features see, which only moves when a test
+	// moves it, so answers that depend on time are exact.
+	clock *testClock
 	// cardDatabase is the card database's folder.
 	cardDatabase string
 }
@@ -52,13 +61,16 @@ func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, pl
 	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings())...)
 	require.NoError(t, err)
 
-	authService := auth.NewService(db, users.NewService(db, logger), siteSettings, auth.NewPasswordHasher(4), time.Now, logger)
+	clock := &testClock{now: time.Now()}
+	authService := auth.NewService(db, users.NewService(db, logger), siteSettings, auth.NewPasswordHasher(4), clock.Now, logger)
 
 	source, err := cards.ReadSource(cardDatabase)
 	require.NoError(t, err)
 	_, err = cards.Sync(ctx, db, source, playable, logger)
 	require.NoError(t, err)
 	catalogue := cards.NewCatalogue(db, cardDatabase)
+	hub := realtime.NewHub(realtime.Options{OfflineAfter: time.Minute, Logger: logger})
+	t.Cleanup(func() { require.NoError(t, hub.Close(context.Background())) })
 
 	return testServer{
 		handler: NewHandler(Dependencies{
@@ -67,10 +79,14 @@ func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, pl
 			Catalogue:     catalogue,
 			Formats:       formats.NewService(db),
 			Decks:         decks.NewService(db, catalogue, siteSettings, logger),
+			Hub:           hub,
+			Upgrader:      realtime.NewUpgrader([]string{testSiteOrigin}),
 			Logger:        logger,
 			SecureCookies: secureCookies,
 		}),
 		settings:     siteSettings,
+		hub:          hub,
+		clock:        clock,
 		cardDatabase: cardDatabase,
 	}
 }
@@ -100,4 +116,23 @@ func testCardDatabase(t *testing.T) string {
 		[]string{"0079", "0029"},
 		[]string{"dm-01"},
 	)
+}
+
+// testClock is a clock that stands still until a test moves it.
+type testClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *testClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+// Advance moves the clock on.
+func (c *testClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
 }

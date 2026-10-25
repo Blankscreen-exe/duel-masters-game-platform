@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"bufio"
 	"context"
 	"log/slog"
 	"mime"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -42,6 +44,19 @@ func (r *responseRecorder) Write(body []byte) (int, error) {
 
 func (r *responseRecorder) Unwrap() http.ResponseWriter {
 	return r.ResponseWriter
+}
+
+// Hijack hands the connection over to a websocket, noting the answer as 101
+// Switching Protocols for the request log. The websocket library asks for it
+// directly rather than through http.ResponseController.
+func (r *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, buffered, err := http.NewResponseController(r.ResponseWriter).Hijack()
+	if err == nil && !r.wroteHeader {
+		r.status = http.StatusSwitchingProtocols
+		r.wroteHeader = true
+	}
+
+	return conn, buffered, err
 }
 
 // logRequests logs every request once it has been answered.

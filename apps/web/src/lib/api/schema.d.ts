@@ -206,6 +206,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/realtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open the live connection
+         * @description A websocket, opened by every tab of the site, logged in or not, which the server uses to push lobby updates, chat and notices such as a game starting. The messages are described by the RealtimeMessage schema. The browser sends nothing but answers to pings. Only the site's own pages may open it (their Origin must be one of SITE_ORIGINS).
+         */
+        get: operations["openRealtime"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/formats": {
         parameters: {
             query?: never;
@@ -890,6 +910,38 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    openRealtime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Switching to the websocket. */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a websocket request. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Opened from a page that is not the site's. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listFormats: {

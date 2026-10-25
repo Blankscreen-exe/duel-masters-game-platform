@@ -346,6 +346,23 @@ paths:
           description: The browser's copy is still current.
         "404":
           $ref: "#/components/responses/NotFound"
+  /realtime:
+    get:
+      operationId: openRealtime
+      summary: Open the live connection
+      description: >-
+        A websocket, opened by every tab of the site, logged in or not, which the server uses to push
+        lobby updates, chat and notices such as a game starting. The messages are described by the
+        RealtimeMessage schema. The browser sends nothing but answers to pings. Only the site's own
+        pages may open it (their Origin must be one of SITE_ORIGINS).
+      tags: [system]
+      responses:
+        "101":
+          description: Switching to the websocket.
+        "400":
+          description: Not a websocket request.
+        "403":
+          description: Opened from a page that is not the site's.
   /formats:
     get:
       operationId: listFormats

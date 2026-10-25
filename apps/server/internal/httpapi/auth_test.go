@@ -166,10 +166,21 @@ func TestLogInErrors(t *testing.T) {
 	}
 	throttled := server.call(http.MethodPost, "/api/auth/login", api.Credentials{Username: "Shobu", Password: testPassword}, nil)
 	assert.Equal(t, http.StatusTooManyRequests, throttled.Code)
-	assert.Equal(t, "900", throttled.Header().Get("Retry-After"))
+	assert.Equal(t, "900", throttled.Header().Get("Retry-After"), "the full 15 minutes, as no time has passed")
 	body := decode[api.Error](t, throttled)
 	assert.Equal(t, "too_many_attempts", body.Code)
 	assert.Equal(t, "Too many failed attempts. Try again in 15 minutes.", body.Message)
+
+	// The wait counts down from the first wrong password.
+	server.clock.Advance(14*time.Minute + 30*time.Second)
+	later := server.call(http.MethodPost, "/api/auth/login", api.Credentials{Username: "Shobu", Password: testPassword}, nil)
+	assert.Equal(t, http.StatusTooManyRequests, later.Code)
+	assert.Equal(t, "30", later.Header().Get("Retry-After"))
+	assert.Equal(t, "Too many failed attempts. Try again in 1 minute.", decode[api.Error](t, later).Message)
+
+	server.clock.Advance(time.Minute)
+	afterwards := server.call(http.MethodPost, "/api/auth/login", api.Credentials{Username: "Shobu", Password: testPassword}, nil)
+	assert.Equal(t, http.StatusOK, afterwards.Code, "the right password works once the wait is over")
 }
 
 func TestCurrentAccountNeedsASession(t *testing.T) {

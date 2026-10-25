@@ -464,6 +464,9 @@ type ServerInterface interface {
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+	// OpenRealtime Open the live connection
+	// (GET /realtime)
+	OpenRealtime(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -974,6 +977,20 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// OpenRealtime operation middleware
+func (siw *ServerInterfaceWrapper) OpenRealtime(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.OpenRealtime(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1105,6 +1122,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/{cardId}", wrapper.GetCard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/images/{key}", wrapper.GetCardImage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/sets/{setCode}/icon", wrapper.GetCardSetIcon)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/realtime", wrapper.OpenRealtime)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/formats", wrapper.ListFormats)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks", wrapper.ListDecks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/decks", wrapper.CreateDeck)
@@ -2020,6 +2038,37 @@ func (response GetHealth503JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	return err
 }
 
+type OpenRealtimeRequestObject struct {
+}
+
+type OpenRealtimeResponseObject interface {
+	VisitOpenRealtimeResponse(w http.ResponseWriter) error
+}
+
+type OpenRealtime101Response struct {
+}
+
+func (response OpenRealtime101Response) VisitOpenRealtimeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(101)
+	return nil
+}
+
+type OpenRealtime400Response struct {
+}
+
+func (response OpenRealtime400Response) VisitOpenRealtimeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(400)
+	return nil
+}
+
+type OpenRealtime403Response struct {
+}
+
+func (response OpenRealtime403Response) VisitOpenRealtimeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(403)
+	return nil
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// LogIn Log in
@@ -2079,6 +2128,9 @@ type StrictServerInterface interface {
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+	// OpenRealtime Open the live connection
+	// (GET /realtime)
+	OpenRealtime(ctx context.Context, request OpenRealtimeRequestObject) (OpenRealtimeResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -2627,6 +2679,30 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthResponseObject); ok {
 		if err := validResponse.VisitGetHealthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// OpenRealtime operation middleware
+func (sh *strictHandler) OpenRealtime(w http.ResponseWriter, r *http.Request) {
+	var request OpenRealtimeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.OpenRealtime(ctx, request.(OpenRealtimeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "OpenRealtime")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(OpenRealtimeResponseObject); ok {
+		if err := validResponse.VisitOpenRealtimeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

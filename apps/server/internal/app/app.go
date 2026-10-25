@@ -22,6 +22,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -44,11 +45,16 @@ const shutdownTimeout = 15 * time.Second
 // sessionCleanupInterval is how often expired sessions are deleted.
 const sessionCleanupInterval = time.Hour
 
+// offlineAfter is how long a player with no live connection still counts as
+// online, so reloading a page does not count as leaving the site.
+const offlineAfter = 10 * time.Second
+
 // App is the assembled server.
 type App struct {
 	logger *slog.Logger
 	db     *gorm.DB
 	auth   *auth.Service
+	hub    *realtime.Hub
 	server *http.Server
 }
 
@@ -104,11 +110,13 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	deckService := decks.NewService(db, catalogue, siteSettings, logger.With("component", "decks"))
 
 	httpLogger := logger.With("component", "http")
+	hub := realtime.NewHub(realtime.Options{OfflineAfter: offlineAfter, Logger: logger.With("component", "realtime")})
 
 	return &App{
 		logger: logger,
 		db:     db,
 		auth:   authService,
+		hub:    hub,
 		server: &http.Server{
 			Handler: httpapi.NewHandler(httpapi.Dependencies{
 				DB:            sqlDB,
@@ -116,6 +124,8 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 				Catalogue:     catalogue,
 				Formats:       formats.NewService(db),
 				Decks:         deckService,
+				Hub:           hub,
+				Upgrader:      realtime.NewUpgrader(cfg.SiteOrigins),
 				Logger:        httpLogger,
 				SecureCookies: cfg.SecureCookies,
 			}),
@@ -142,10 +152,13 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 		defer close(background)
 		a.cleanUpSessions(backgroundCtx)
 	}()
-	closeDown := func() error {
+	// Live connections are taken over from the HTTP server, which does not
+	// wait for them, so they are closed here before the database.
+	closeDown := func(ctx context.Context) error {
+		err := a.hub.Close(ctx)
 		stopBackground()
 		<-background
-		return store.Close(a.db)
+		return errors.Join(err, store.Close(a.db))
 	}
 
 	served := make(chan error, 1)
@@ -153,7 +166,9 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 
 	select {
 	case err := <-served:
-		return errors.Join(fmt.Errorf("serving HTTP: %w", err), closeDown())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		return errors.Join(fmt.Errorf("serving HTTP: %w", err), closeDown(shutdownCtx))
 	case <-ctx.Done():
 	}
 
@@ -170,7 +185,7 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 		err = errors.Join(err, fmt.Errorf("serving HTTP: %w", served))
 	}
 
-	return errors.Join(err, closeDown())
+	return errors.Join(err, closeDown(shutdownCtx))
 }
 
 // cleanUpSessions deletes expired sessions straight away, then once every

@@ -9,11 +9,14 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 )
 
 // basePath is where the API is served, matching the contract's server URL.
@@ -34,7 +37,11 @@ type Dependencies struct {
 	Catalogue *cards.Catalogue
 	Formats   *formats.Service
 	Decks     *decks.Service
-	Logger    *slog.Logger
+	// Hub keeps the live connections, which Upgrader opens for the site's
+	// pages only.
+	Hub      *realtime.Hub
+	Upgrader *websocket.Upgrader
+	Logger   *slog.Logger
 	// SecureCookies makes the session cookie HTTPS-only.
 	SecureCookies bool
 }
@@ -46,6 +53,8 @@ type handlers struct {
 	catalogue     *cards.Catalogue
 	formats       *formats.Service
 	decks         *decks.Service
+	hub           *realtime.Hub
+	upgrader      *websocket.Upgrader
 	secureCookies bool
 }
 
@@ -64,6 +73,8 @@ func NewHandler(deps Dependencies) http.Handler {
 		catalogue:     deps.Catalogue,
 		formats:       deps.Formats,
 		decks:         deps.Decks,
+		hub:           deps.Hub,
+		upgrader:      deps.Upgrader,
 		secureCookies: deps.SecureCookies,
 	}, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: badRequest,

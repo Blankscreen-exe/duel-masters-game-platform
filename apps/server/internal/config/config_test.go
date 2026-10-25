@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// siteOrigins is the setting production needs, for tests about other settings.
+const siteOrigins = "SITE_ORIGINS=https://duelmasters.example"
+
 func TestLoadUsesDefaults(t *testing.T) {
 	cfg, err := Load(nil)
 	require.NoError(t, err)
@@ -22,6 +25,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	assert.Equal(t, LogText, cfg.Log.Format)
 	assert.False(t, cfg.SecureCookies, "development serves plain HTTP")
 	assert.Equal(t, "../../resources/duelmasters_db", cfg.CardDatabaseDir)
+	assert.Equal(t, []string{"http://localhost:3000", "http://127.0.0.1:3000"}, cfg.SiteOrigins, "the Next.js site in development")
 }
 
 func TestSecureCookies(t *testing.T) {
@@ -30,9 +34,9 @@ func TestSecureCookies(t *testing.T) {
 		environ []string
 		want    bool
 	}{
-		{"on in production", []string{"APP_ENV=production"}, true},
+		{"on in production", []string{"APP_ENV=production", siteOrigins}, true},
 		{"off in development", nil, false},
-		{"turned off in production", []string{"APP_ENV=production", "SECURE_COOKIES=false"}, false},
+		{"turned off in production", []string{"APP_ENV=production", siteOrigins, "SECURE_COOKIES=false"}, false},
 		{"turned on in development", []string{"SECURE_COOKIES=true"}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -56,6 +60,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		"LOG_LEVEL=debug",
 		"CARD_DATABASE_DIR=/resources/duelmasters_db",
 		"LOG_FORMAT=text",
+		"SITE_ORIGINS=https://duelmasters.example/, http://lan-host:3000",
 	})
 	require.NoError(t, err)
 
@@ -68,6 +73,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 	assert.Equal(t, slog.LevelDebug, cfg.Log.Level)
 	assert.Equal(t, "/resources/duelmasters_db", cfg.CardDatabaseDir)
 	assert.Equal(t, LogText, cfg.Log.Format, "an explicit format wins over the environment's")
+	assert.Equal(t, []string{"https://duelmasters.example", "http://lan-host:3000"}, cfg.SiteOrigins, "trimmed")
 }
 
 func TestLoadDefaultsDependOnOtherSettings(t *testing.T) {
@@ -90,7 +96,7 @@ func TestLoadDefaultsDependOnOtherSettings(t *testing.T) {
 	})
 
 	t.Run("production logs JSON", func(t *testing.T) {
-		cfg, err := Load([]string{"APP_ENV=production"})
+		cfg, err := Load([]string{"APP_ENV=production", siteOrigins})
 		require.NoError(t, err)
 		assert.Equal(t, LogJSON, cfg.Log.Format)
 	})
@@ -110,6 +116,10 @@ func TestLoadRefusesInvalidSettings(t *testing.T) {
 		{"sqlite file with postgres", []string{"DB_DRIVER=postgres", "POSTGRES_URL=postgres://db/platform", "SQLITE_PATH=/tmp/x.db"}, "SQLITE_PATH is set"},
 		{"unknown log format", []string{"LOG_FORMAT=xml"}, "LOG_FORMAT"},
 		{"unknown log level", []string{"LOG_LEVEL=loud"}, "LOG_LEVEL"},
+		{"production without site origins", []string{"APP_ENV=production"}, "SITE_ORIGINS is required"},
+		{"a site origin with a path", []string{"SITE_ORIGINS=https://example.com/play"}, "SITE_ORIGINS must be"},
+		{"a site origin without a scheme", []string{"SITE_ORIGINS=example.com"}, "SITE_ORIGINS must be"},
+		{"a site origin of another scheme", []string{"SITE_ORIGINS=ftp://example.com"}, "SITE_ORIGINS must be"},
 	}
 
 	for _, test := range tests {

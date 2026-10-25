@@ -19,6 +19,9 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      # The addresses players open the site from; see .env.example.
+      SITE_ORIGINS: ${SITE_ORIGINS:-http://localhost:3000}
     volumes:
       - data:/data
     depends_on:
