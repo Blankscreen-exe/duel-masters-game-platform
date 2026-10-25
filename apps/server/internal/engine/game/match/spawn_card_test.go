@@ -60,8 +60,16 @@ func registerSpawnCardTestConstructor() {
 }
 
 func newSpawnCardTestMatch() *Match {
-	system := NewSystem()
-	m := system.NewMatch("spawn-card-test", "host", "Player 1", nil, "", "Player 2", nil, true, true, FormatDescriptor{}, "host")
+	system := NewSystem(SystemOptions{})
+	m, err := system.NewMatch(Options{
+		Name:            "spawn-card-test",
+		Host:            Seat{ID: "player-1", Username: "Player 1"},
+		Guest:           Seat{ID: "player-2", Username: "Player 2"},
+		DisconnectGrace: time.Hour,
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	player1 := NewPlayer(m, 1)
 	player2 := NewPlayer(m, 2)

@@ -41,22 +41,15 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 
 ## Phase 2: concurrency in the socket/match layer
 
-### [ ] 4. `join_match` runs as a ParallelEvent and mutates match state (Verified)
-- **Where:** `game/match/match.go:1375-1532`
-- **Problem:** It writes `Player1`/`Player2`, swaps `PlayerN.Socket`, and calls `BroadcastState()` and `m.Start()` on a goroutine running alongside the event loop. If both players join at the same time, both goroutines can see both players set and call `Start()` twice (Reported).
-- **Fix options:** run join/reconnect on the sequential loop, which then must not be dropped by the 1-slot queue, or protect the join state with a dedicated mutex and a `sync.Once` around `Start()`. Pick one after reading `Start()` and `CreateDeck`.
-- **Test:** Host and guest join at the same moment under `-race`. Assert the match starts exactly once.
-- **Note:** A join's state broadcast no longer reads the attack in progress: it sends the board report the event loop last worked out (`game/match/board_report.go`). It still reads `m.Step` and the zones unsynchronized; moving joins onto the event loop fixes that too.
+### [x] 4. `join_match` runs as a ParallelEvent and mutates match state (Verified)
+- **Status:** Fixed. Joining stays a ParallelEvent, so a player coming back is seated even while the event loop waits on a prompt. The seats, the coin toss and the disconnect timers are now guarded by `setupMu` (`game/match/lifecycle.go`), which is never held while sending to or closing a socket. The toss begins once (`tossBegun`) and the game starts once (`turnChosen`). Tests: `TestPlayersJoiningAtTheSameMomentStartOneToss` and the other tests in `tests/lifecycle_test.go`, under `-race`.
+- **Left:** a join's state broadcast still reads `m.Step` and the zones unsynchronized; see item 24.
 
-### [ ] 5. `OnSocketClose` reads player/socket fields without synchronization (Reported)
-- **Where:** `game/match/match.go:~1930`. Also `game/match/matchsystem.go:67` reads `m.Started` from the ticker goroutine.
-- **Fix:** Use the same mechanism as item 4. Make `Started` atomic or read it under the lock.
+### [x] 5. `OnSocketClose` reads player/socket fields without synchronization (Reported)
+- **Status:** Fixed. `OnSocketClose` reads the seats under `setupMu` (`Match.leave`), and the match's started flag is atomic (`started`), so the ticker reads it safely.
 
-### [ ] 6. Reconnect can end the match (Reported)
-- **Where:** `game/match/match.go:~1380-1386`
-- **Problem:** The old socket is closed before the new one is assigned. `Close` calls `OnSocketClose` synchronously, so if the opponent is also disconnected, the "both players gone" branch runs `SaveMatchHistory` and `Dispose()`.
-- **Fix:** Assign the new socket (or mark it as replaced) before closing the old one, and have `OnSocketClose` ignore sockets that are no longer the player's current socket.
-- **Test:** Reconnect while the opponent is disconnected. The match must stay alive.
+### [x] 6. Reconnect can end the match (Reported)
+- **Status:** Fixed. The new socket takes the seat before the old one is closed, and closing a socket that is no longer a player's changes nothing. Test: `TestComingBackWhileTheOpponentIsAwayKeepsTheMatch`.
 
 ### [ ] 7. Stale action answers get delivered to the next prompt (Verified)
 - **Where:** `game/match/match.go:1779-1833`
@@ -136,9 +129,8 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 
 ## Phase 4: engine hardening
 
-### [ ] 19. Admin/cheat commands open to everyone in local dev (Verified)
-- **Where:** `game/match/match.go:2043-2050` (permission check commented out)
-- **Fix:** Turn the permission check back on, or at least exclude spectators. Decide how cheat commands fit the new server (admin role, development only) before changing it.
+### [x] 19. Admin/cheat commands open to everyone in local dev (Verified)
+- **Status:** Fixed. Chat commands run only when the match system is created with `SystemOptions.DevCommands`, which is off by default, rather than whenever the `local_dev` environment variable is set. The server never turns it on; it is for local testing tools.
 
 ### [ ] 20. 512-byte websocket read limit (Verified)
 - **Where:** `server/socket.go:18`
@@ -153,6 +145,12 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 - **Where:** `game/match/player.go:216-223` (`CreateDeck`)
 - **Problem:** Deck size and card IDs are not checked.
 - **Fix:** The new server checks decks with its single legality check (`decks/`) before creating a game; the engine still rejects unknown card IDs instead of building a partial deck.
+
+### [ ] 24. A player's socket is swapped while the game reads it (Verified)
+- **Where:** `game/match/lifecycle.go` (`join` sets `PlayerReference.Socket` under `setupMu`); readers across the engine, card effects included, use `PlayerRef(...).Socket` without the lock.
+- **Problem:** when a player comes back during a game, their new socket is written while the event loop may be sending to, or reading the user from, the old one. `Broadcast` now reads the seats under the lock, but the many direct readers do not. The tests do not show it, since they reconnect while the event loop is idle, but it is a real race in play.
+- **Fix idea:** keep the socket behind a method on `PlayerReference` that reads it under a lock (or an `atomic.Pointer`), and move every reader to it. It touches many card files, so it is its own change.
+- **Test:** reconnect a player while the event loop broadcasts state in a loop, under `-race`.
 
 ---
 

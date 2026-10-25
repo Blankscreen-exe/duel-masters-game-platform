@@ -154,14 +154,46 @@ type DuelFinishedPlayer struct {
 	Username string `json:"username,omitempty"`
 }
 
+// DuelFinishedMessage tells everyone in a match how the game ended.
 type DuelFinishedMessage struct {
-	Header               string              `json:"header"`
-	DuelID               string              `json:"duelId"`
-	Winner               *DuelFinishedPlayer `json:"winner,omitempty"`
-	MatchResultGenerated bool                `json:"matchResultGenerated"`
-	WonByDisconnect      bool                `json:"wonByDisconnect"`
-	Turns                int                 `json:"turns"`
-	DurationSeconds      int64               `json:"durationSeconds"`
+	Header string `json:"header"`
+	DuelID string `json:"duelId"`
+	// Winner is absent when there is none.
+	Winner *DuelFinishedPlayer `json:"winner,omitempty"`
+	// Ending is "play" (won by the game's rules), "surrender" or
+	// "disconnect".
+	Ending string `json:"ending"`
+	// Counted is false for a game too short to count.
+	Counted         bool  `json:"counted"`
+	Turns           int   `json:"turns"`
+	DurationSeconds int64 `json:"durationSeconds"`
+}
+
+// TossPlayer is a player taking part in the coin toss.
+type TossPlayer struct {
+	UID      string `json:"uid"`
+	Username string `json:"username"`
+}
+
+// TossMessage is a step of the coin toss that decides who plays first, sent
+// with the player whose turn it is: "choose_toss" asks them to call heads or
+// tails and "toss_being_chosen" tells everyone else they are calling;
+// "choose_turn" asks the toss's winner to play first or second and
+// "turn_being_chosen" tells everyone else they are choosing.
+type TossMessage struct {
+	Header string     `json:"header"`
+	Player TossPlayer `json:"player"`
+}
+
+// TossResultMessage tells everyone the call and how the coin landed, decided
+// before any animation starts so every screen lands on the same side.
+type TossResultMessage struct {
+	Header string     `json:"header"`
+	Caller TossPlayer `json:"caller"`
+	// Call and Outcome are "heads" or "tails".
+	Call    string     `json:"call"`
+	Outcome string     `json:"outcome"`
+	Winner  TossPlayer `json:"winner"`
 }
 
 // ActionMessage is used to prompt the user to make a selection of the specified cards

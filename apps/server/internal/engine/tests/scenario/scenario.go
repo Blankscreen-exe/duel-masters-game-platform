@@ -42,7 +42,13 @@ func WithDeck(entries ...DeckEntry) Option {
 	}
 }
 
-func New(options ...Option) *TestScenario {
+// scenarioDisconnectGrace is long enough that no scenario ends by a player
+// not coming back.
+const scenarioDisconnectGrace = time.Hour
+
+// RegisterCards makes every card the engine implements known to matches, as
+// the server does at startup. Calling it again changes nothing.
+func RegisterCards() {
 	for _, set := range cards.Sets {
 		for uid, ctor := range *set {
 			if ctor == nil {
@@ -51,9 +57,27 @@ func New(options ...Option) *TestScenario {
 			match.AddCard(uid, ctor)
 		}
 	}
+}
 
-	matchSystem := match.NewSystem()
-	m := matchSystem.NewMatch("test-scenario", "test-host", "Player1", []string{}, "", "Player2", []string{}, true, true, match.FormatDescriptor{}, "test-host")
+// DefaultDeck is the deck scenarios play with: 40 copies of one creature.
+func DefaultDeck() []string {
+	return defaultDeck()
+}
+
+func New(options ...Option) *TestScenario {
+	RegisterCards()
+
+	matchSystem := match.NewSystem(match.SystemOptions{})
+	m, err := matchSystem.NewMatch(match.Options{
+		Name:            "test-scenario",
+		Host:            match.Seat{ID: "1", Username: "Player1"},
+		Guest:           match.Seat{ID: "2", Username: "Player2"},
+		Visible:         true,
+		DisconnectGrace: scenarioDisconnectGrace,
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	config := scenarioConfig{deck: defaultDeck()}
 	for _, option := range options {

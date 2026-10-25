@@ -6,7 +6,6 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/cnd"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/server"
 	"math/rand"
-	"strings"
 	"sync"
 	"time"
 
@@ -29,7 +28,6 @@ const (
 type PlayerReference struct {
 	UID      string
 	Username string
-	DeckStr  string
 	Color    string
 	Player   *Player
 	Socket   *server.Socket
@@ -226,18 +224,6 @@ func (p *Player) CreateDeck(deck []string) {
 
 	}
 
-}
-
-func (p *Player) deckString() string {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	deck := make([]string, len(p.deck))
-	for index, card := range p.deck {
-		deck[index] = card.ImageID
-	}
-
-	return strings.Join(deck, ",")
 }
 
 // Empties the players deck

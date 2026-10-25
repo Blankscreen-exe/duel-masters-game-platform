@@ -8,7 +8,6 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/internal"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/server"
 	"math/rand"
-	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -34,14 +33,42 @@ type Match struct {
 	spectators        internal.ConcurrentDictionary[Spectator] `json:"-"`
 	persistentEffects map[int]PersistentEffect
 	Turn              byte `json:"-"`
-	Started           bool `json:"started"`
 	Visible           bool `json:"visible"`
 	Step              interface{}
 
-	StartingPlayerID    string
+	// started is set once the coin toss is settled and the game begins. It is
+	// read from socket goroutines and the match system's ticker, so it must be
+	// race free.
+	started atomic.Bool
+
+	// The coin toss, guarded by setupMu. PlayerSelectingToss is the id of the
+	// player who calls it; TossPrediction is the call and TossOutcome how the
+	// coin landed, each 1 for heads and -1 for tails, 0 until known.
 	PlayerSelectingToss string
 	TossPrediction      int
 	TossOutcome         int
+	// tossCaller is the player chosen to call the toss when the match was
+	// created; empty or anyone else picks one at random.
+	tossCaller string
+	// tossBegun is set once both players have joined and the toss has begun;
+	// turnChosen once the toss's winner has chosen who plays first.
+	tossBegun  bool
+	turnChosen bool
+
+	// minimumCountedDuration is how long a game must last for its result to
+	// count. disconnectGrace is how long a disconnected player has to come
+	// back before losing.
+	minimumCountedDuration time.Duration
+	disconnectGrace        time.Duration
+
+	// setupMu guards the players taking their seats and changing sockets as
+	// they join, leave and come back, the coin toss, and disconnectTimers. It
+	// is never held while sending to a socket or closing one, since closing a
+	// socket calls back into the match.
+	setupMu sync.Mutex
+	// disconnectTimers hold, by player id, the time limits of the players who
+	// have disconnected and not come back yet.
+	disconnectTimers map[string]*time.Timer
 
 	Matchmaking bool
 	created     int64
@@ -50,7 +77,7 @@ type Match struct {
 	ending      atomic.Bool
 	closed      atomic.Bool
 	isFirstTurn bool
-	startedAt   int64
+	startedAt   time.Time
 	turnsPlayed int
 	// turnNumber counts every turn begun, extra turns included, for the duel
 	// interface. turnsPlayed, kept for the duel record, leaves extra turns out.
@@ -127,6 +154,10 @@ func (m *Match) Dispose() {
 		return
 	}
 
+	// Deferred first so it runs last, after the match is gone, even if
+	// disposing it panics part way.
+	defer m.system.observer.MatchClosed(m.ID)
+
 	// Stop the event loop from resolving anything further. Disposing the players
 	// below closes their action channels, which releases the event loop from any
 	// prompt it is currently waiting on, and it must unwind without resolving
@@ -144,6 +175,14 @@ func (m *Match) Dispose() {
 
 	m.eventloop.stop()
 
+	m.setupMu.Lock()
+	for uid, timer := range m.disconnectTimers {
+		timer.Stop()
+		delete(m.disconnectTimers, uid)
+	}
+	player1, player2 := m.Player1, m.Player2
+	m.setupMu.Unlock()
+
 	for _, spectator := range m.spectators.Iter() {
 		if spectator.Socket == nil {
 			continue
@@ -152,12 +191,12 @@ func (m *Match) Dispose() {
 		spectator.Socket = nil
 	}
 
-	if m.Player1 != nil {
-		m.Player1.Dispose()
+	if player1 != nil {
+		player1.Dispose()
 	}
 
-	if m.Player2 != nil {
-		m.Player2.Dispose()
+	if player2 != nil {
+		player2.Dispose()
 	}
 
 	m.system.Matches.Remove(m.ID)
@@ -494,8 +533,15 @@ func (m *Match) ResolveShieldTriggers(shieldTriggers []*Card, source *Card) {
 
 }
 
-// End ends the match
-func (m *Match) End(winner *Player, winnerStr string) {
+// End ends the match: winner won by the game's rules, and message says how.
+// Card effects and the game's own rules call it.
+func (m *Match) End(winner *Player, message string) {
+	m.end(winner, message, EndingPlay)
+}
+
+// end ends the match, reporting the result of a game that started, telling
+// everyone who won and closing the match. Only the first ending counts.
+func (m *Match) end(winner *Player, message string, ending Ending) {
 
 	logrus.Debugf("Attempting to end match %s", m.ID)
 
@@ -504,120 +550,73 @@ func (m *Match) End(winner *Player, winnerStr string) {
 		return
 	}
 
-	if m.Started {
-		duel, matchResultGenerated := m.SaveMatchHistory(winner, false)
+	if m.hasStarted() {
+		result := m.result(winner, ending, time.Now())
+		m.system.observer.MatchFinished(result)
 
 		m.Broadcast(server.WarningMessage{
 			Header:  "error",
-			Message: winnerStr,
+			Message: message,
 		})
 
-		m.Broadcast(m.newDuelFinishedMessage(duel, matchResultGenerated))
+		m.Broadcast(m.duelFinishedMessage(result))
 	}
 
 	m.Dispose()
 
 }
 
-func (m *Match) SaveMatchHistory(winner *Player, wonByDisconnect bool) (DuelRecord, bool) {
-	duel := m.newDuelRecord(winner, wonByDisconnect, time.Now().Unix())
-	if !shouldGenerateMatchResult(duel) {
-		logrus.WithFields(logrus.Fields{
-			"match_id":         duel.UID,
-			"duration_seconds": duel.Ended - duel.Started,
-		}).Info("Skipping duel match result because it did not meet the minimum duration")
-		return duel, false
+// result is the finished game, ended at endedAt.
+func (m *Match) result(winner *Player, ending Ending, endedAt time.Time) Result {
+	m.setupMu.Lock()
+	player1, player2 := m.Player1, m.Player2
+	m.setupMu.Unlock()
+
+	result := Result{
+		MatchID:    m.ID,
+		Name:       m.MatchName,
+		FormatID:   m.FormatID,
+		FormatName: m.FormatName,
+		Host:       ResultPlayer{ID: m.HostID, Username: m.hostUsername, Deck: m.HostDeck},
+		Guest:      ResultPlayer{ID: m.GuestID, Username: m.guestUsername, Deck: m.GuestDeck},
+		Ending:     ending,
+		StartedAt:  m.startedAt,
+		EndedAt:    endedAt,
+		Turns:      m.turnsPlayed,
+	}
+	result.Counted = result.Duration() >= m.minimumCountedDuration
+
+	switch {
+	case winner == nil:
+	case player1 != nil && player1.Player == winner:
+		result.WinnerID = m.HostID
+	case player2 != nil && player2.Player == winner:
+		result.WinnerID = m.GuestID
 	}
 
-	m.sendMatchResultWebhook(duel)
-	return duel, true
+	return result
 }
 
-func (m *Match) newDuelRecord(winner *Player, wonByDisconnect bool, endedAt int64) DuelRecord {
-
-	p1id := ""
-	p1deck := ""
-	p2id := ""
-	p2deck := ""
-
-	if m.Player1 != nil {
-		p1id = m.Player1.UID
-		p1deck = m.Player1.DeckStr
+// duelFinishedMessage tells everyone in the match how the game ended.
+func (m *Match) duelFinishedMessage(result Result) server.DuelFinishedMessage {
+	message := server.DuelFinishedMessage{
+		Header:          "duel_finished",
+		DuelID:          result.MatchID,
+		Ending:          string(result.Ending),
+		Counted:         result.Counted,
+		Turns:           result.Turns,
+		DurationSeconds: int64(result.Duration().Seconds()),
 	}
 
-	if m.Player2 != nil {
-		p2id = m.Player2.UID
-		p2deck = m.Player2.DeckStr
+	switch result.WinnerID {
+	case "":
+	case result.Host.ID:
+		message.Winner = &server.DuelFinishedPlayer{UID: result.Host.ID, Username: result.Host.Username}
+	case result.Guest.ID:
+		message.Winner = &server.DuelFinishedPlayer{UID: result.Guest.ID, Username: result.Guest.Username}
 	}
 
-	duel := DuelRecord{
-		UID:             m.ID,
-		Host:            p1id,
-		HostDeck:        p1deck,
-		Guest:           p2id,
-		GuestDeck:       p2deck,
-		Started:         m.startedAt,
-		Ended:           endedAt,
-		Turns:           m.turnsPlayed,
-		WonByDisconnect: wonByDisconnect,
-	}
-
-	if winner != nil && m.Player1 != nil && m.Player1.Player == winner {
-		duel.Winner = m.Player1.UID
-	} else if winner != nil && m.Player2 != nil && m.Player2.Player == winner {
-		duel.Winner = m.Player2.UID
-	}
-
-	return duel
-}
-
-func shouldGenerateMatchResult(duel DuelRecord) bool {
-	minimumDuration := 60
-	configuredDuration := strings.TrimSpace(os.Getenv("duel_result_min_duration_seconds"))
-
-	if configuredDuration != "" {
-		value, err := strconv.Atoi(configuredDuration)
-		if err != nil || value < 0 {
-			logrus.WithField("value", configuredDuration).Warn("Invalid duel_result_min_duration_seconds; using 60 seconds")
-		} else {
-			minimumDuration = value
-		}
-	}
-
-	return duel.Ended-duel.Started >= int64(minimumDuration)
-}
-
-func (m *Match) newDuelFinishedMessage(duel DuelRecord, matchResultGenerated bool) server.DuelFinishedMessage {
-	durationSeconds := duel.Ended - duel.Started
-	if durationSeconds < 0 {
-		durationSeconds = 0
-	}
-
-	return server.DuelFinishedMessage{
-		Header:               "duel_finished",
-		DuelID:               duel.UID,
-		Winner:               duelFinishedWinner(duel.Winner, m.Player1, m.Player2),
-		MatchResultGenerated: matchResultGenerated,
-		WonByDisconnect:      duel.WonByDisconnect,
-		Turns:                duel.Turns,
-		DurationSeconds:      durationSeconds,
-	}
-}
-
-func duelFinishedWinner(winnerUID string, player1 *PlayerReference, player2 *PlayerReference) *server.DuelFinishedPlayer {
-	if winnerUID == "" {
-		return nil
-	}
-
-	if player1 != nil && player1.UID == winnerUID {
-		return &server.DuelFinishedPlayer{UID: player1.UID, Username: player1.Username}
-	}
-
-	if player2 != nil && player2.UID == winnerUID {
-		return &server.DuelFinishedPlayer{UID: player2.UID, Username: player2.Username}
-	}
-
-	return &server.DuelFinishedPlayer{UID: winnerUID}
+	return message
 }
 
 // ColorChat sends a chat message with color
@@ -656,8 +655,17 @@ func (m *Match) Broadcast(msg interface{}) {
 		}
 	}()
 
-	m.Player1.Socket.Send(msg)
-	m.Player2.Socket.Send(msg)
+	// The seats are read under setupMu, since before the game starts players
+	// take them from other goroutines. A seat is empty until its player joins.
+	m.setupMu.Lock()
+	player1, player2 := m.Player1, m.Player2
+	m.setupMu.Unlock()
+
+	for _, player := range []*PlayerReference{player1, player2} {
+		if player != nil && player.Socket != nil {
+			player.Socket.Send(msg)
+		}
+	}
 
 	// could fail due to concurrent updates to spectators map
 	// but don't want to lock it here as broadcast will be used everywhere
@@ -1247,8 +1255,8 @@ func (m *Match) CoinToss() {
 // Start starts the match
 func (m *Match) Start() {
 
-	m.Started = true
-	m.startedAt = time.Now().Unix()
+	m.startedAt = time.Now()
+	m.started.Store(true)
 
 	m.Player1.Player.ShuffleDeck()
 	m.Player2.Player.ShuffleDeck()
@@ -1594,162 +1602,10 @@ func (m *Match) Parse(s *server.Socket, data []byte) {
 		}, ParallelEvent)
 
 	case "join_match":
+		// Parallel, so a player coming back is seated even while the event loop
+		// waits on a prompt; join guards the seats itself.
 		m.eventloop.schedule(func() {
-			// player reconnect
-			if m.Started {
-				// p1 attempting to reconnect
-				if m.Player1 != nil && m.Player1.UID == s.User.UID {
-
-					if m.Player1.Socket != nil {
-						m.Player1.Socket.Close()
-					}
-
-					m.Player1.Socket = s
-
-					if m.Player2 != nil && m.Player2.Socket != nil {
-						m.Player2.Socket.Send(server.Message{
-							Header: "opponent_reconnected",
-						})
-					}
-
-					m.broadcastKnownState()
-
-					// if currently pending an action from this player
-					if !m.Player1.Player.ActionState.resolved {
-						s.Send(m.Player1.Player.ActionState.data)
-					}
-
-					m.Chat("Server", s.User.Username+" reconnected")
-
-					return
-
-					// p2 attempting to reconnect
-				} else if m.Player2 != nil && m.Player2.UID == s.User.UID {
-
-					if m.Player2.Socket != nil {
-						m.Player2.Socket.Close()
-					}
-
-					m.Player2.Socket = s
-
-					if m.Player1 != nil && m.Player1.Socket != nil {
-						m.Player1.Socket.Send(server.Message{
-							Header: "opponent_reconnected",
-						})
-					}
-
-					m.broadcastKnownState()
-
-					// if currently pending an action from this player
-					if !m.Player2.Player.ActionState.resolved {
-						s.Send(m.Player2.Player.ActionState.data)
-					}
-
-					m.Chat("Server", s.User.Username+" reconnected")
-
-					return
-
-				} else {
-					// Spectators
-
-					spectator, ok := m.spectators.Find(s.User.UID)
-
-					// this user is already spectating, swap connection to new one
-					if ok {
-						spectator.Socket.Send(server.WarningMessage{
-							Header:  "error",
-							Message: "You started spectating from a new connection, closing this one...",
-						})
-						// this removes the existing spectator from the match
-						spectator.Socket.Close()
-					}
-
-					m.spectators.Add(s.User.UID, &Spectator{
-						UID:      s.User.UID,
-						Username: s.User.Username,
-						Color:    s.User.Color,
-						Socket:   s,
-						LastPong: time.Now().Unix(),
-					})
-
-					m.Chat("Server", fmt.Sprintf("%s started spectating", s.User.Username))
-					m.broadcastKnownState()
-					return
-				}
-			}
-
-			// This is player1
-			if s.User.UID == m.HostID {
-
-				if m.Player1 != nil {
-					logrus.Debug("Attempt to join as Player1 multiple times")
-					s.Send(server.WarningMessage{
-						Header:  "error",
-						Message: "You have already joined this match",
-					})
-					s.Close()
-					return
-				}
-
-				p := NewPlayer(m, 1)
-
-				m.Player1 = NewPlayerReference(p, s)
-
-			}
-
-			// This is player2
-			if s.User.UID == m.GuestID {
-
-				if m.Player2 != nil {
-					logrus.Debug("Attempt to join as Player2 multiple times")
-					s.Send(server.WarningMessage{
-						Header:  "error",
-						Message: "This match has already started, you cannot join it",
-					})
-					s.Close()
-					return
-				}
-
-				p := NewPlayer(m, 2)
-
-				m.Player2 = NewPlayerReference(p, s)
-
-			}
-
-			// If both players have joined, prompt them to choose their decks
-			if m.Player1 != nil && m.Player2 != nil {
-
-				m.Chat("Server", fmt.Sprintf("%s joined the game", m.Player1.Username))
-				m.Chat("Server", fmt.Sprintf("%s joined the game", m.Player2.Username))
-
-				hostDeck := m.HostDeck
-				guestDeck := m.GuestDeck
-
-				m.Player1.DeckStr = strings.Join(hostDeck, ",")
-				m.Player2.DeckStr = strings.Join(guestDeck, ",")
-
-				m.Player1.Player.CreateDeck(hostDeck)
-				m.Player2.Player.CreateDeck(guestDeck)
-
-				m.Player1.Player.Ready = true
-				m.Player2.Player.Ready = true
-
-				startingPlayer := m.Player1
-				m.Turn = 2
-
-				if m.StartingPlayerID == m.GuestID {
-					startingPlayer = m.Player2
-					m.Turn = 1
-				}
-
-				m.Chat("Server", "Duel has begun!")
-				m.Chat("Server", fmt.Sprintf("%s goes first", startingPlayer.Username))
-
-				m.Start()
-				return
-
-			}
-
+			m.join(s)
 		}, ParallelEvent)
 
 	case "chat":
@@ -1780,155 +1636,26 @@ func (m *Match) Parse(s *server.Socket, data []byte) {
 		}, ParallelEvent)
 
 	case "toss_chosen":
-		{
-			m.eventloop.schedule(func() {
-				if m.Player1.Player.Ready && m.Player2.Player.Ready {
-					if !m.Started && m.PlayerSelectingToss != "" && m.PlayerSelectingToss == s.User.UID {
-
-						var msg struct {
-							Prediction int `json:"prediction"`
-						}
-
-						if err := json.Unmarshal(data, &msg); err != nil {
-							return
-						}
-
-						if msg.Prediction == 1 || msg.Prediction == -1 {
-							if msg.Prediction == 1 {
-								m.Chat("Server", fmt.Sprintf("%s has called heads", s.User.Username))
-							} else if msg.Prediction == -1 {
-								m.Chat("Server", fmt.Sprintf("%s has called tails", s.User.Username))
-							}
-
-							var outcome = rand.Intn(100)
-							var heads = (outcome >= 50)
-							var wasTossDecisionCorrect bool
-
-							m.TossPrediction = msg.Prediction
-
-							if heads {
-								m.TossOutcome = 1
-							} else {
-								m.TossOutcome = -1
-							}
-
-							if (heads && msg.Prediction == 1) || (!heads && msg.Prediction == -1) {
-								wasTossDecisionCorrect = true
-
-								m.Chat("Server", fmt.Sprintf("%s won the coin toss", s.User.Username))
-							} else {
-								wasTossDecisionCorrect = false
-
-								m.Chat("Server", fmt.Sprintf("%s lost the coin toss", s.User.Username))
-							}
-
-							var PlayerToChooseToss *PlayerReference
-							var PlayerToAwaitToss *PlayerReference
-
-							var PlayerToChooseTurnSelection *PlayerReference
-							var PlayerToAwaitTurnSelection *PlayerReference
-
-							if m.Player2.UID == m.PlayerSelectingToss {
-								PlayerToChooseToss = m.Player2
-								PlayerToAwaitToss = m.Player1
-							} else {
-								PlayerToChooseToss = m.Player1
-								PlayerToAwaitToss = m.Player2
-							}
-
-							if wasTossDecisionCorrect {
-								PlayerToChooseTurnSelection = PlayerToChooseToss
-								PlayerToAwaitTurnSelection = PlayerToAwaitToss
-							} else {
-								PlayerToChooseTurnSelection = PlayerToAwaitToss
-								PlayerToAwaitTurnSelection = PlayerToChooseToss
-							}
-
-							m.Chat("Server", fmt.Sprintf("%s to pick who goes first", PlayerToChooseTurnSelection.Username))
-
-							PlayerToAwaitTurnSelection.Socket.Send(server.Message{
-								Header: "turn_being_chosen",
-							})
-
-							PlayerToChooseTurnSelection.Socket.Send(server.Message{
-								Header: "choose_turn",
-							})
-						}
-					}
-				}
-
+		m.eventloop.schedule(func() {
+			var msg struct {
+				Prediction int `json:"prediction"`
+			}
+			if err := json.Unmarshal(data, &msg); err != nil {
 				return
-			}, SequentialEvent)
-		}
+			}
+			m.callToss(s, msg.Prediction)
+		}, SequentialEvent)
 
 	case "turn_chosen":
-		{
-			m.eventloop.schedule(func() {
-				if m.Player1.Player.Ready && m.Player2.Player.Ready {
-					if !m.Started && m.PlayerSelectingToss != "" && m.TossOutcome != 0 && m.TossPrediction != 0 {
-
-						var PlayerToChooseToss *PlayerReference
-						var PlayerToAwaitToss *PlayerReference
-
-						var PlayerWhoWonToss *PlayerReference
-
-						if m.Player2.UID == m.PlayerSelectingToss {
-							PlayerToChooseToss = m.Player2
-							PlayerToAwaitToss = m.Player1
-						} else {
-							PlayerToChooseToss = m.Player1
-							PlayerToAwaitToss = m.Player2
-						}
-
-						if m.TossPrediction == m.TossOutcome {
-							PlayerWhoWonToss = PlayerToChooseToss
-						} else {
-							PlayerWhoWonToss = PlayerToAwaitToss
-						}
-
-						if PlayerWhoWonToss.UID == s.User.UID {
-							var msg struct {
-								Player int `json:"player"`
-							}
-
-							if err := json.Unmarshal(data, &msg); err != nil {
-								return
-							}
-
-							var isSelectingUserPlayer1 bool
-
-							if m.Player1.UID == s.User.UID {
-								isSelectingUserPlayer1 = true
-							}
-
-							// Socket user goes first
-							if msg.Player == 1 {
-								m.Chat("Server", fmt.Sprintf("%s decided to play first", PlayerWhoWonToss.Username))
-
-								// match.turn is initialized as 1, so we only need to change it to 2
-								// The opposite of what's defined here will start because BeginNewTurn() changes it
-								if isSelectingUserPlayer1 {
-									m.Turn = 2
-								}
-							} else if msg.Player == -1 {
-								m.Chat("Server", fmt.Sprintf("%s decided to play second", PlayerWhoWonToss.Username))
-
-								// match.turn is initialized as 1, so we only need to change it to 2
-								// The opposite of what's defined here will start because BeginNewTurn() changes it
-								if !isSelectingUserPlayer1 {
-									m.Turn = 2
-								}
-							}
-
-							m.Start()
-						}
-					}
-				}
-
+		m.eventloop.schedule(func() {
+			var msg struct {
+				Player int `json:"player"`
+			}
+			if err := json.Unmarshal(data, &msg); err != nil {
 				return
-
-			}, SequentialEvent)
-		}
+			}
+			m.chooseTurn(s, msg.Player)
+		}, SequentialEvent)
 
 	case "add_to_manazone":
 		m.eventloop.schedule(func() {
@@ -2136,7 +1863,7 @@ func (m *Match) Parse(s *server.Socket, data []byte) {
 				return
 			}
 
-			m.End(m.Opponent(p.Player), fmt.Sprintf("%s won by opponent resigning.", m.Opponent(p.Player).Username()))
+			m.end(m.Opponent(p.Player), fmt.Sprintf("%s won: %s surrendered.", m.Opponent(p.Player).Username(), p.Username), EndingSurrender)
 
 		}, ParallelEvent)
 
@@ -2150,93 +1877,18 @@ func (m *Match) Parse(s *server.Socket, data []byte) {
 // OnSocketClose is called when a socket disconnects
 func (m *Match) OnSocketClose(s *server.Socket) {
 
-	if m.IsClosed() {
+	if m.IsEnding() {
 		return
 	}
 
 	// is this a spectator leaving?
-	spectator, ok := m.spectators.Find(s.User.UID)
-
-	if ok {
+	if spectator, ok := m.spectators.Find(s.User.UID); ok && spectator.Socket == s {
 		m.Chat("Server", fmt.Sprintf("%s stopped spectating", spectator.Username))
 		m.spectators.Remove(spectator.UID)
 		return
 	}
 
-	var p *PlayerReference // this is the disconnecting user
-	var o *PlayerReference
-
-	// assign the above variables, player and opponent of the closing socket
-	if m.Player1 != nil && m.Player1.Socket == s {
-		p = m.Player1
-
-		if m.Player2 != nil && m.Player2.Socket != nil {
-			o = m.Player2
-		}
-
-	} else if m.Player2 != nil && m.Player2.Socket == s {
-		p = m.Player2
-
-		if m.Player1 != nil && m.Player1.Socket != nil {
-			o = m.Player1
-		}
-	}
-
-	/* if !m.Started {
-		logrus.Debug(fmt.Sprintf("Disconnected %s Host %s", s.User.UID, m.HostID))
-
-		// If the host left before the game started, close the game
-		if p.UID == m.HostID {
-			logrus.Debug("Host socket left before match started, closing match.")
-
-			if o != nil {
-				m.Chat("Server", fmt.Sprintf("%s disconnected from the game", p.Username))
-			}
-
-			m.Dispose()
-			return
-		}
-
-		// This was the joinee who disconnected so let's reset things
-		if m.Player1.Socket == s {
-			logrus.Debug("Player1 socket left before match started, resetting Player1.")
-			m.Player1 = nil
-		}
-
-		if m.Player2.Socket == s {
-			logrus.Debug("Player2 socket left before match started, resetting Player2.")
-			m.Player2 = nil
-		}
-
-		o.Player.DestroyDeck()
-		o.Player.Ready = false
-
-		m.PlayerSelectingToss = ""
-		m.TossOutcome = 0
-		m.TossPrediction = 0
-
-	} */
-
-	if p == nil {
-		return
-	}
-
-	if o != nil {
-		// let the opponent know that this player has disconnected
-		o.Socket.Send(server.Message{
-			Header: "opponent_disconnected",
-		})
-	}
-
-	// if both players have disconnected, close match
-	if (p == nil || p.Socket.IsClosed()) && (o == nil || o.Socket.IsClosed()) {
-		logrus.Debug("Both players left the match. Closing the match.")
-
-		if p != nil {
-			m.SaveMatchHistory(p.Player, true)
-		}
-		m.Dispose()
-	}
+	m.leave(s)
 
 }
 
@@ -2254,14 +1906,16 @@ func (p *PlayerReference) Dispose() {
 
 func (m *Match) handleAdminMessages(message string, user server.User) {
 
-	if !hasAdminRightsAndValidMsgFormat(message, user) {
+	if !hasAdminRightsAndValidMsgFormat(message, user, m.system.devCommands) {
 		return
 	}
 
 	handleAdminCommandCases(m, message)
 }
 
-func hasAdminRightsAndValidMsgFormat(message string, user server.User) bool {
+// hasAdminRightsAndValidMsgFormat reports whether a chat message is a dev
+// command to run: only when the match system allows dev commands.
+func hasAdminRightsAndValidMsgFormat(message string, user server.User, devCommands bool) bool {
 
 	/* hasRights := false
 
@@ -2276,7 +1930,7 @@ func hasAdminRightsAndValidMsgFormat(message string, user server.User) bool {
 		return false
 	} */
 
-	if os.Getenv("local_dev") != "true" {
+	if !devCommands {
 		return false
 	}
 
