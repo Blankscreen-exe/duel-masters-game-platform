@@ -96,7 +96,7 @@ func (m *Match) join(s *server.Socket) {
 		m.Chat("Server", s.User.Username+" reconnected")
 
 		if m.hasStarted() {
-			m.broadcastKnownState()
+			m.sendLatestState(s)
 			// Ask again for an answer still owed.
 			if player := (*seat).Player; !player.ActionState.resolved {
 				s.Send(player.ActionState.data)
@@ -135,7 +135,7 @@ func (m *Match) addSpectator(s *server.Socket) {
 	m.Chat("Server", fmt.Sprintf("%s started spectating", s.User.Username))
 
 	if m.hasStarted() {
-		m.broadcastKnownState()
+		m.sendLatestState(s)
 	} else {
 		m.sendTossStep(s)
 	}

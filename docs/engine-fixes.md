@@ -43,7 +43,8 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 
 ### [x] 4. `join_match` runs as a ParallelEvent and mutates match state (Verified)
 - **Status:** Fixed. Joining stays a ParallelEvent, so a player coming back is seated even while the event loop waits on a prompt. The seats, the coin toss and the disconnect timers are now guarded by `setupMu` (`game/match/lifecycle.go`), which is never held while sending to or closing a socket. The toss begins once (`tossBegun`) and the game starts once (`turnChosen`). Tests: `TestPlayersJoiningAtTheSameMomentStartOneToss` and the other tests in `tests/lifecycle_test.go`, under `-race`.
-- **Left:** a join's state broadcast still reads `m.Step` and the zones unsynchronized; see item 24.
+- **Also:** someone joining or coming back is sent a copy of the state last sent to viewers like them (`sendLatestState`), made on the event loop, rather than the live game read from another goroutine; the copy leaves out broken shields and acting cards, which would otherwise replay. Closing a match no longer clears spectators' sockets that others may be sending to. Test: `game/match/state_replay_test.go`, and the spectator test in `games` under `-race`.
+- **Left:** the dev chat commands still change cards and broadcast beside the event loop. They only run with `SystemOptions.DevCommands`, which the server never turns on. See also item 24.
 
 ### [x] 5. `OnSocketClose` reads player/socket fields without synchronization (Reported)
 - **Status:** Fixed. `OnSocketClose` reads the seats under `setupMu` (`Match.leave`), and the match's started flag is atomic (`started`), so the ticker reads it safely.

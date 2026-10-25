@@ -100,6 +100,11 @@ type Match struct {
 	recentCards      []string
 	recentCardsMutex sync.Mutex
 
+	// lastStates are the states last sent to each viewer, for someone joining
+	// or coming back, guarded by statesMu.
+	lastStates sentStates
+	statesMu   sync.Mutex
+
 	// brokenShields holds the ids of the shields broken since the event loop
 	// last broadcast the state.
 	brokenShields []string
@@ -187,8 +192,9 @@ func (m *Match) Dispose() {
 		if spectator.Socket == nil {
 			continue
 		}
+		// Closed but kept: another goroutine may be sending to it right now,
+		// and sending to a closed socket does nothing.
 		spectator.Socket.Close()
-		spectator.Socket = nil
 	}
 
 	if player1 != nil {
@@ -721,6 +727,47 @@ func (m *Match) BroadcastState() {
 	m.broadcastState(report, brokenShields, activatedCards)
 }
 
+// sentStates are the states last sent to each viewer.
+type sentStates struct {
+	player1, player2, spectator *server.MatchStateMessage
+}
+
+// keepStates keeps the states just sent, for sendLatestState. Their broken
+// shields and acting cards are left out: those were news once, and showing
+// them again to someone arriving would replay what is over.
+func (m *Match) keepStates(player1, player2, spectator *server.MatchStateMessage) {
+	replay := func(state *server.MatchStateMessage) *server.MatchStateMessage {
+		kept := *state
+		kept.State.BrokenShields = []string{}
+		kept.State.ActivatedCards = []string{}
+		return &kept
+	}
+
+	m.statesMu.Lock()
+	defer m.statesMu.Unlock()
+	m.lastStates = sentStates{player1: replay(player1), player2: replay(player2), spectator: replay(spectator)}
+}
+
+// sendLatestState sends someone joining or coming back the state last sent
+// to viewers like them: the host's, the guest's or a spectator's. It reads
+// nothing of the live game, so it is safe beside the event loop; before the
+// first state there is nothing to send.
+func (m *Match) sendLatestState(s *server.Socket) {
+	m.statesMu.Lock()
+	state := m.lastStates.spectator
+	switch s.User.UID {
+	case m.HostID:
+		state = m.lastStates.player1
+	case m.GuestID:
+		state = m.lastStates.player2
+	}
+	m.statesMu.Unlock()
+
+	if state != nil {
+		s.Send(state)
+	}
+}
+
 // broadcastKnownState is BroadcastState for code running beside the event loop,
 // such as a player joining. It sends the board as the event loop last worked it
 // out, rather than running card effects or reading the attack from another
@@ -852,6 +899,8 @@ func (m *Match) broadcastState(board boardReport, brokenShields []string, activa
 		state.State.Attacker = board.attack.attacker
 		state.State.Turn = board.turn
 	}
+
+	m.keepStates(p1state, p2state, spectatorState)
 
 	m.Player1.Socket.Send(p1state)
 	m.Player2.Socket.Send(p2state)
