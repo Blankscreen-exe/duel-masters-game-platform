@@ -2,22 +2,24 @@
 
 import Link from 'next/link';
 import { SelectField } from '@/components/ui/select-field';
-import type { DeckSummary } from '@/lib/api/client';
-import { decksForFormat } from '@/lib/lobby';
+import { decksForFormat, type PlayableDecks } from '@/lib/lobby';
 
 interface DeckPickerProps {
-  readonly decks: readonly DeckSummary[];
+  readonly decks: PlayableDecks;
   readonly formatId: string;
   readonly value: string;
   readonly onChange: (deckId: string) => void;
   readonly label?: string;
 }
 
-/** One of the player's decks for a format: the legal ones to choose, the others shown as not legal. */
+/**
+ * A deck to play in a format: a starter deck or one of the player's own. The ones that can be
+ * played are offered; the player's others are shown as not legal.
+ */
 export function DeckPicker({ decks, formatId, value, onChange, label = 'Deck' }: DeckPickerProps) {
-  const { legal, notLegal } = decksForFormat(decks, formatId);
+  const { starters, legal, notLegal } = decksForFormat(decks, formatId);
 
-  if (legal.length === 0) {
+  if (starters.length === 0 && legal.length === 0) {
     return (
       <p className="text-sm text-slate-400">
         None of your decks can be played in this format yet.{' '}
@@ -37,21 +39,29 @@ export function DeckPicker({ decks, formatId, value, onChange, label = 'Deck' }:
         onChange(event.target.value);
       }}
     >
-      {legal.map((deck) => (
-        <option key={deck.id} value={deck.id}>
-          {deck.name}
-        </option>
-      ))}
-      {notLegal.map((deck) => (
-        <option key={deck.id} value={deck.id} disabled>
-          {deck.name} (not legal here)
-        </option>
-      ))}
+      {starters.length > 0 && (
+        <optgroup label="Starter decks">
+          {starters.map((deck) => (
+            <option key={deck.id} value={deck.id}>
+              {deck.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
+      {legal.length + notLegal.length > 0 && (
+        <optgroup label="Your decks">
+          {legal.map((deck) => (
+            <option key={deck.id} value={deck.id}>
+              {deck.name}
+            </option>
+          ))}
+          {notLegal.map((deck) => (
+            <option key={deck.id} value={deck.id} disabled>
+              {deck.name} (not legal here)
+            </option>
+          ))}
+        </optgroup>
+      )}
     </SelectField>
   );
-}
-
-/** The first deck a player can play in the format, to choose by default. */
-export function firstLegalDeck(decks: readonly DeckSummary[], formatId: string): string {
-  return decksForFormat(decks, formatId).legal[0]?.id ?? '';
 }

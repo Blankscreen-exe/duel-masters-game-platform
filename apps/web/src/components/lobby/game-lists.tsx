@@ -4,8 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { PlayerName } from '@/components/players/player-name';
 import { buttonClasses, Button } from '@/components/ui/button';
-import type { DeckSummary } from '@/lib/api/client';
-import { describeActivity } from '@/lib/lobby';
+import { describeActivity, type PlayableDecks } from '@/lib/lobby';
 import type { OnlinePlayer, OpenGame, RunningGame } from '@/lib/lobby-actions';
 import { JoinDialog } from './join-dialog';
 
@@ -20,7 +19,7 @@ export function OpenGamesList({
   canJoin,
 }: {
   readonly games: readonly OpenGame[];
-  readonly decks: readonly DeckSummary[];
+  readonly decks: PlayableDecks;
   readonly userId: string;
   readonly canJoin: boolean;
 }) {

@@ -6,7 +6,6 @@ import { CivilizationMarks } from '@/components/cards/civilization-marks';
 import { useLiveMessage } from '@/components/live/live-provider';
 import { DeckPicker } from '@/components/lobby/deck-picker';
 import { Button } from '@/components/ui/button';
-import type { DeckSummary } from '@/lib/api/client';
 import { agreeToRematch, chooseRematchDeck, declineRematch, getRematch } from '@/lib/lobby-actions';
 import { notify } from '@/lib/notifications';
 import {
@@ -18,12 +17,13 @@ import {
   type Rematch,
 } from '@/lib/rematch';
 import { minutesAndSeconds } from '@/lib/time-text';
+import type { PlayableDecks } from '@/lib/lobby';
 
 interface RematchPanelProps {
   /** The game that ended. */
   readonly gameId: string;
   readonly viewerName: string;
-  readonly decks: readonly DeckSummary[];
+  readonly decks: PlayableDecks;
 }
 
 /**

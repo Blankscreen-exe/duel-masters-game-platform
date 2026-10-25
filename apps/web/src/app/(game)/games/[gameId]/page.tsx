@@ -5,9 +5,9 @@ import { cache } from 'react';
 import { GameScreen } from '@/components/game/game-screen';
 import { buttonClasses } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
-import type { DeckSummary } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { serverApi } from '@/lib/api/server';
+import { getPlayableDecks } from '@/lib/playable-decks';
 import { requireAccount } from '@/lib/session';
 
 type LiveGame = components['schemas']['LiveGame'];
@@ -41,7 +41,7 @@ export default async function GamePage({ params }: PageProps<'/games/[gameId]'>)
   if (!game) return <NotWatchable />;
 
   const isPlayer = game.role === 'player';
-  const decks = isPlayer ? await playerDecks() : [];
+  const decks = isPlayer ? await getPlayableDecks() : { starters: [], own: [] };
 
   return (
     <GameScreen
@@ -49,14 +49,6 @@ export default async function GamePage({ params }: PageProps<'/games/[gameId]'>)
       viewer={{ id: account.id, username: account.username, isPlayer, decks }}
     />
   );
-}
-
-/** The player's decks, for a rematch once the game ends. */
-async function playerDecks(): Promise<DeckSummary[]> {
-  const api = await serverApi();
-  const { data } = await api.GET('/decks');
-  if (!data) throw new Error('Your decks could not be loaded');
-  return data;
 }
 
 function NotWatchable() {

@@ -3,17 +3,18 @@
 import { useState, type SubmitEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
-import type { DeckSummary, Format } from '@/lib/api/client';
+import type { Format } from '@/lib/api/client';
 import { openGame } from '@/lib/lobby-actions';
 import { notify } from '@/lib/notifications';
-import { DeckPicker, firstLegalDeck } from './deck-picker';
+import { defaultDeck, type PlayableDecks } from '@/lib/lobby';
+import { DeckPicker } from './deck-picker';
 import { FormatPicker } from './format-picker';
 
 /** The longest game name, as the server allows. */
 const NAME_MAX_LENGTH = 50;
 
 interface OpenGameFormProps {
-  readonly decks: readonly DeckSummary[];
+  readonly decks: PlayableDecks;
   readonly formats: readonly Format[];
   readonly disabled: boolean;
 }
@@ -21,7 +22,7 @@ interface OpenGameFormProps {
 /** Opens a game for an opponent to join: listed in the lobby, or by invite link only. */
 export function OpenGameForm({ decks, formats, disabled }: OpenGameFormProps) {
   const [formatId, setFormatId] = useState(formats[0]?.id ?? '');
-  const [deckId, setDeckId] = useState(() => firstLegalDeck(decks, formats[0]?.id ?? ''));
+  const [deckId, setDeckId] = useState(() => defaultDeck(decks, formats[0]?.id ?? ''));
   const [name, setName] = useState('');
   const [listed, setListed] = useState(true);
   const [spectators, setSpectators] = useState(true);
@@ -52,7 +53,7 @@ export function OpenGameForm({ decks, formats, disabled }: OpenGameFormProps) {
         value={formatId}
         onChange={(chosen) => {
           setFormatId(chosen);
-          setDeckId(firstLegalDeck(decks, chosen));
+          setDeckId(defaultDeck(decks, chosen));
         }}
       />
 

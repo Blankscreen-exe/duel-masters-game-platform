@@ -5,14 +5,14 @@ import { useState, type ReactNode } from 'react';
 import { RankBadge } from '@/components/players/rank-badge';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalClose } from '@/components/ui/modal';
-import type { DeckSummary } from '@/lib/api/client';
 import { joinOpenGame, type OpenGame } from '@/lib/lobby-actions';
 import { notify } from '@/lib/notifications';
-import { DeckPicker, firstLegalDeck } from './deck-picker';
+import { defaultDeck, type PlayableDecks } from '@/lib/lobby';
+import { DeckPicker } from './deck-picker';
 
 interface JoinFormProps {
   readonly game: OpenGame;
-  readonly decks: readonly DeckSummary[];
+  readonly decks: PlayableDecks;
   /** The way back without joining, beside the join button. */
   readonly cancel: ReactNode;
 }
@@ -20,7 +20,7 @@ interface JoinFormProps {
 /** Picks one of the player's decks legal in an open game's format, and joins it. */
 export function JoinForm({ game, decks, cancel }: JoinFormProps) {
   const router = useRouter();
-  const [deckId, setDeckId] = useState(() => firstLegalDeck(decks, game.formatId));
+  const [deckId, setDeckId] = useState(() => defaultDeck(decks, game.formatId));
   const [pending, setPending] = useState(false);
 
   async function join() {
@@ -61,7 +61,7 @@ export function JoinDialog({
   onClose,
 }: {
   readonly game: OpenGame;
-  readonly decks: readonly DeckSummary[];
+  readonly decks: PlayableDecks;
   readonly onClose: () => void;
 }) {
   return (

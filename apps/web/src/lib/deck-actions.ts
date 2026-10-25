@@ -35,6 +35,11 @@ export async function copyDeck(deckId: string): Promise<Outcome<Deck>> {
   });
 }
 
+/** Copies a starter deck into the player's own decks, to change. */
+export function copyStarterDeck(deckId: string): Promise<Outcome<Deck>> {
+  return attempt(() => api.POST('/starter-decks/{deckId}/copy', { params: { path: { deckId } } }));
+}
+
 /** The deck written as text, one "4 Bolshack Dragon" per line. */
 export function deckText(deckId: string): Promise<Outcome<string>> {
   return attempt(() =>

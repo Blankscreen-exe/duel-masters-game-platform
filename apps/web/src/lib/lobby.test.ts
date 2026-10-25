@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { DeckSummary } from './api/client';
-import { activityOf, decksForFormat, describeActivity, inviteLink, waitingIn } from './lobby';
+import {
+  activityOf,
+  decksForFormat,
+  defaultDeck,
+  describeActivity,
+  inviteLink,
+  waitingIn,
+} from './lobby';
 
 const lobby = {
   openGames: [],
@@ -43,18 +50,35 @@ describe('describeActivity', () => {
   });
 });
 
-describe('decksForFormat', () => {
-  it('puts the decks that can be played first, by name', () => {
-    const decks = [
-      deck('a', 'Zebra', ['open']),
-      deck('b', 'Apple', []),
-      deck('c', 'Mango', ['open', 'classic']),
-    ];
+describe('decksForFormat and defaultDeck', () => {
+  const starters = [
+    deck('fire', 'Fire: Bolshack Rush', ['open', 'classic']),
+    deck('water', 'Water: Depthcon Tide', ['open']),
+  ];
+  const own = [
+    deck('a', 'Zebra', ['open']),
+    deck('b', 'Apple', []),
+    deck('c', 'Mango', ['open', 'classic']),
+  ];
 
-    const { legal, notLegal } = decksForFormat(decks, 'open');
+  it('shows the starter decks in their order, then the own decks that can be played, by name', () => {
+    const { starters: shown, legal, notLegal } = decksForFormat({ starters, own }, 'open');
 
+    expect(shown.map((d) => d.id)).toEqual(['fire', 'water']);
     expect(legal.map((d) => d.name)).toEqual(['Mango', 'Zebra']);
     expect(notLegal.map((d) => d.name)).toEqual(['Apple']);
+    expect(decksForFormat({ starters, own }, 'classic').starters.map((d) => d.id)).toEqual([
+      'fire',
+    ]);
+  });
+
+  it('picks the first starter deck at first, which is Fire', () => {
+    expect(defaultDeck({ starters, own }, 'open')).toBe('fire');
+  });
+
+  it("falls back to the player's own deck, then to none", () => {
+    expect(defaultDeck({ starters: [], own }, 'open')).toBe('c');
+    expect(defaultDeck({ starters: [], own }, 'nowhere')).toBe('');
   });
 });
 

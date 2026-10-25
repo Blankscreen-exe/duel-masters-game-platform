@@ -5,6 +5,7 @@ import { JoinForm } from '@/components/lobby/join-dialog';
 import { buttonClasses } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
 import { serverApi } from '@/lib/api/server';
+import { getPlayableDecks } from '@/lib/playable-decks';
 import { requireAccount } from '@/lib/session';
 
 export const metadata: Metadata = { title: 'Join a game' };
@@ -16,11 +17,11 @@ export default async function JoinPage({ params }: PageProps<'/play/join/[openGa
   const api = await serverApi();
   const [game, decks] = await Promise.all([
     api.GET('/lobby/games/{openGameId}', { params: { path: { openGameId } } }),
-    api.GET('/decks'),
+    getPlayableDecks(),
   ]);
 
   if (game.response.status === 404) return <NoLongerOpen />;
-  if (!game.data || !decks.data) throw new Error('The open game could not be loaded');
+  if (!game.data) throw new Error('The open game could not be loaded');
   // The host's own invite link leads back to the lobby, where their game waits.
   if (game.data.host.id === account.id) redirect('/play');
 
@@ -29,7 +30,7 @@ export default async function JoinPage({ params }: PageProps<'/play/join/[openGa
       <div className="p-4">
         <JoinForm
           game={game.data}
-          decks={decks.data}
+          decks={decks}
           cancel={
             <Link href="/play" className={buttonClasses('secondary')}>
               To the lobby

@@ -1,10 +1,10 @@
-import type { DeckSummary } from '@/lib/api/client';
+import type { PlayableDecks } from '@/lib/lobby';
 
 /** Who is looking at a game: one of its players, or someone watching. */
 export interface GameViewer {
   readonly id: string;
   readonly username: string;
   readonly isPlayer: boolean;
-  /** The player's decks, for a rematch; empty for someone watching. */
-  readonly decks: readonly DeckSummary[];
+  /** The decks the player may play, for a rematch; none for someone watching. */
+  readonly decks: PlayableDecks;
 }

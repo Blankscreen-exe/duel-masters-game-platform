@@ -26,19 +26,40 @@ export function describeActivity(activity: PlayerActivity | null | undefined): s
   }
 }
 
-/**
- * A player's decks for a format: the ones that can be played in it first, by name, and the
- * others after, so a picker can show why they cannot be chosen.
- */
-export function decksForFormat(
-  decks: readonly DeckSummary[],
-  formatId: string,
-): { legal: DeckSummary[]; notLegal: DeckSummary[] } {
-  const byName = [...decks].sort((a, b) => a.name.localeCompare(b.name));
+/** The decks a player may play: the starter decks, every player's default first, and their own. */
+export interface PlayableDecks {
+  readonly starters: readonly DeckSummary[];
+  readonly own: readonly DeckSummary[];
+}
+
+/** A player's decks as a picker shows them for one format. */
+export interface DecksForFormat {
+  /** The starter decks that can be played in the format, in their order. */
+  readonly starters: DeckSummary[];
+  /** The player's own decks that can be played in it, by name. */
+  readonly legal: DeckSummary[];
+  /** The player's own decks that cannot, by name, so a picker can show why. */
+  readonly notLegal: DeckSummary[];
+}
+
+/** A player's decks for a format, as a picker shows them. */
+export function decksForFormat(decks: PlayableDecks, formatId: string): DecksForFormat {
+  const playable = (deck: DeckSummary) => deck.legalFormatIds.includes(formatId);
+  const byName = [...decks.own].sort((a, b) => a.name.localeCompare(b.name));
   return {
-    legal: byName.filter((deck) => deck.legalFormatIds.includes(formatId)),
-    notLegal: byName.filter((deck) => !deck.legalFormatIds.includes(formatId)),
+    starters: decks.starters.filter(playable),
+    legal: byName.filter(playable),
+    notLegal: byName.filter((deck) => !playable(deck)),
   };
+}
+
+/**
+ * The deck picked at first for a format: the first starter deck that can be played in it, every
+ * player's default, or else the player's first own deck that can; empty when none can.
+ */
+export function defaultDeck(decks: PlayableDecks, formatId: string): string {
+  const { starters, legal } = decksForFormat(decks, formatId);
+  return (starters[0] ?? legal[0])?.id ?? '';
 }
 
 /** How many players wait for a quick match in a format. */

@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { LobbyChat } from '@/components/chat/lobby-chat';
 import { useLiveMessage } from '@/components/live/live-provider';
 import { Panel } from '@/components/ui/panel';
-import type { Account, DeckSummary, Format } from '@/lib/api/client';
+import type { Account, Format } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { activityOf } from '@/lib/lobby';
+import { activityOf, type PlayableDecks } from '@/lib/lobby';
 import type { Lobby, QueueCount, QuickMatchStatus } from '@/lib/lobby-actions';
 import { OnlinePlayers, OpenGamesList, RunningGamesList } from './game-lists';
 import { OpenGameForm } from './open-game-form';
@@ -17,7 +17,7 @@ interface LobbyViewProps {
   readonly account: Account;
   readonly lobby: Lobby;
   readonly quickMatch: QuickMatchStatus;
-  readonly decks: readonly DeckSummary[];
+  readonly decks: PlayableDecks;
   readonly formats: readonly Format[];
   readonly chat: readonly components['schemas']['ChatMessage'][];
 }

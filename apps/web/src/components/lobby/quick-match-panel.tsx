@@ -2,16 +2,16 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import type { DeckSummary, Format } from '@/lib/api/client';
+import type { Format } from '@/lib/api/client';
 import type { QueueCount } from '@/lib/lobby-actions';
 import { enterQuickMatch, leaveQuickMatch } from '@/lib/lobby-actions';
-import { waitingIn } from '@/lib/lobby';
+import { defaultDeck, waitingIn, type PlayableDecks } from '@/lib/lobby';
 import { notify } from '@/lib/notifications';
-import { DeckPicker, firstLegalDeck } from './deck-picker';
+import { DeckPicker } from './deck-picker';
 import { FormatPicker } from './format-picker';
 
 interface QuickMatchPanelProps {
-  readonly decks: readonly DeckSummary[];
+  readonly decks: PlayableDecks;
   readonly formats: readonly Format[];
   readonly queue: readonly QueueCount[];
   /** The format this player waits in, or null when not waiting. */
@@ -28,7 +28,7 @@ export function QuickMatchPanel({
   disabled,
 }: QuickMatchPanelProps) {
   const [formatId, setFormatId] = useState(formats[0]?.id ?? '');
-  const [deckId, setDeckId] = useState(() => firstLegalDeck(decks, formats[0]?.id ?? ''));
+  const [deckId, setDeckId] = useState(() => defaultDeck(decks, formats[0]?.id ?? ''));
   const [pending, setPending] = useState(false);
 
   async function enter() {
@@ -72,7 +72,7 @@ export function QuickMatchPanel({
         value={formatId}
         onChange={(chosen) => {
           setFormatId(chosen);
-          setDeckId(firstLegalDeck(decks, chosen));
+          setDeckId(defaultDeck(decks, chosen));
         }}
         note={(format) => {
           const waiting = waitingIn(queue, format.id);
