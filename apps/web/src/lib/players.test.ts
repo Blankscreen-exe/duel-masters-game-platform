@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  matchDate,
   matchesHref,
   matchSide,
   pageOfPlace,
@@ -95,11 +94,5 @@ describe('matchSide', () => {
   it('has no result for a game without a winner, and the host side for anyone else', () => {
     expect(matchSide(match(), 'u1').result).toBe('none');
     expect(matchSide(match('u1'), 'someone').player.username).toBe('Shobu');
-  });
-});
-
-describe('matchDate', () => {
-  it('names the day in UTC', () => {
-    expect(matchDate('2026-10-25T23:30:00Z')).toBe('25 Oct 2026');
   });
 });

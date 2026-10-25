@@ -3,7 +3,6 @@ import { CivilizationMarks } from '@/components/cards/civilization-marks';
 import {
   MATCH_ENDING,
   MATCH_RESULT,
-  matchDate,
   matchSide,
   profileHref,
   type Match,
@@ -11,6 +10,7 @@ import {
 } from '@/lib/players';
 import { minutesAndSeconds } from '@/lib/time-text';
 import { RatingChange } from './rating-change';
+import { dayText } from '@/lib/dates';
 
 const RESULT_CLASSES = {
   won: 'text-civ-light ring-civ-light/50',
@@ -51,7 +51,7 @@ export function MatchList({ matches, playerId, empty }: MatchListProps) {
                 {MATCH_RESULT[result]}
               </span>
               <time dateTime={match.endedAt} className="text-xs text-slate-500 sm:mt-1 sm:block">
-                {matchDate(match.endedAt)}
+                {dayText(match.endedAt)}
               </time>
             </div>
 

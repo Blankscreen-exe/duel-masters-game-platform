@@ -112,15 +112,3 @@ export const MATCH_RESULT: Readonly<Record<MatchSide['result'], string>> = {
   lost: 'Lost',
   none: 'No result',
 };
-
-const DATE = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  timeZone: 'UTC',
-});
-
-/** The day a match was played, such as 25 Oct 2026, the same on the server and in the browser. */
-export function matchDate(endedAt: string): string {
-  return DATE.format(new Date(endedAt));
-}

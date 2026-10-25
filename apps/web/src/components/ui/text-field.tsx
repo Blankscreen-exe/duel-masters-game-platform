@@ -1,4 +1,5 @@
 import { useId, type ComponentPropsWithoutRef } from 'react';
+import { FIELD_CONTROL, FIELD_HINT, FIELD_LABEL } from './field';
 
 interface TextFieldProps extends ComponentPropsWithoutRef<'input'> {
   readonly label: string;
@@ -11,20 +12,17 @@ export function TextField({ label, hint, className = '', ...inputProps }: TextFi
 
   return (
     <div className={className}>
-      <label
-        htmlFor={id}
-        className="block text-[11px] font-semibold tracking-wider text-slate-400 uppercase"
-      >
+      <label htmlFor={id} className={FIELD_LABEL}>
         {label}
       </label>
       <input
         id={id}
         aria-describedby={hint ? hintId : undefined}
-        className="mt-1 block w-full bg-field px-3 py-2 text-sm text-slate-100 ring-1 ring-slate-600/60 ring-inset placeholder:text-slate-500 hover:ring-slate-400/70 focus:ring-accent focus:outline-none"
+        className={FIELD_CONTROL}
         {...inputProps}
       />
       {hint && (
-        <p id={hintId} className="mt-1 text-xs text-slate-500">
+        <p id={hintId} className={FIELD_HINT}>
           {hint}
         </p>
       )}

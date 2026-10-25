@@ -9,7 +9,6 @@ import { buttonClasses } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
 import { serverApi } from '@/lib/api/server';
 import {
-  matchDate,
   matchesHref,
   profileHref,
   streakDescription,
@@ -18,6 +17,7 @@ import {
   type PlayerProfile,
 } from '@/lib/players';
 import { requireAccount } from '@/lib/session';
+import { dayText } from '@/lib/dates';
 
 /** The profile, asked once per request for both the page and its title. */
 const getProfile = cache(async (name: string): Promise<PlayerProfile> => {
@@ -58,7 +58,7 @@ export default async function ProfilePage({ params }: PageProps<'/u/[name]'>) {
           <p className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
             <RankBadge rank={profile.rank} large />
             <span>
-              Joined <time dateTime={profile.joinedAt}>{matchDate(profile.joinedAt)}</time>
+              Joined <time dateTime={profile.joinedAt}>{dayText(profile.joinedAt)}</time>
             </span>
           </p>
         </div>
