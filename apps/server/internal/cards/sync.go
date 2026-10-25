@@ -12,8 +12,6 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 )
 
 // syncFormat changes whenever Sync starts writing the catalogue differently,
@@ -132,7 +130,7 @@ type SyncResult struct {
 // transaction, so readers see the old catalogue or the new one, never a mix.
 // Cards no longer in the card database are kept, marked as gone, so nothing
 // referring to them breaks.
-func Sync(ctx context.Context, db *gorm.DB, source Source, playable []games.PlayableCard, logger *slog.Logger) (SyncResult, error) {
+func Sync(ctx context.Context, db *gorm.DB, source Source, playable []EngineCard, logger *slog.Logger) (SyncResult, error) {
 	fingerprint := catalogueFingerprint(source, playable)
 
 	var state stateRow
@@ -179,7 +177,7 @@ func Sync(ctx context.Context, db *gorm.DB, source Source, playable []games.Play
 
 // catalogueFingerprint identifies a copy: the card database's content, the
 // engine's cards and the way Sync writes them.
-func catalogueFingerprint(source Source, playable []games.PlayableCard) string {
+func catalogueFingerprint(source Source, playable []EngineCard) string {
 	hash := sha256.New()
 	fmt.Fprintf(hash, "format %s\nsource %s\n", syncFormat, source.Fingerprint)
 	for _, set := range source.Sets {

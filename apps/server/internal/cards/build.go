@@ -10,8 +10,6 @@ import (
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
-
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 )
 
 // engineNameAliases maps names the engine spells differently from the card
@@ -69,7 +67,7 @@ func (c Card) Playable() bool { return c.EngineID != "" }
 // links each card the engine can play to it. problems lists what could not be
 // linked or lacks a picture; those cards are kept, unplayable or without a
 // picture.
-func Build(source Source, playable []games.PlayableCard) (cards []Card, problems []string) {
+func Build(source Source, playable []EngineCard) (cards []Card, problems []string) {
 	cards = groupPrintings(source)
 	problems = linkEngineCards(cards, playable)
 
@@ -175,7 +173,7 @@ func cardFrom(name string, printings []SourcePrinting) Card {
 // linkEngineCards sets the engine id of every card the engine can play,
 // matching names exactly first and then ignoring case, accents, spaces and
 // punctuation.
-func linkEngineCards(cards []Card, playable []games.PlayableCard) []string {
+func linkEngineCards(cards []Card, playable []EngineCard) []string {
 	byName := make(map[string]int, len(cards))
 	byKey := make(map[string][]int, len(cards))
 	for i, card := range cards {

@@ -19,7 +19,6 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
@@ -45,12 +44,12 @@ type testServer struct {
 func newTestServer(t *testing.T, secureCookies bool) testServer {
 	t.Helper()
 
-	return newTestServerWith(t, secureCookies, testCardDatabase(t), []games.PlayableCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon", Set: "dm-01"}})
+	return newTestServerWith(t, secureCookies, testCardDatabase(t), []cards.EngineCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon", Set: "dm-01"}})
 }
 
 // newTestServerWith is newTestServer with another card database and engine
 // cards.
-func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, playable []games.PlayableCard) testServer {
+func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, playable []cards.EngineCard) testServer {
 	t.Helper()
 
 	db := storetest.Open(t, config.SQLite)

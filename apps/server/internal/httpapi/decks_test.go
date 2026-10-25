@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 )
 
@@ -24,20 +24,20 @@ func newDeckTestServer(t *testing.T) testServer {
 
 	var printings []map[string]any
 	var pictures []string
-	var playable []games.PlayableCard
+	var playable []cards.EngineCard
 	for i := 1; i <= 10; i++ {
 		id, name := fmt.Sprintf("%04d", i), fmt.Sprintf("Card %02d", i)
 		printing := cardstest.Printing(id, name, "DM-01", id+"/110")
 		printing["cost"] = i
 		printings = append(printings, printing)
 		pictures = append(pictures, id)
-		playable = append(playable, games.PlayableCard{EngineID: "engine-" + id, Name: name})
+		playable = append(playable, cards.EngineCard{EngineID: "engine-" + id, Name: name})
 	}
 
 	promo := cardstest.Printing("9001", "Promo Hero", "PROMO", "P1/Y1")
 	promo["civilizations"] = []string{"Nature"}
 	printings = append(printings, promo, cardstest.Printing("1500", "Future Card", "DM-20", "1/55"))
-	playable = append(playable, games.PlayableCard{EngineID: "engine-promo", Name: "Promo Hero"})
+	playable = append(playable, cards.EngineCard{EngineID: "engine-promo", Name: "Promo Hero"})
 
 	return newTestServerWith(t, false, cardstest.Write(t, printings, pictures, nil), playable)
 }

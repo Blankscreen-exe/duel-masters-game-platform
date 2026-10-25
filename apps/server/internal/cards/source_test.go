@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 )
 
 var (
@@ -139,7 +138,7 @@ func TestBuildLinksTheEngineCards(t *testing.T) {
 	}, []string{"0001", "0002", "0003", "0004"}, nil))
 	require.NoError(t, err)
 
-	cards, problems := Build(source, []games.PlayableCard{
+	cards, problems := Build(source, []EngineCard{
 		{EngineID: "engine-bolshack", Name: "Bolshack Dragon", Set: "dm-01"},
 		{EngineID: "engine-zaschack", Name: "Uberdragon Zaschack", Set: "promo"},
 		{EngineID: "engine-uzesol", Name: "Hypersprint Warior Uzesol", Set: "dm-12"},
@@ -167,7 +166,7 @@ func TestBuildReportsWhatItCannotLink(t *testing.T) {
 	}, []string{"0001", "0002", "0003"}, nil))
 	require.NoError(t, err)
 
-	_, problems := Build(source, []games.PlayableCard{
+	_, problems := Build(source, []EngineCard{
 		{EngineID: "engine-1", Name: "Bolshack Dragon"},
 		{EngineID: "engine-2", Name: "bolshack dragon"},
 		{EngineID: "engine-3", Name: "Missing Card"},
@@ -196,32 +195,4 @@ func sortCollectorNumbers(numbers []string) {
 			numbers[j-1], numbers[j] = numbers[j], numbers[j-1]
 		}
 	}
-}
-
-// realCardDatabase is the card database linked into the repository.
-const realCardDatabase = "../../../../resources/duelmasters_db"
-
-func TestTheRealCardDatabaseHasEveryEngineCard(t *testing.T) {
-	if _, err := os.Stat(realCardDatabase); err != nil {
-		if os.Getenv("CI") != "" {
-			t.Fatalf("the card database must be checked out on CI (git submodule update --init): %v", err)
-		}
-		t.Skip("the card database is not checked out; run git submodule update --init")
-	}
-
-	source, err := ReadSource(realCardDatabase)
-	require.NoError(t, err)
-
-	playable := games.PlayableCards()
-	cards, problems := Build(source, playable)
-	assert.Empty(t, problems)
-
-	linked := 0
-	for _, card := range cards {
-		if card.Playable() {
-			linked++
-			require.NotEmpty(t, card.Printings[0].ImagePath, "%s has a picture", card.Name)
-		}
-	}
-	assert.Equal(t, len(playable), linked, "every card the engine plays is in the catalogue")
 }

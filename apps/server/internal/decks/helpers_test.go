@@ -11,7 +11,6 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -56,18 +55,18 @@ func legalDeck() []decks.Entry {
 
 // testCardDatabase lays out the test card database and the engine cards
 // linked to it.
-func testCardDatabase(t *testing.T) (string, []games.PlayableCard) {
+func testCardDatabase(t *testing.T) (string, []cards.EngineCard) {
 	t.Helper()
 
 	var printings []map[string]any
-	var playable []games.PlayableCard
+	var playable []cards.EngineCard
 	add := func(id, name, set string, cost int, civilization string, canPlay bool) map[string]any {
 		printing := cardstest.Printing(id, name, set, id+"/110")
 		printing["cost"] = cost
 		printing["civilizations"] = []string{civilization}
 		printings = append(printings, printing)
 		if canPlay {
-			playable = append(playable, games.PlayableCard{EngineID: "engine-" + id, Name: name, Set: set})
+			playable = append(playable, cards.EngineCard{EngineID: "engine-" + id, Name: name, Set: set})
 		}
 		return printing
 	}

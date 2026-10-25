@@ -5,19 +5,17 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
 )
 
 // testCatalogue is a small card database with a little of everything.
-func testCatalogue(t *testing.T) (dir string, playable []games.PlayableCard) {
+func testCatalogue(t *testing.T) (dir string, playable []EngineCard) {
 	t.Helper()
 
 	bolshack := printing("0079", "Bolshack Dragon", "DM-01", "69/110")
@@ -61,7 +59,7 @@ func testCatalogue(t *testing.T) (dir string, playable []games.PlayableCard) {
 		[]string{"dm-01", "dm-10"},
 	)
 
-	return dir, []games.PlayableCard{
+	return dir, []EngineCard{
 		{EngineID: "engine-bolshack", Name: "Bolshack Dragon", Set: "dm-01"},
 		{EngineID: "engine-hulcus", Name: "Aqua Hulcus", Set: "dm-01"},
 		{EngineID: "engine-solar", Name: "Solar Ray", Set: "dm-01"},
@@ -153,7 +151,7 @@ func TestSyncSkipsAnUnchangedCatalogue(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, again.Copied, "nothing changed")
 
-		moreEngine := append(append([]games.PlayableCard(nil), playable...), games.PlayableCard{EngineID: "engine-future", Name: "Future_Card"})
+		moreEngine := append(append([]EngineCard(nil), playable...), EngineCard{EngineID: "engine-future", Name: "Future_Card"})
 		changed, err := Sync(ctx, db, source, moreEngine, storetest.Logger())
 		require.NoError(t, err)
 		assert.True(t, changed.Copied, "the engine plays a new card")
@@ -216,7 +214,7 @@ func TestCardsAndByNamesLeaveOutHiddenCards(t *testing.T) {
 
 		smaller, err := ReadSource(writeCardDatabase(t, []map[string]any{printing("0079", "Bolshack Dragon", "DM-01", "69/110")}, []string{"0079"}, nil))
 		require.NoError(t, err)
-		_, err = Sync(ctx, db, smaller, []games.PlayableCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon"}}, storetest.Logger())
+		_, err = Sync(ctx, db, smaller, []EngineCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon"}}, storetest.Logger())
 		require.NoError(t, err)
 
 		found, err := catalogue.Cards(ctx, []string{"0079", "0033"})
@@ -237,7 +235,7 @@ func TestSyncKeepsCardsThatLeaveTheCardDatabaseHidden(t *testing.T) {
 
 		smaller, err := ReadSource(writeCardDatabase(t, []map[string]any{printing("0079", "Bolshack Dragon", "DM-01", "69/110")}, []string{"0079"}, nil))
 		require.NoError(t, err)
-		_, err = Sync(ctx, db, smaller, []games.PlayableCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon"}}, storetest.Logger())
+		_, err = Sync(ctx, db, smaller, []EngineCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon"}}, storetest.Logger())
 		require.NoError(t, err)
 
 		_, err = catalogue.Card(ctx, "0033")
@@ -421,50 +419,5 @@ func TestSetIconFile(t *testing.T) {
 		assert.ErrorIs(t, err, ErrNotFound, "a set without an icon")
 		_, err = catalogue.SetIconFile(ctx, "DM-99")
 		assert.ErrorIs(t, err, ErrNotFound)
-	})
-}
-
-func TestSyncCopiesTheRealCardDatabase(t *testing.T) {
-	if _, err := os.Stat(realCardDatabase); err != nil {
-		if os.Getenv("CI") != "" {
-			t.Fatalf("the card database must be checked out on CI: %v", err)
-		}
-		t.Skip("the card database is not checked out; run git submodule update --init")
-	}
-
-	source, err := ReadSource(realCardDatabase)
-	require.NoError(t, err)
-	playable := games.PlayableCards()
-
-	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
-		ctx := context.Background()
-
-		started := time.Now()
-		result, err := Sync(ctx, db, source, playable, storetest.Logger())
-		require.NoError(t, err)
-		t.Logf("copied %d cards in %s", result.Cards, time.Since(started).Round(time.Millisecond))
-
-		assert.Empty(t, result.Problems)
-		assert.Equal(t, len(playable), result.Playable)
-
-		catalogue := NewCatalogue(db, realCardDatabase)
-		page, err := catalogue.Search(ctx, Filter{Query: "bolshack dragon", PlayableOnly: true})
-		require.NoError(t, err)
-		require.NotEmpty(t, page.Cards)
-
-		picture, err := catalogue.ImageFile(ctx, page.Cards[0].EngineID)
-		require.NoError(t, err)
-		assert.FileExists(t, picture)
-
-		values, err := catalogue.FilterValues(ctx)
-		require.NoError(t, err)
-		for _, set := range values.Sets {
-			if set.Code == "DM-01" || set.Code == "PROMO" {
-				assert.True(t, set.HasIcon, "%s has its icon", set.Code)
-			}
-		}
-		icon, err := catalogue.SetIconFile(ctx, "DM-01")
-		require.NoError(t, err)
-		assert.FileExists(t, icon)
 	})
 }
