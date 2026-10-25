@@ -3,6 +3,7 @@ package games_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -53,8 +54,8 @@ func TestStartingAGame(t *testing.T) {
 		assert.Equal(t, "Friendly", game.Name)
 		assert.Equal(t, f.open.ID, game.FormatID)
 		assert.Equal(t, "Open", game.FormatName)
-		assert.Equal(t, games.Player{ID: f.shobu.ID, Username: "Shobu", DeckName: "Fire Rush"}, game.Host)
-		assert.Equal(t, games.Player{ID: f.kokujo.ID, Username: "Kokujo", DeckName: "Water Wall"}, game.Guest)
+		assert.Equal(t, games.Player{ID: f.shobu.ID, Username: "Shobu", DeckID: "Fire Rush", DeckName: "Fire Rush", Civilizations: []string{"Fire"}}, game.Host)
+		assert.Equal(t, games.Player{ID: f.kokujo.ID, Username: "Kokujo", DeckID: "Water Wall", DeckName: "Water Wall", Civilizations: []string{"Fire"}}, game.Guest)
 		assert.True(t, game.Visible)
 		assert.False(t, game.Spectators)
 
@@ -161,6 +162,15 @@ func TestAGameIsPlayedAndSaved(t *testing.T) {
 		assert.True(t, row.Visible)
 
 		require.Eventually(t, func() bool { return len(f.heard.closedGames()) == 1 }, waitTimeout, 5*time.Millisecond)
+		ended := f.heard.endedGames()
+		require.Len(t, ended, 1)
+		assert.Equal(t, game.ID, ended[0].Game.ID)
+		assert.Equal(t, f.kokujo.ID, ended[0].WinnerID)
+		assert.Equal(t, f.shobu.ID, ended[0].LoserID())
+		assert.Equal(t, games.EndingSurrender, ended[0].Ending)
+		assert.Equal(t, "Fire Rush", ended[0].Game.Host.DeckID)
+		assert.Equal(t, []string{"ended", "closed"}, slices.DeleteFunc(f.heard.heardInOrder(), func(heard string) bool { return heard == "finished" }),
+			"the end is heard before the game closes")
 		assert.Empty(t, f.games.Games(), "no longer running")
 		_, ok := f.games.PlayingIn(f.shobu.ID)
 		assert.False(t, ok)

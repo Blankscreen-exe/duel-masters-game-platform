@@ -99,14 +99,15 @@ type World struct {
 	CardIDs []string
 }
 
-// NewWorld builds the world on db. The games service runs until the test
-// ends; the lobby's sweeps run only when a test runs them.
-func NewWorld(t *testing.T, db *gorm.DB) *World {
+// NewWorld builds the world on db, with the extra settings of features built
+// on the lobby. The games service runs until the test ends; the lobby's
+// sweeps run only when a test runs them.
+func NewWorld(t *testing.T, db *gorm.DB, extra ...settings.Definition) *World {
 	t.Helper()
 	ctx := context.Background()
 
 	catalogue, ids := gamestest.RealCards(t, db)
-	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), slices.Concat(lobby.Settings(), games.Settings(), decks.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), slices.Concat(lobby.Settings(), games.Settings(), decks.Settings(), extra)...)
 	require.NoError(t, err)
 	formatService := formats.NewService(db)
 	list, err := formatService.List(ctx)

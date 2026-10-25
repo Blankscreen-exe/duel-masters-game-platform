@@ -97,7 +97,10 @@ type StartInput struct {
 type Player struct {
 	ID       string
 	Username string
+	DeckID   string
 	DeckName string
+	// Civilizations are those of the deck's cards, in the game's order.
+	Civilizations []string
 }
 
 // Game is a running game.
@@ -132,9 +135,32 @@ const (
 	RoleSpectator Role = "spectator"
 )
 
+// Ended is a game that started and has just ended.
+type Ended struct {
+	Game Game
+	// WinnerID is empty for a game without a winner.
+	WinnerID string
+	Ending   Ending
+}
+
+// LoserID is the id of the player who lost, empty for a game without a winner.
+func (e Ended) LoserID() string {
+	switch e.WinnerID {
+	case e.Game.Host.ID:
+		return e.Game.Guest.ID
+	case e.Game.Guest.ID:
+		return e.Game.Host.ID
+	default:
+		return ""
+	}
+}
+
 // Listener hears about games ending. Its methods are called on the service's
 // own goroutines and must not block.
 type Listener interface {
+	// GameEnded reports a game that started and has just ended, at once:
+	// before it is saved, and before it closes.
+	GameEnded(Ended)
 	// GameFinished reports a game that started and ended, once it is saved.
 	GameFinished(Record)
 	// GameClosed reports that a game is no longer running, finished or not.
@@ -253,6 +279,17 @@ func (s *Service) CheckDeck(ctx context.Context, deck decks.Deck, format formats
 	return decks.Check(deck.Cards, known, format), nil
 }
 
+// Civilizations lists the civilizations of a deck's cards, in the game's
+// order, as a game shows its players' decks.
+func (s *Service) Civilizations(ctx context.Context, deck decks.Deck) ([]string, error) {
+	known, err := s.catalogue.Cards(ctx, cardIDs(deck.Cards))
+	if err != nil {
+		return nil, err
+	}
+
+	return decks.Civilizations(deck.Cards, known), nil
+}
+
 // Start checks both decks against the format and starts the game. Players
 // then connect to it, and it begins with the coin toss. It returns an
 // *IllegalDeckError for a deck breaking the format, and ErrClosed once the
@@ -272,11 +309,19 @@ func (s *Service) Start(ctx context.Context, input StartInput) (Game, error) {
 	}
 
 	seats := make([]match.Seat, 0, 2)
+	players := make([]Player, 0, 2)
 	for _, entrant := range []Entrant{input.Host, input.Guest} {
 		if problems := decks.Check(entrant.Deck.Cards, known, input.Format); len(problems) > 0 {
 			return Game{}, &IllegalDeckError{Username: entrant.User.Username, Problems: problems}
 		}
 		seats = append(seats, match.Seat{ID: entrant.User.ID, Username: entrant.User.Username, Deck: engineDeck(entrant.Deck.Cards, known)})
+		players = append(players, Player{
+			ID:            entrant.User.ID,
+			Username:      entrant.User.Username,
+			DeckID:        entrant.Deck.ID,
+			DeckName:      entrant.Deck.Name,
+			Civilizations: decks.Civilizations(entrant.Deck.Cards, known),
+		})
 	}
 
 	m, err := s.system.NewMatch(match.Options{
@@ -299,8 +344,8 @@ func (s *Service) Start(ctx context.Context, input StartInput) (Game, error) {
 		Name:        input.Name,
 		FormatID:    input.Format.ID,
 		FormatName:  input.Format.Name,
-		Host:        Player{ID: input.Host.User.ID, Username: input.Host.User.Username, DeckName: input.Host.Deck.Name},
-		Guest:       Player{ID: input.Guest.User.ID, Username: input.Guest.User.Username, DeckName: input.Guest.Deck.Name},
+		Host:        players[0],
+		Guest:       players[1],
 		Visible:     input.Visible,
 		Spectators:  input.Spectators,
 		Matchmaking: input.Matchmaking,
@@ -425,7 +470,8 @@ func (s *Service) Close(ctx context.Context) error {
 	}
 }
 
-// MatchFinished queues a finished game to be saved. The engine calls it.
+// MatchFinished tells the listeners a game has ended, and queues it to be
+// saved. The engine calls it, before the match closes.
 func (s *Service) MatchFinished(result match.Result) {
 	s.mu.Lock()
 	live, ok := s.live[result.MatchID]
@@ -434,6 +480,9 @@ func (s *Service) MatchFinished(result match.Result) {
 		s.logger.Error("a game finished that the server did not start", "game", result.MatchID)
 		return
 	}
+
+	ended := Ended{Game: live.game, WinnerID: result.WinnerID, Ending: Ending(result.Ending)}
+	s.notify(func(l Listener) { l.GameEnded(ended) })
 
 	s.results <- finished{result: result, live: *live}
 }

@@ -23,26 +23,50 @@ const waitTimeout = gamestest.Timeout
 // heard keeps what the service tells its listener.
 type heard struct {
 	mu       sync.Mutex
+	ended    []games.Ended
 	finished []games.Record
 	closed   []games.Game
+	// order is what was heard, in order: "ended", "finished" or "closed".
+	order []string
+}
+
+func (h *heard) GameEnded(ended games.Ended) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.ended = append(h.ended, ended)
+	h.order = append(h.order, "ended")
 }
 
 func (h *heard) GameFinished(record games.Record) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.finished = append(h.finished, record)
+	h.order = append(h.order, "finished")
 }
 
 func (h *heard) GameClosed(game games.Game) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.closed = append(h.closed, game)
+	h.order = append(h.order, "closed")
 }
 
 func (h *heard) records() []games.Record {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return slices.Clone(h.finished)
+}
+
+func (h *heard) endedGames() []games.Ended {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.ended)
+}
+
+func (h *heard) heardInOrder() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.order)
 }
 
 func (h *heard) closedGames() []games.Game {

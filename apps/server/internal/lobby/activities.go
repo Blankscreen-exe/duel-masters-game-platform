@@ -15,20 +15,23 @@ const (
 	Queued Kind = "queued"
 	// Playing: in a running game.
 	Playing Kind = "playing"
+	// Rematching: deciding on a rematch of a game just ended.
+	Rematching Kind = "rematch"
 )
 
 // Activity is what a player is doing, with the game or format it concerns.
 type Activity struct {
 	Kind Kind
-	// GameID is the open game hosted or the game played.
+	// GameID is the open game hosted, the game played, or the game just ended
+	// whose rematch is being decided.
 	GameID string
 	// FormatName is the format waited for in quick match.
 	FormatName string
 }
 
 // BusyError is returned to a player starting something while already doing
-// something else: a player hosts, waits in quick match or plays one game at
-// a time.
+// something else: a player hosts, waits in quick match, plays or decides on
+// a rematch, one at a time.
 type BusyError struct {
 	Current Activity
 }
@@ -39,6 +42,8 @@ func (e *BusyError) Error() string {
 		return "already hosting a game"
 	case Queued:
 		return "already waiting for a quick match"
+	case Rematching:
+		return "already deciding on a rematch"
 	default:
 		return "already playing a game"
 	}

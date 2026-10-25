@@ -480,11 +480,15 @@ func (s *Service) PresenceChanged(userID string) {
 	s.broadcast()
 }
 
+// GameEnded is part of games.Listener; the lobby waits for the game to close.
+func (s *Service) GameEnded(games.Ended) {}
+
 // GameFinished is part of games.Listener; the lobby waits for the game to
 // close.
 func (s *Service) GameFinished(games.Record) {}
 
-// GameClosed frees the game's players to start something else.
+// GameClosed frees the game's players to start something else, unless they
+// have moved on to deciding on a rematch.
 func (s *Service) GameClosed(game games.Game) {
 	s.activities.Release(game.Host.ID, Playing, game.ID)
 	s.activities.Release(game.Guest.ID, Playing, game.ID)
