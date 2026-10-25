@@ -72,6 +72,29 @@ func (l *Limiter) Record(key string) {
 	l.windows[key] = &window{attempts: 1, resetsAt: now.Add(l.window)}
 }
 
+// Take counts an attempt by key if one is allowed, in one step, so attempts
+// made at the same moment cannot pass the limit together. When it is not
+// allowed it counts nothing and reports how long until it is.
+func (l *Limiter) Take(key string) (allowed bool, retryAfter time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.now()
+	l.sweep(now)
+
+	current := l.active(key, now)
+	if current == nil {
+		l.windows[key] = &window{attempts: 1, resetsAt: now.Add(l.window)}
+		return true, 0
+	}
+	if current.attempts >= l.maxAttempts {
+		return false, current.resetsAt.Sub(now)
+	}
+
+	current.attempts++
+	return true, 0
+}
+
 // Reset forgets key's attempts, such as after a successful login.
 func (l *Limiter) Reset(key string) {
 	l.mu.Lock()

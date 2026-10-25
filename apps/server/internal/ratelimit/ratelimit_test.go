@@ -116,3 +116,41 @@ func TestLimiterIsSafeForConcurrentUse(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestTakeCountsOnlyAllowedAttempts(t *testing.T) {
+	limiter, clock := newTestLimiter()
+
+	for i := range 3 {
+		allowed, _ := limiter.Take("alice")
+		assert.True(t, allowed, "attempt %d", i+1)
+	}
+
+	clock.advance(5 * time.Minute)
+	allowed, retryAfter := limiter.Take("alice")
+	assert.False(t, allowed)
+	assert.Equal(t, 10*time.Minute, retryAfter, "the window started with the first attempt")
+
+	clock.advance(10 * time.Minute)
+	allowed, _ = limiter.Take("alice")
+	assert.True(t, allowed, "a refused attempt is not counted, and the window has ended")
+}
+
+func TestTakeAtTheSameMomentNeverPassesTheLimit(t *testing.T) {
+	limiter, _ := newTestLimiter()
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	taken := 0
+	for range 50 {
+		wg.Go(func() {
+			if allowed, _ := limiter.Take("alice"); allowed {
+				mu.Lock()
+				taken++
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+
+	assert.Equal(t, 3, taken)
+}
