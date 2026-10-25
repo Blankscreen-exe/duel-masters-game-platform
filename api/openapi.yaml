@@ -407,12 +407,19 @@ components:
       required: [username, password]
       properties:
         username:
-          description: 3 to 20 letters, numbers, underscores or hyphens.
+          description: >-
+            3 to 20 letters, numbers, underscores or hyphens, after surrounding spaces are
+            trimmed. Unique regardless of case.
           type: string
+          minLength: 3
+          maxLength: 20
+          pattern: "^[A-Za-z0-9_-]+$"
         password:
           description: 8 to 128 characters.
           type: string
           format: password
+          minLength: 8
+          maxLength: 128
     PasswordChange:
       type: object
       required: [currentPassword, newPassword]
@@ -424,6 +431,8 @@ components:
           description: 8 to 128 characters.
           type: string
           format: password
+          minLength: 8
+          maxLength: 128
     Account:
       type: object
       required: [id, username, role, createdAt]

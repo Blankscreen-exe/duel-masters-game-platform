@@ -149,7 +149,7 @@ type Credentials struct {
 	// Password 8 to 128 characters.
 	Password string `json:"password"`
 
-	// Username 3 to 20 letters, numbers, underscores or hyphens.
+	// Username 3 to 20 letters, numbers, underscores or hyphens, after surrounding spaces are trimmed. Unique regardless of case.
 	Username string `json:"username"`
 }
 
