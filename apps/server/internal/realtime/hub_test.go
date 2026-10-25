@@ -104,13 +104,6 @@ func nothingArrives(t *testing.T, conn *websocket.Conn) {
 	require.Error(t, err, "expected nothing, got %s", data)
 }
 
-// count is how many connections the hub keeps.
-func (h *Hub) count() int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return len(h.clients)
-}
-
 func waitUntil(t *testing.T, condition func() bool, message string) {
 	t.Helper()
 	require.Eventually(t, condition, testTimeout, 5*time.Millisecond, message)
@@ -123,7 +116,7 @@ func TestBroadcastReachesEveryConnection(t *testing.T) {
 	visitor := dial(t, server, "", "")
 	shobu := dial(t, server, "u1", "Shobu")
 	waitUntil(t, func() bool { return hub.IsOnline("u1") }, "Shobu should be online")
-	waitUntil(t, func() bool { return hub.count() == 2 }, "both connections should be open")
+	waitUntil(t, func() bool { return hub.Connections() == 2 }, "both connections should be open")
 
 	hub.Broadcast(map[string]any{"type": "hello"})
 
@@ -139,7 +132,7 @@ func TestSendToReachesOnlyThatPlayersTabs(t *testing.T) {
 	secondTab := dial(t, server, "u1", "Shobu")
 	other := dial(t, server, "u2", "Kokujo")
 	visitor := dial(t, server, "", "")
-	waitUntil(t, func() bool { return hub.count() == 4 }, "every connection should be open")
+	waitUntil(t, func() bool { return hub.Connections() == 4 }, "every connection should be open")
 
 	hub.SendTo("u1", map[string]any{"type": "your_game_started"})
 
@@ -156,17 +149,17 @@ func TestAPlayerIsOnlineUntilTheirLastTabHasBeenClosedForAWhile(t *testing.T) {
 	firstTab := dial(t, server, "u1", "Shobu")
 	waitUntil(t, func() bool { return hub.IsOnline("u1") }, "Shobu should be online")
 	secondTab := dial(t, server, "u1", "Shobu")
-	waitUntil(t, func() bool { return hub.count() == 2 }, "both tabs should be open")
+	waitUntil(t, func() bool { return hub.Connections() == 2 }, "both tabs should be open")
 	assert.Equal(t, []string{"Shobu"}, presence.names(), "one notice for the first tab only")
 	assert.Equal(t, []Viewer{{UserID: "u1", Username: "Shobu"}}, hub.Online())
 
 	require.NoError(t, firstTab.Close())
-	waitUntil(t, func() bool { return hub.count() == 1 }, "the first tab should be gone")
+	waitUntil(t, func() bool { return hub.Connections() == 1 }, "the first tab should be gone")
 	assert.Never(t, func() bool { return !hub.IsOnline("u1") }, 300*time.Millisecond, 10*time.Millisecond,
 		"still online in the second tab")
 
 	require.NoError(t, secondTab.Close())
-	waitUntil(t, func() bool { return hub.count() == 0 }, "the second tab should be gone")
+	waitUntil(t, func() bool { return hub.Connections() == 0 }, "the second tab should be gone")
 	assert.True(t, hub.IsOnline("u1"), "online for a moment after the last tab closes")
 
 	waitUntil(t, func() bool { return !hub.IsOnline("u1") }, "Shobu should go offline")
@@ -181,7 +174,7 @@ func TestReloadingAPageDoesNotCountAsLeaving(t *testing.T) {
 	tab := dial(t, server, "u1", "Shobu")
 	waitUntil(t, func() bool { return hub.IsOnline("u1") }, "Shobu should be online")
 	require.NoError(t, tab.Close())
-	waitUntil(t, func() bool { return hub.count() == 0 }, "the tab should be gone")
+	waitUntil(t, func() bool { return hub.Connections() == 0 }, "the tab should be gone")
 
 	dial(t, server, "u1", "Shobu")
 	assert.Never(t, func() bool { return !hub.IsOnline("u1") }, 500*time.Millisecond, 10*time.Millisecond)
@@ -193,7 +186,7 @@ func TestVisitorsAreNotPlayers(t *testing.T) {
 	server := testServer(t, hub)
 
 	dial(t, server, "", "")
-	waitUntil(t, func() bool { return hub.count() == 1 }, "the visitor should be connected")
+	waitUntil(t, func() bool { return hub.Connections() == 1 }, "the visitor should be connected")
 
 	assert.Empty(t, hub.Online())
 	assert.Empty(t, presence.names())
@@ -205,17 +198,17 @@ func TestASlowConnectionIsDroppedRatherThanHoldingUpOthers(t *testing.T) {
 
 	stuck := dial(t, server, "u1", "Stuck")
 	healthy := dial(t, server, "u2", "Healthy")
-	waitUntil(t, func() bool { return hub.count() == 2 }, "both should be connected")
+	waitUntil(t, func() bool { return hub.Connections() == 2 }, "both should be connected")
 
 	// The stuck tab never reads. Large messages fill its network buffers,
 	// then its queue, and it is dropped; the healthy tab gets every one.
 	big := map[string]any{"type": "big", "padding": strings.Repeat("x", 256*1024)}
-	for i := 0; i < 4*sendQueue && hub.count() == 2; i++ {
+	for i := 0; i < 4*sendQueue && hub.Connections() == 2; i++ {
 		hub.Broadcast(big)
 		assert.Equal(t, "big", receive(t, healthy)["type"])
 	}
 
-	waitUntil(t, func() bool { return hub.count() == 1 }, "the stuck connection should be dropped")
+	waitUntil(t, func() bool { return hub.Connections() == 1 }, "the stuck connection should be dropped")
 	_ = stuck
 }
 
@@ -224,7 +217,7 @@ func TestClosingTheHubEndsEveryConnection(t *testing.T) {
 	server := testServer(t, hub)
 
 	conn := dial(t, server, "u1", "Shobu")
-	waitUntil(t, func() bool { return hub.count() == 1 }, "should be connected")
+	waitUntil(t, func() bool { return hub.Connections() == 1 }, "should be connected")
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()

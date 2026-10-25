@@ -317,6 +317,13 @@ func (h *Hub) Online() []Viewer {
 	return online
 }
 
+// Connections is how many live connections are open, visitors included.
+func (h *Hub) Connections() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.clients)
+}
+
 // IsOnline reports whether a player is online.
 func (h *Hub) IsOnline(userID string) bool {
 	h.mu.Lock()

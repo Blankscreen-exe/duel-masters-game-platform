@@ -55,45 +55,47 @@ func readLive(t *testing.T, conn *websocket.Conn) map[string]any {
 }
 
 func TestVisitorsAndPlayersOpenTheLiveConnection(t *testing.T) {
-	api := newTestServer(t, false)
-	server := api.liveServer(t)
-	session := api.signUp(t, "Shobu")
+	site := newTestServer(t, false)
+	live := site.liveServer(t)
+	session := site.signUp(t, "Shobu")
 
-	visitor, _, err := openLive(t, server, nil, testSiteOrigin)
+	visitor, _, err := openLive(t, live, nil, testSiteOrigin)
 	require.NoError(t, err)
-	player, _, err := openLive(t, server, session, testSiteOrigin)
+	player, _, err := openLive(t, live, session, testSiteOrigin)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool { return len(api.hub.Online()) == 1 }, 5*time.Second, 5*time.Millisecond)
-	assert.Equal(t, "Shobu", api.hub.Online()[0].Username, "the player is known by their session")
+	require.Eventually(t, func() bool { return site.hub.Connections() == 2 }, 5*time.Second, 5*time.Millisecond)
+	require.Len(t, site.hub.Online(), 1)
+	assert.Equal(t, "Shobu", site.hub.Online()[0].Username, "the player is known by their session")
 
-	api.hub.Broadcast(map[string]any{"type": "hello"})
+	site.hub.Broadcast(map[string]any{"type": "hello"})
 	assert.Equal(t, "hello", readLive(t, visitor)["type"])
 	assert.Equal(t, "hello", readLive(t, player)["type"])
 }
 
 func TestAnotherSitesPageCannotOpenTheLiveConnection(t *testing.T) {
-	api := newTestServer(t, false)
-	server := api.liveServer(t)
-	session := api.signUp(t, "Shobu")
+	site := newTestServer(t, false)
+	live := site.liveServer(t)
+	session := site.signUp(t, "Shobu")
 
 	for _, origin := range []string{"https://evil.example", ""} {
-		_, response, err := openLive(t, server, session, origin)
+		_, response, err := openLive(t, live, session, origin)
 		require.Error(t, err, "%q", origin)
 		require.NotNil(t, response)
 		assert.Equal(t, http.StatusForbidden, response.StatusCode, "%q", origin)
 		_ = response.Body.Close()
 	}
-	assert.Empty(t, api.hub.Online())
+	assert.Empty(t, site.hub.Online())
+	assert.Zero(t, site.hub.Connections())
 }
 
 func TestTheLiveConnectionIsOnlyAWebsocket(t *testing.T) {
-	api := newTestServer(t, false)
+	site := newTestServer(t, false)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/realtime", nil)
 	request.Header.Set("Origin", testSiteOrigin)
 	recorder := httptest.NewRecorder()
-	api.handler.ServeHTTP(recorder, request)
+	site.handler.ServeHTTP(recorder, request)
 
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 }

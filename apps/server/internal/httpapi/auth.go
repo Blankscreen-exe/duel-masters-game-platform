@@ -148,13 +148,8 @@ func tooManyAttempts(err *auth.TooManyAttemptsError) api.TooManyAttemptsJSONResp
 	seconds := int(math.Ceil(err.RetryAfter.Seconds()))
 	minutes := (seconds + 59) / 60
 
-	unit := "minutes"
-	if minutes == 1 {
-		unit = "minute"
-	}
-
 	return api.TooManyAttemptsJSONResponse{
-		Body:    apiError(codeTooManyAttempts, fmt.Sprintf("Too many failed attempts. Try again in %d %s.", minutes, unit)),
+		Body:    apiError(codeTooManyAttempts, fmt.Sprintf("Too many failed attempts. Try again in %d %s.", minutes, plural(minutes, "minute", "minutes"))),
 		Headers: api.TooManyAttemptsResponseHeaders{RetryAfter: &seconds},
 	}
 }

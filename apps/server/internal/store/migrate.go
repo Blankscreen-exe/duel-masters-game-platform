@@ -22,6 +22,7 @@ func migrations() []*gormigrate.Migration {
 		migration0003CardCatalogue(),
 		migration0004Formats(),
 		migration0005Decks(),
+		migration0006LobbyChat(),
 	}
 }
 

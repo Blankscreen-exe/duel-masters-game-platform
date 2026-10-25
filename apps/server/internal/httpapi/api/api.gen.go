@@ -66,6 +66,21 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for RealtimeChatMessageType.
+const (
+	RealtimeChatMessageTypeChatMessage RealtimeChatMessageType = "chat_message"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeChatMessageType enum.
+func (e RealtimeChatMessageType) Valid() bool {
+	switch e {
+	case RealtimeChatMessageTypeChatMessage:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Role.
 const (
 	RoleAdmin  Role = "admin"
@@ -172,6 +187,22 @@ type CardSet struct {
 
 	// IconUrl Absent when the set has no icon.
 	IconUrl *string `json:"iconUrl,omitempty"`
+}
+
+// ChatMessage defines model for ChatMessage.
+type ChatMessage struct {
+	Id       string    `json:"id"`
+	PostedAt time.Time `json:"postedAt"`
+	Text     string    `json:"text"`
+
+	// Username The author.
+	Username string `json:"username"`
+}
+
+// ChatPost defines model for ChatPost.
+type ChatPost struct {
+	// Text 1 to 300 characters, after surrounding spaces are trimmed.
+	Text string `json:"text"`
 }
 
 // Credentials defines model for Credentials.
@@ -352,6 +383,20 @@ type PasswordChange struct {
 	NewPassword string `json:"newPassword"`
 }
 
+// RealtimeChatMessage Someone posted to the lobby chat.
+type RealtimeChatMessage struct {
+	Message ChatMessage             `json:"message"`
+	Type    RealtimeChatMessageType `json:"type"`
+}
+
+// RealtimeChatMessageType defines model for RealtimeChatMessage.Type.
+type RealtimeChatMessageType string
+
+// RealtimeMessage A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added.
+type RealtimeMessage struct {
+	union json.RawMessage
+}
+
 // Role defines model for Role.
 type Role string
 
@@ -360,6 +405,9 @@ type InvalidInput = Error
 
 // NotFound Returned with every error status.
 type NotFound = Error
+
+// TooFast Returned with every error status.
+type TooFast = Error
 
 // TooManyAttempts Returned with every error status.
 type TooManyAttempts = Error
@@ -396,6 +444,9 @@ type ChangePasswordJSONRequestBody = PasswordChange
 // SignUpJSONRequestBody defines body for SignUp for application/json ContentType.
 type SignUpJSONRequestBody = Credentials
 
+// PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
+type PostChatMessageJSONRequestBody = ChatPost
+
 // CreateDeckJSONRequestBody defines body for CreateDeck for application/json ContentType.
 type CreateDeckJSONRequestBody = DeckInput
 
@@ -404,6 +455,71 @@ type ReadDeckListJSONRequestBody = DeckListText
 
 // UpdateDeckJSONRequestBody defines body for UpdateDeck for application/json ContentType.
 type UpdateDeckJSONRequestBody = DeckInput
+
+// AsRealtimeChatMessage returns the union data inside the RealtimeMessage as a RealtimeChatMessage
+func (t RealtimeMessage) AsRealtimeChatMessage() (RealtimeChatMessage, error) {
+	var body RealtimeChatMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeChatMessage overwrites any union data inside the RealtimeMessage as the provided RealtimeChatMessage
+func (t *RealtimeMessage) FromRealtimeChatMessage(v RealtimeChatMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"chat_message"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeChatMessage performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeChatMessage
+func (t *RealtimeMessage) MergeRealtimeChatMessage(v RealtimeChatMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"chat_message"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t RealtimeMessage) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t RealtimeMessage) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "chat_message":
+		return t.AsRealtimeChatMessage()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t RealtimeMessage) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *RealtimeMessage) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -437,6 +553,12 @@ type ServerInterface interface {
 	// GetCard One card, with every printing
 	// (GET /cards/{cardId})
 	GetCard(w http.ResponseWriter, r *http.Request, cardId string)
+	// GetChat The latest lobby chat messages, oldest first
+	// (GET /chat)
+	GetChat(w http.ResponseWriter, r *http.Request)
+	// PostChatMessage Post to the lobby chat
+	// (POST /chat)
+	PostChatMessage(w http.ResponseWriter, r *http.Request)
 	// ListDecks The player's decks, the most recently changed first
 	// (GET /decks)
 	ListDecks(w http.ResponseWriter, r *http.Request)
@@ -803,6 +925,34 @@ func (siw *ServerInterfaceWrapper) GetCard(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// GetChat operation middleware
+func (siw *ServerInterfaceWrapper) GetChat(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetChat(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) PostChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostChatMessage(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListDecks operation middleware
 func (siw *ServerInterfaceWrapper) ListDecks(w http.ResponseWriter, r *http.Request) {
 
@@ -1123,6 +1273,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/images/{key}", wrapper.GetCardImage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/sets/{setCode}/icon", wrapper.GetCardSetIcon)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/realtime", wrapper.OpenRealtime)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/chat", wrapper.GetChat)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/chat", wrapper.PostChatMessage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/formats", wrapper.ListFormats)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks", wrapper.ListDecks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/decks", wrapper.CreateDeck)
@@ -1138,6 +1290,15 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 type InvalidInputJSONResponse Error
 
 type NotFoundJSONResponse Error
+
+type TooFastResponseHeaders struct {
+	RetryAfter *int
+}
+type TooFastJSONResponse struct {
+	Body Error
+
+	Headers TooFastResponseHeaders
+}
 
 type TooManyAttemptsResponseHeaders struct {
 	RetryAfter *int
@@ -1627,6 +1788,94 @@ func (response GetCard404JSONResponse) VisitGetCardResponse(w http.ResponseWrite
 	return err
 }
 
+type GetChatRequestObject struct {
+}
+
+type GetChatResponseObject interface {
+	VisitGetChatResponse(w http.ResponseWriter) error
+}
+
+type GetChat200JSONResponse []ChatMessage
+
+func (response GetChat200JSONResponse) VisitGetChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostChatMessageRequestObject struct {
+	Body *PostChatMessageJSONRequestBody
+}
+
+type PostChatMessageResponseObject interface {
+	VisitPostChatMessageResponse(w http.ResponseWriter) error
+}
+
+type PostChatMessage201JSONResponse ChatMessage
+
+func (response PostChatMessage201JSONResponse) VisitPostChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostChatMessage400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response PostChatMessage400JSONResponse) VisitPostChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostChatMessage401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response PostChatMessage401JSONResponse) VisitPostChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostChatMessage429JSONResponse struct{ TooFastJSONResponse }
+
+func (response PostChatMessage429JSONResponse) VisitPostChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListDecksRequestObject struct {
 }
 
@@ -2101,6 +2350,12 @@ type StrictServerInterface interface {
 	// GetCard One card, with every printing
 	// (GET /cards/{cardId})
 	GetCard(ctx context.Context, request GetCardRequestObject) (GetCardResponseObject, error)
+	// GetChat The latest lobby chat messages, oldest first
+	// (GET /chat)
+	GetChat(ctx context.Context, request GetChatRequestObject) (GetChatResponseObject, error)
+	// PostChatMessage Post to the lobby chat
+	// (POST /chat)
+	PostChatMessage(ctx context.Context, request PostChatMessageRequestObject) (PostChatMessageResponseObject, error)
 	// ListDecks The player's decks, the most recently changed first
 	// (GET /decks)
 	ListDecks(ctx context.Context, request ListDecksRequestObject) (ListDecksResponseObject, error)
@@ -2434,6 +2689,61 @@ func (sh *strictHandler) GetCard(w http.ResponseWriter, r *http.Request, cardId 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCardResponseObject); ok {
 		if err := validResponse.VisitGetCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetChat operation middleware
+func (sh *strictHandler) GetChat(w http.ResponseWriter, r *http.Request) {
+	var request GetChatRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetChat(ctx, request.(GetChatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetChat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetChatResponseObject); ok {
+		if err := validResponse.VisitGetChatResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostChatMessage operation middleware
+func (sh *strictHandler) PostChatMessage(w http.ResponseWriter, r *http.Request) {
+	var request PostChatMessageRequestObject
+
+	var body PostChatMessageJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostChatMessage(ctx, request.(PostChatMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostChatMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostChatMessageResponseObject); ok {
+		if err := validResponse.VisitPostChatMessageResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
@@ -79,6 +80,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, pl
 			Catalogue:     catalogue,
 			Formats:       formats.NewService(db),
 			Decks:         decks.NewService(db, catalogue, siteSettings, logger),
+			Chat:          chat.NewService(db, NewLiveUpdates(hub), clock.Now),
 			Hub:           hub,
 			Upgrader:      realtime.NewUpgrader([]string{testSiteOrigin}),
 			Logger:        logger,

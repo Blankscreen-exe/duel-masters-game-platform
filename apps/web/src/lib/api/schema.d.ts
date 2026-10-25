@@ -226,6 +226,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The latest lobby chat messages, oldest first
+         * @description Everyone can read the chat, visitors included. New messages arrive on the live connection as RealtimeChatMessage.
+         */
+        get: operations["getChat"];
+        put?: never;
+        /**
+         * Post to the lobby chat
+         * @description Line breaks become spaces; at most 5 messages per 10 seconds.
+         */
+        post: operations["postChatMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/formats": {
         parameters: {
             query?: never;
@@ -526,6 +550,29 @@ export interface components {
             text: string;
             message: string;
         };
+        ChatMessage: {
+            id: string;
+            /** @description The author. */
+            username: string;
+            text: string;
+            /** Format: date-time */
+            postedAt: string;
+        };
+        ChatPost: {
+            /** @description 1 to 300 characters, after surrounding spaces are trimmed. */
+            text: string;
+        };
+        /** @description A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. */
+        RealtimeMessage: components["schemas"]["RealtimeChatMessage"];
+        /** @description Someone posted to the lobby chat. */
+        RealtimeChatMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "chat_message";
+            message: components["schemas"]["ChatMessage"];
+        };
         /** @description Returned with every error status. */
         Error: {
             /** @description A stable, machine-readable error code, such as "not_found". */
@@ -558,6 +605,16 @@ export interface components {
         /** @description Not logged in, or the session has expired (code "unauthenticated"). */
         Unauthenticated: {
             headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Doing this too often; try again after a moment (code "too_fast"). */
+        TooFast: {
+            headers: {
+                "Retry-After": components["headers"]["RetryAfter"];
                 [name: string]: unknown;
             };
             content: {
@@ -942,6 +999,53 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The latest 100 messages. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessage"][];
+                };
+            };
+        };
+    };
+    postChatMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatPost"];
+            };
+        };
+        responses: {
+            /** @description The message, as everyone sees it. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            429: components["responses"]["TooFast"];
         };
     };
     listFormats: {

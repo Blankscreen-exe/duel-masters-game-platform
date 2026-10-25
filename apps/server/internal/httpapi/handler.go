@@ -13,6 +13,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
@@ -37,6 +38,7 @@ type Dependencies struct {
 	Catalogue *cards.Catalogue
 	Formats   *formats.Service
 	Decks     *decks.Service
+	Chat      *chat.Service
 	// Hub keeps the live connections, which Upgrader opens for the site's
 	// pages only.
 	Hub      *realtime.Hub
@@ -53,6 +55,7 @@ type handlers struct {
 	catalogue     *cards.Catalogue
 	formats       *formats.Service
 	decks         *decks.Service
+	chat          *chat.Service
 	hub           *realtime.Hub
 	upgrader      *websocket.Upgrader
 	secureCookies bool
@@ -73,6 +76,7 @@ func NewHandler(deps Dependencies) http.Handler {
 		catalogue:     deps.Catalogue,
 		formats:       deps.Formats,
 		decks:         deps.Decks,
+		chat:          deps.Chat,
 		hub:           deps.Hub,
 		upgrader:      deps.Upgrader,
 		secureCookies: deps.SecureCookies,

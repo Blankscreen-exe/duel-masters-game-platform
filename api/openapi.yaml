@@ -25,6 +25,8 @@ tags:
     description: >-
       The card catalogue: every card in the card database, with its printings and pictures, and
       whether the rules engine can play it. Reprints are one card with several printings.
+  - name: chat
+    description: The lobby chat, which everyone can read and players can write in.
   - name: formats
     description: >-
       The formats games are played in: the sets each allows and the cards it bans or limits, on
@@ -363,6 +365,49 @@ paths:
           description: Not a websocket request.
         "403":
           description: Opened from a page that is not the site's.
+  /chat:
+    get:
+      operationId: getChat
+      summary: The latest lobby chat messages, oldest first
+      description: >-
+        Everyone can read the chat, visitors included. New messages arrive on the live connection
+        as RealtimeChatMessage.
+      tags: [chat]
+      responses:
+        "200":
+          description: The latest 100 messages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+    post:
+      operationId: postChatMessage
+      summary: Post to the lobby chat
+      description: Line breaks become spaces; at most 5 messages per 10 seconds.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatPost"
+      responses:
+        "201":
+          description: The message, as everyone sees it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/TooFast"
   /formats:
     get:
       operationId: listFormats
@@ -581,6 +626,15 @@ components:
             $ref: "#/components/schemas/Error"
     Unauthenticated:
       description: Not logged in, or the session has expired (code "unauthenticated").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooFast:
+      description: Doing this too often; try again after a moment (code "too_fast").
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
       content:
         application/json:
           schema:
@@ -999,6 +1053,49 @@ components:
           type: string
         message:
           type: string
+    ChatMessage:
+      type: object
+      required: [id, username, text, postedAt]
+      properties:
+        id:
+          type: string
+        username:
+          description: The author.
+          type: string
+        text:
+          type: string
+        postedAt:
+          type: string
+          format: date-time
+    ChatPost:
+      type: object
+      required: [text]
+      properties:
+        text:
+          description: 1 to 300 characters, after surrounding spaces are trimmed.
+          type: string
+          minLength: 1
+          maxLength: 300
+    RealtimeMessage:
+      description: >-
+        A message on the live connection (GET /realtime), told apart by its type. Messages of a type
+        the page does not know are ignored, so new ones can be added.
+      oneOf:
+        - $ref: "#/components/schemas/RealtimeChatMessage"
+      discriminator:
+        propertyName: type
+        mapping:
+          chat_message: "#/components/schemas/RealtimeChatMessage"
+    RealtimeChatMessage:
+      description: Someone posted to the lobby chat.
+      type: object
+      required: [type, message]
+      properties:
+        type:
+          type: string
+          enum: [chat_message]
+        message:
+          $ref: "#/components/schemas/ChatMessage"
     Error:
       description: Returned with every error status.
       type: object
