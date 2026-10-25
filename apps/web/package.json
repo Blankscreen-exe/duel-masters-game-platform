@@ -4,22 +4,27 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "board": "pnpm --filter @duel-masters/duel-board build",
+    "predev": "pnpm run board",
     "dev": "next dev --port 3000",
+    "prebuild": "pnpm run board",
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "eslint .",
+    "pretypecheck": "pnpm run board",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "api:generate": "openapi-typescript ../../api/openapi.yaml --output src/lib/api/schema.d.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "api:generate": "openapi-typescript ../../api/openapi.yaml --output src/lib/api/schema.d.ts"
   },
   "dependencies": {
     "next": "16.4.3",
     "openapi-fetch": "0.17.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "@duel-masters/duel-board": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

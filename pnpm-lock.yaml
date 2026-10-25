@@ -12,6 +12,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@duel-masters/duel-board':
+        specifier: workspace:*
+        version: link:../../packages/duel-board
       next:
         specifier: 16.4.3
         version: 16.4.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 491 682" role="img" aria-label="Card back">
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2230"/>
+      <stop offset="1" stop-color="#07090e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1f5f9"/>
+      <stop offset="0.5" stop-color="#94a3b8"/>
+      <stop offset="1" stop-color="#334155"/>
+    </linearGradient>
+  </defs>
+  <rect width="491" height="682" rx="24" fill="url(#night)"/>
+  <rect x="18" y="18" width="455" height="646" rx="14" fill="none" stroke="url(#silver)" stroke-width="5"/>
+  <rect x="34" y="34" width="423" height="614" rx="8" fill="none" stroke="#475569" stroke-width="1.5"/>
+  <circle cx="245.5" cy="341" r="190" fill="url(#glow)"/>
+  <!-- The five civilizations around the centre: light, water, darkness, fire, nature. -->
+  <g fill="none" stroke-width="16" stroke-linecap="butt" transform="rotate(-90 245.5 341)">
+    <circle cx="245.5" cy="341" r="150" stroke="#fde047" stroke-dasharray="180.5 761.9" stroke-dashoffset="0"/>
+    <circle cx="245.5" cy="341" r="150" stroke="#3b82f6" stroke-dasharray="180.5 761.9" stroke-dashoffset="-188.5"/>
+    <circle cx="245.5" cy="341" r="150" stroke="#52525b" stroke-dasharray="180.5 761.9" stroke-dashoffset="-377"/>
+    <circle cx="245.5" cy="341" r="150" stroke="#ef4444" stroke-dasharray="180.5 761.9" stroke-dashoffset="-565.5"/>
+    <circle cx="245.5" cy="341" r="150" stroke="#22c55e" stroke-dasharray="180.5 761.9" stroke-dashoffset="-754"/>
+  </g>
+  <rect x="175.5" y="271" width="140" height="140" fill="url(#silver)" transform="rotate(45 245.5 341)"/>
+  <rect x="200.5" y="296" width="90" height="90" fill="#0f141d" transform="rotate(45 245.5 341)"/>
+  <rect x="222.5" y="318" width="46" height="46" fill="url(#silver)" transform="rotate(45 245.5 341)"/>
+</svg>

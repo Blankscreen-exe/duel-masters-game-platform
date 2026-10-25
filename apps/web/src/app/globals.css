@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* The duel board's components, whose classes the site's stylesheet must include. */
+@source '../../../../packages/duel-board';
+
 /*
  * Battle Zone theme (design/SPEC.md, section 11): dark and modern, angled panel corners, silver
  * primary buttons, the five civilization colours as accents. Reference mockup:
@@ -27,6 +30,10 @@
   --color-accent: #38bdf8;
   /* Your turn, the current phase. */
   --color-action: #2563eb;
+
+  /* Quiet surfaces and text, which the duel board's chat uses. */
+  --color-muted: #1e2533;
+  --color-muted-foreground: #94a3b8;
 
   --animate-toast-in: toast-in 200ms ease-out;
 

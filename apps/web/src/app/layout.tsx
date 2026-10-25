@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
+import { Suspense } from 'react';
+import { LiveProvider } from '@/components/live/live-provider';
+import { LiveSession } from '@/components/live/live-session';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 
@@ -33,7 +36,12 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={`${rajdhani.variable} ${inter.variable}`}>
       <body className="flex flex-col">
-        {children}
+        <LiveProvider>
+          {children}
+          <Suspense>
+            <LiveSession />
+          </Suspense>
+        </LiveProvider>
         <Toaster />
       </body>
     </html>

@@ -10,6 +10,7 @@ export interface NavLink {
  */
 export const MAIN_LINKS: readonly NavLink[] = [
   { href: '/', label: 'Home' },
+  { href: '/play', label: 'Play' },
   { href: '/decks', label: 'Decks' },
   { href: '/cards', label: 'Cards' },
 ];

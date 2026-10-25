@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { CardImage } from '@/components/cards/card-image';
+import { LobbyChat } from '@/components/chat/lobby-chat';
+import { SiteStatsLine } from '@/components/live/site-stats';
 import { buttonClasses } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
 import type { Card } from '@/lib/api/client';
@@ -10,7 +12,13 @@ import { getCurrentAccount } from '@/lib/session';
 const SHOWCASE_CARD_IDS = ['0001', '0033', '0005', '0079', '0100'];
 
 export default async function HomePage() {
-  const [account, showcase] = await Promise.all([getCurrentAccount(), showcaseCards()]);
+  const api = await serverApi();
+  const [account, showcase, stats, chat] = await Promise.all([
+    getCurrentAccount(),
+    showcaseCards(),
+    api.GET('/stats'),
+    api.GET('/chat'),
+  ]);
 
   return (
     <div className="space-y-10">
@@ -29,9 +37,14 @@ export default async function HomePage() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             {account ? (
-              <p className="font-display text-xl font-semibold tracking-wide text-slate-200">
-                Welcome back, {account.username}.
-              </p>
+              <>
+                <p className="w-full font-display text-xl font-semibold tracking-wide text-slate-200">
+                  Welcome back, {account.username}.
+                </p>
+                <Link href="/play" className={buttonClasses('primary', 'text-lg')}>
+                  Play now
+                </Link>
+              </>
             ) : (
               <>
                 <Link href="/signup" className={buttonClasses('primary', 'text-lg')}>
@@ -43,20 +56,32 @@ export default async function HomePage() {
               </>
             )}
           </div>
+          {stats.data && (
+            <div className="mt-8">
+              <SiteStatsLine initial={stats.data} />
+            </div>
+          )}
         </div>
       </section>
 
-      {showcase.length > 0 && (
-        <Panel title="The five civilizations" accent="fire">
-          <ul className="grid grid-cols-3 gap-3 p-4 sm:grid-cols-5 sm:gap-4">
-            {showcase.map((card) => (
-              <li key={card.id} className="transition hover:-translate-y-1 hover:scale-[1.03]">
-                <CardImage src={card.imageUrl} name={card.name} priority />
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
+      <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
+        {showcase.length > 0 && (
+          <Panel title="The five civilizations" accent="fire" className="self-start">
+            <ul className="grid grid-cols-3 gap-3 p-4 sm:grid-cols-5 sm:gap-4">
+              {showcase.map((card) => (
+                <li key={card.id} className="transition hover:-translate-y-1 hover:scale-[1.03]">
+                  <CardImage src={card.imageUrl} name={card.name} priority />
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        )}
+        {chat.data && (
+          <Panel title="Lobby chat" className="flex max-h-[28rem] flex-col">
+            <LobbyChat initial={chat.data} canPost={account !== null} className="flex-1" />
+          </Panel>
+        )}
+      </div>
     </div>
   );
 }
