@@ -68,6 +68,19 @@ func (e *TooManyAttemptsError) Error() string {
 	return fmt.Sprintf("too many failed attempts; try again in %s", e.RetryAfter.Round(time.Second))
 }
 
+// BannedError is returned to a banned player logging in with the right
+// password. Only they learn of the ban: a wrong password says nothing.
+type BannedError struct {
+	Ban users.Ban
+}
+
+func (e *BannedError) Error() string {
+	if e.Ban.Until == nil {
+		return "this account is banned"
+	}
+	return fmt.Sprintf("this account is banned until %s", e.Ban.Until.Format(time.RFC3339))
+}
+
 // Service signs players up, in and out. It is safe for concurrent use.
 type Service struct {
 	db       *gorm.DB
@@ -141,8 +154,9 @@ func (s *Service) SignUp(ctx context.Context, username, password string) (users.
 
 // LogIn checks a name and password and starts a session. It returns
 // ErrInvalidCredentials for a wrong name or password alike, taking as long
-// either way, and a *TooManyAttemptsError once the account has had too many
-// wrong passwords in the window.
+// either way, a *BannedError for a banned account's right password, and a
+// *TooManyAttemptsError once the account has had too many wrong passwords in
+// the window.
 func (s *Service) LogIn(ctx context.Context, username, password string) (users.User, Session, error) {
 	key := users.Key(username)
 	if allowed, retryAfter := s.logins.Allowed(key); !allowed {
@@ -158,6 +172,10 @@ func (s *Service) LogIn(ctx context.Context, username, password string) (users.U
 		return users.User{}, Session{}, ErrInvalidCredentials
 	}
 	s.logins.Reset(key)
+
+	if ban, banned := user.BanAt(s.timestamp()); banned {
+		return users.User{}, Session{}, &BannedError{Ban: ban}
+	}
 
 	s.upgradeHash(ctx, user, password)
 
@@ -215,19 +233,23 @@ func (s *Service) upgradeHash(ctx context.Context, user users.User, password str
 }
 
 // Authenticate returns the account a session token belongs to. It returns
-// ErrNoSession for a missing, unknown or expired token.
+// ErrNoSession for a missing, unknown or expired token, and for a banned
+// account's: a ban ends the account's sessions, and this also refuses one
+// started by a login that crossed with the ban.
 func (s *Service) Authenticate(ctx context.Context, token string) (users.User, error) {
 	if token == "" {
 		return users.User{}, ErrNoSession
 	}
 
+	now := s.timestamp()
 	var user users.User
 	// Only the account's columns are read: both tables have id and
 	// created_at columns.
 	err := s.db.WithContext(ctx).
 		Select("users.*").
 		Joins("JOIN sessions ON sessions.user_id = users.id").
-		Where("sessions.id = ? AND sessions.expires_at > ?", sessionID(token), s.timestamp()).
+		Where("sessions.id = ? AND sessions.expires_at > ?", sessionID(token), now).
+		Where(users.NotBannedAt(now)).
 		Take(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return users.User{}, ErrNoSession
@@ -281,7 +303,7 @@ func (s *Service) ChangePassword(ctx context.Context, user users.User, keepToken
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.users.SetPasswordHashIn(tx, user.ID, hash); err != nil {
+		if err := users.SetPasswordHashIn(tx, user.ID, hash); err != nil {
 			return err
 		}
 
@@ -292,6 +314,31 @@ func (s *Service) ChangePassword(ctx context.Context, user users.User, keepToken
 
 		return nil
 	})
+}
+
+// HashNewPassword checks a password an admin gives a player against the
+// rules and hashes it, to store with users.SetPasswordHashIn. It returns a
+// *validation.Error for a password breaking the rules.
+func (s *Service) HashNewPassword(ctx context.Context, password string) (string, error) {
+	if err := ValidatePassword(password); err != nil {
+		return "", err
+	}
+	return s.hasher.Hash(ctx, password)
+}
+
+// ForgetWrongPasswords clears the wrong passwords counted against an
+// account, so a player an admin has given a new password can log in at once.
+func (s *Service) ForgetWrongPasswords(username string) {
+	s.logins.Reset(users.Key(username))
+}
+
+// EndSessionsIn ends every session of an account inside the caller's
+// transaction, as a ban or a new password does.
+func EndSessionsIn(tx *gorm.DB, userID string) error {
+	if err := tx.Where("user_id = ?", userID).Delete(&sessionRecord{}).Error; err != nil {
+		return fmt.Errorf("ending an account's sessions: %w", err)
+	}
+	return nil
 }
 
 // DeleteExpiredSessions removes the sessions that have expired and returns

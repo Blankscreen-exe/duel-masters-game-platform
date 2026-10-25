@@ -49,6 +49,18 @@ func (e *TooFastError) Error() string {
 	return fmt.Sprintf("posting too fast; wait %s", e.RetryAfter.Round(time.Second))
 }
 
+// MutedError is returned to a player an admin has muted.
+type MutedError struct {
+	Mute users.Penalty
+}
+
+func (e *MutedError) Error() string {
+	if e.Mute.Until == nil {
+		return "muted"
+	}
+	return fmt.Sprintf("muted until %s", e.Mute.Until.Format(time.RFC3339))
+}
+
 // Listener hears about new messages, to pass them on to everyone watching
 // the chat. It is called after the message is saved and must not block.
 type Listener interface {
@@ -80,21 +92,27 @@ type Service struct {
 	db       *gorm.DB
 	listener Listener
 	posts    *ratelimit.Limiter
+	now      func() time.Time
 }
 
 // NewService returns the chat, telling listener about every new message.
 // now is the clock; pass time.Now outside tests.
 func NewService(db *gorm.DB, listener Listener, now func() time.Time) *Service {
-	return &Service{db: db, listener: listener, posts: ratelimit.New(postsAllowed, postWindow, now)}
+	return &Service{db: db, listener: listener, posts: ratelimit.New(postsAllowed, postWindow, now), now: now}
 }
 
 // Post adds a message from a player. Line breaks and tabs become spaces, and
 // surrounding spaces are trimmed. It returns a *validation.Error for text
-// breaking the rules and a *TooFastError when the player posts too fast.
+// breaking the rules, a *MutedError for a muted player and a *TooFastError
+// when the player posts too fast.
 func (s *Service) Post(ctx context.Context, author users.User, text string) (Message, error) {
 	text, err := normalize(text)
 	if err != nil {
 		return Message{}, err
+	}
+
+	if mute, muted := author.MuteAt(s.now()); muted {
+		return Message{}, &MutedError{Mute: mute}
 	}
 
 	if allowed, retryAfter := s.posts.Take(author.ID); !allowed {

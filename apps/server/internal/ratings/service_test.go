@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -270,5 +271,36 @@ func TestGamesRatedAtOnceBothCount(t *testing.T) {
 		assert.Equal(t, 2, standing.Wins, "neither game's result is lost")
 		assert.Equal(t, 2, standing.Streak)
 		assert.Equal(t, 1031, standing.Rank.Rating, "the second game was rated from the first's result")
+	})
+}
+
+func TestBannedPlayersLeaveTheRankingsWhileTheBanLasts(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db)
+		ctx := context.Background()
+		shobu, kokujo, mimi := f.player(t, "Shobu"), f.player(t, "Kokujo"), f.player(t, "Mimi")
+		f.play(t, shobu, kokujo, shobu) // Shobu 1016, Kokujo 984
+		f.play(t, mimi, kokujo, mimi)   // Mimi 1015, Kokujo 969
+
+		now := db.NowFunc()
+		require.NoError(t, users.SetBanIn(db, shobu.ID, users.Ban{Penalty: users.Penalty{Since: now}, Reason: "Cheating"}))
+
+		all, err := f.ratings.Rankings(ctx, ratings.RankingsQuery{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"1 Mimi", "2 Kokujo"}, names(all), "the others move up")
+		assert.Equal(t, 2, all.Total)
+
+		banned := f.standing(t, shobu)
+		assert.True(t, banned.Banned)
+		assert.False(t, banned.Ranked())
+		place, err := f.ratings.Place(ctx, banned)
+		require.NoError(t, err)
+		assert.Zero(t, place)
+
+		ended := now.Add(-time.Second)
+		require.NoError(t, users.SetBanIn(db, shobu.ID, users.Ban{Penalty: users.Penalty{Since: now.Add(-time.Hour), Until: &ended}, Reason: "Over"}))
+		all, err = f.ratings.Rankings(ctx, ratings.RankingsQuery{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"1 Shobu", "2 Mimi", "3 Kokujo"}, names(all), "back once the ban is over")
 	})
 }

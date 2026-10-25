@@ -187,3 +187,30 @@ func TestPostingTooFastIsRefused(t *testing.T) {
 		assert.NoError(t, err, "allowed again once the window has passed")
 	})
 }
+
+func TestAMutedPlayerCannotPostUntilTheMuteEnds(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		since := f.clock.Now()
+		until := since.Add(time.Hour)
+		f.shobu.MutedAt, f.shobu.MutedUntil = &since, &until
+
+		_, err := f.chat.Post(ctx, f.shobu, "can anyone hear me?")
+		var muted *chat.MutedError
+		require.ErrorAs(t, err, &muted)
+		require.NotNil(t, muted.Mute.Until)
+		assert.Equal(t, until, *muted.Mute.Until)
+
+		_, err = f.chat.Post(ctx, f.kokujo, "hello")
+		require.NoError(t, err, "others still post")
+
+		f.clock.Advance(time.Hour)
+		_, err = f.chat.Post(ctx, f.shobu, "back again")
+		require.NoError(t, err, "the mute lifts itself")
+
+		recent, err := f.chat.Recent(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Kokujo: hello", "Shobu: back again"}, texts(recent))
+	})
+}

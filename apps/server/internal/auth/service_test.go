@@ -406,3 +406,98 @@ func TestDeleteExpiredSessionsKeepsTheLiveOnes(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestABannedPlayerIsToldWhyOnlyWithTheRightPassword(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		f.signUp(t, "Boss")
+		player, _ := f.signUp(t, "Shobu")
+		until := f.clock.now().Add(time.Hour)
+		require.NoError(t, users.SetBanIn(db, player.ID, users.Ban{Penalty: users.Penalty{Since: f.clock.now(), Until: &until}, Reason: "Spam"}))
+
+		_, _, err := f.auth.LogIn(ctx, "Shobu", "not the password")
+		assert.ErrorIs(t, err, auth.ErrInvalidCredentials, "a wrong password says nothing of the ban")
+
+		_, _, err = f.auth.LogIn(ctx, "Shobu", password)
+		var banned *auth.BannedError
+		require.ErrorAs(t, err, &banned)
+		assert.Equal(t, "Spam", banned.Ban.Reason)
+		require.NotNil(t, banned.Ban.Until)
+		assert.WithinDuration(t, until, *banned.Ban.Until, time.Microsecond, "as stored, to the microsecond")
+
+		f.clock.advance(time.Hour)
+		_, _, err = f.auth.LogIn(ctx, "Shobu", password)
+		assert.NoError(t, err, "the ban is over")
+	})
+}
+
+func TestABannedPlayersSessionIsRefused(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		f.signUp(t, "Boss")
+		player, session := f.signUp(t, "Shobu")
+
+		// A login that crossed with the ban could leave a session behind.
+		require.NoError(t, users.SetBanIn(db, player.ID, users.Ban{Penalty: users.Penalty{Since: f.clock.now()}, Reason: "Cheating"}))
+
+		_, err := f.auth.Authenticate(ctx, session.Token)
+		assert.ErrorIs(t, err, auth.ErrNoSession)
+	})
+}
+
+func TestEndSessionsInEndsEveryOneOfTheAccount(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		_, other := f.signUp(t, "Boss")
+		player, first := f.signUp(t, "Shobu")
+		_, second, err := f.auth.LogIn(ctx, "Shobu", password)
+		require.NoError(t, err)
+
+		require.NoError(t, auth.EndSessionsIn(db, player.ID))
+
+		for _, session := range []auth.Session{first, second} {
+			_, err := f.auth.Authenticate(ctx, session.Token)
+			assert.ErrorIs(t, err, auth.ErrNoSession)
+		}
+		_, err = f.auth.Authenticate(ctx, other.Token)
+		assert.NoError(t, err, "other accounts stay logged in")
+	})
+}
+
+func TestHashNewPasswordKeepsToTheRules(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db)
+
+		_, err := f.auth.HashNewPassword(context.Background(), "short")
+		invalid, ok := validation.As(err)
+		require.True(t, ok, "got %v", err)
+		assert.Equal(t, "password", invalid.Field)
+
+		hash, err := f.auth.HashNewPassword(context.Background(), password)
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(hash, "$argon2id$"))
+	})
+}
+
+func TestForgetWrongPasswordsLetsAPlayerLogInAgainAtOnce(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		f.signUp(t, "Shobu")
+		for range 5 {
+			_, _, err := f.auth.LogIn(ctx, "Shobu", "not the password")
+			require.ErrorIs(t, err, auth.ErrInvalidCredentials)
+		}
+		_, _, err := f.auth.LogIn(ctx, "Shobu", password)
+		var tooMany *auth.TooManyAttemptsError
+		require.ErrorAs(t, err, &tooMany)
+
+		f.auth.ForgetWrongPasswords("SHOBU")
+
+		_, _, err = f.auth.LogIn(ctx, "Shobu", password)
+		assert.NoError(t, err)
+	})
+}

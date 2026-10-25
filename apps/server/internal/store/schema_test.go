@@ -169,3 +169,40 @@ func TestSchemaStartsPlayersAtTheStartingRating(t *testing.T) {
 		assert.Equal(t, struct{ Rating, Wins, Losses, Streak int }{Rating: 1000}, standing)
 	})
 }
+
+func TestSchemaStartsPlayersNeitherBannedNorMuted(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Alice", "player"))
+
+		var moderation struct {
+			BannedAt, BannedUntil, MutedAt, MutedUntil *time.Time
+			BanReason                                  string
+		}
+		require.NoError(t, db.Raw("SELECT banned_at, banned_until, ban_reason, muted_at, muted_until FROM users WHERE id = ?", "u1").Scan(&moderation).Error)
+		assert.Nil(t, moderation.BannedAt)
+		assert.Nil(t, moderation.BannedUntil)
+		assert.Empty(t, moderation.BanReason)
+		assert.Nil(t, moderation.MutedAt)
+		assert.Nil(t, moderation.MutedUntil)
+	})
+}
+
+func TestSchemaKeepsTheAdminLogOnceAnAdminIsGone(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Alice", "admin"))
+		require.NoError(t, db.Exec(
+			"INSERT INTO admin_actions (id, admin_id, admin_name, action, subject, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"a1", "u1", "Alice", "user_banned", "Bob", "7 days", time.Now().UTC(),
+		).Error)
+
+		require.NoError(t, db.Exec("DELETE FROM users WHERE id = ?", "u1").Error)
+
+		var kept struct {
+			AdminID   *string
+			AdminName string
+		}
+		require.NoError(t, db.Raw("SELECT admin_id, admin_name FROM admin_actions WHERE id = ?", "a1").Scan(&kept).Error)
+		assert.Nil(t, kept.AdminID)
+		assert.Equal(t, "Alice", kept.AdminName)
+	})
+}

@@ -3,13 +3,18 @@ package users_test
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/paging"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
@@ -176,5 +181,143 @@ func TestSetPasswordHashReplacesTheHash(t *testing.T) {
 		reloaded, err := service.ByID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "new-hash", reloaded.PasswordHash)
+	})
+}
+
+func TestBansAndMutesLastUntilTheyEnd(t *testing.T) {
+	now := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	later := now.Add(time.Hour)
+
+	never := users.Moderation{}
+	_, banned := never.BanAt(now)
+	assert.False(t, banned)
+	_, muted := never.MuteAt(now)
+	assert.False(t, muted)
+
+	timed := users.Moderation{BannedAt: &now, BannedUntil: &later, BanReason: "Spam", MutedAt: &now, MutedUntil: &later}
+	ban, banned := timed.BanAt(now.Add(59 * time.Minute))
+	require.True(t, banned)
+	assert.Equal(t, users.Ban{Penalty: users.Penalty{Since: now, Until: &later}, Reason: "Spam"}, ban)
+	_, banned = timed.BanAt(later)
+	assert.False(t, banned, "a ban is over when it reaches its end")
+	_, muted = timed.MuteAt(later)
+	assert.False(t, muted)
+
+	forGood := users.Moderation{BannedAt: &now, MutedAt: &now}
+	_, banned = forGood.BanAt(now.Add(100 * 365 * 24 * time.Hour))
+	assert.True(t, banned)
+	mute, muted := forGood.MuteAt(now.Add(100 * 365 * 24 * time.Hour))
+	assert.True(t, muted)
+	assert.Nil(t, mute.Until)
+}
+
+func TestSearchFindsAccountsByNameAndStatus(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		service := newService(db)
+		now := db.NowFunc()
+		ended := now.Add(-time.Minute)
+		lasting := now.Add(time.Hour)
+
+		created := map[string]users.User{}
+		for _, name := range []string{"Boss", "Shobu", "Kokujo", "Hakuoh", "Mimi_100", "Zed1"} {
+			user, err := service.Create(ctx, name, "hash")
+			require.NoError(t, err)
+			created[name] = user
+		}
+		require.NoError(t, users.SetBanIn(db, created["Shobu"].ID, users.Ban{Penalty: users.Penalty{Since: now, Until: &lasting}, Reason: "Spam"}))
+		require.NoError(t, users.SetBanIn(db, created["Kokujo"].ID, users.Ban{Penalty: users.Penalty{Since: now.Add(-time.Hour), Until: &ended}, Reason: "Old"}))
+		require.NoError(t, users.SetMuteIn(db, created["Hakuoh"].ID, users.Penalty{Since: now}))
+
+		names := func(query users.Query) []string {
+			t.Helper()
+			page, err := service.Search(ctx, query, now)
+			require.NoError(t, err)
+			found := make([]string, 0, len(page.Users))
+			for _, user := range page.Users {
+				found = append(found, user.Username)
+			}
+			return found
+		}
+
+		assert.Equal(t, []string{"Boss", "Hakuoh", "Kokujo", "Mimi_100", "Shobu", "Zed1"}, names(users.Query{}), "by name")
+		assert.Equal(t, []string{"Shobu"}, names(users.Query{Status: users.StatusBanned}), "a ban that is over does not count")
+		assert.Equal(t, []string{"Hakuoh"}, names(users.Query{Status: users.StatusMuted}))
+		assert.Equal(t, []string{"Boss"}, names(users.Query{Status: users.StatusAdmin}))
+		assert.Equal(t, []string{"Hakuoh", "Kokujo"}, names(users.Query{Search: "KU"}), "ignoring case")
+		assert.Equal(t, []string{"Mimi_100"}, names(users.Query{Search: "_1"}), "wildcards match themselves")
+
+		page, err := service.Search(ctx, users.Query{Request: paging.Request{Page: 2, PageSize: 2}}, now)
+		require.NoError(t, err)
+		assert.Equal(t, 6, page.Total)
+		assert.Equal(t, 2, page.Page)
+		require.Len(t, page.Users, 2)
+		assert.Equal(t, "Kokujo", page.Users[0].Username)
+
+		for _, query := range []users.Query{
+			{Status: "sleeping"},
+			{Search: strings.Repeat("a", 21)},
+			{Request: paging.Request{PageSize: users.MaxPageSize + 1}},
+		} {
+			_, err := service.Search(ctx, query, now)
+			_, ok := validation.As(err)
+			assert.True(t, ok, "%+v: got %v", query, err)
+		}
+	})
+}
+
+func TestBansAndMutesAreStoredAndLifted(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		service := newService(db)
+		now := db.NowFunc()
+		user, err := service.Create(ctx, "Shobu", "hash")
+		require.NoError(t, err)
+
+		require.NoError(t, users.SetBanIn(db, user.ID, users.Ban{Penalty: users.Penalty{Since: now}, Reason: "Cheating"}))
+		require.NoError(t, users.SetMuteIn(db, user.ID, users.Penalty{Since: now}))
+		reloaded, err := service.ByID(ctx, user.ID)
+		require.NoError(t, err)
+		ban, banned := reloaded.BanAt(now)
+		require.True(t, banned)
+		assert.Equal(t, "Cheating", ban.Reason)
+		_, muted := reloaded.MuteAt(now)
+		assert.True(t, muted)
+
+		require.NoError(t, users.ClearBanIn(db, user.ID))
+		require.NoError(t, users.ClearMuteIn(db, user.ID))
+		reloaded, err = service.ByID(ctx, user.ID)
+		require.NoError(t, err)
+		assert.Equal(t, users.Moderation{}, reloaded.Moderation)
+
+		missing := "00000000-0000-0000-0000-000000000000"
+		assert.ErrorIs(t, users.SetBanIn(db, missing, users.Ban{}), users.ErrNotFound)
+		assert.ErrorIs(t, users.SetMuteIn(db, missing, users.Penalty{}), users.ErrNotFound)
+		assert.ErrorIs(t, users.SetRoleIn(db, missing, users.RoleAdmin), users.ErrNotFound)
+	})
+}
+
+func TestLockInReadsTheAccountsAndTheAdmins(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		service := newService(db)
+		boss, err := service.Create(ctx, "Boss", "hash")
+		require.NoError(t, err)
+		shobu, err := service.Create(ctx, "Shobu", "hash")
+		require.NoError(t, err)
+		_, err = service.Create(ctx, "Kokujo", "hash")
+		require.NoError(t, err)
+
+		err = db.Transaction(func(tx *gorm.DB) error {
+			locked, err := users.LockIn(tx, []string{shobu.ID, "00000000-0000-0000-0000-000000000000"}, false)
+			require.NoError(t, err)
+			assert.Equal(t, []string{shobu.ID}, slices.Collect(maps.Keys(locked)))
+
+			locked, err = users.LockIn(tx, []string{shobu.ID}, true)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []string{boss.ID, shobu.ID}, slices.Collect(maps.Keys(locked)))
+			return nil
+		})
+		require.NoError(t, err)
 	})
 }

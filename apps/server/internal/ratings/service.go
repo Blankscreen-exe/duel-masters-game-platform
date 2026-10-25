@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"gorm.io/gorm"
@@ -37,12 +38,15 @@ type Standing struct {
 	Losses   int
 	// Streak is the current run of wins, above zero, or of losses, below.
 	Streak int
+	// Banned is whether the player is banned, which keeps them out of the
+	// rankings while it lasts.
+	Banned bool
 }
 
 // Ranked reports whether the player is in the rankings: they have finished
-// a game that counted.
+// a game that counted, and are not banned.
 func (s Standing) Ranked() bool {
-	return s.Wins+s.Losses > 0
+	return s.Wins+s.Losses > 0 && !s.Banned
 }
 
 // Placed is a ranked player with their place in the rankings. Players with
@@ -79,17 +83,20 @@ type standingRow struct {
 	Wins        int
 	Losses      int
 	Streak      int
+	users.Moderation
 }
 
 func (standingRow) TableName() string { return "users" }
 
-func (row standingRow) standing() Standing {
-	return Standing{UserID: row.ID, Username: row.Username, Rank: RankOf(row.Rating), Wins: row.Wins, Losses: row.Losses, Streak: row.Streak}
+// standing is where the row's player stands at now.
+func (row standingRow) standing(now time.Time) Standing {
+	_, banned := row.BanAt(now)
+	return Standing{UserID: row.ID, Username: row.Username, Rank: RankOf(row.Rating), Wins: row.Wins, Losses: row.Losses, Streak: row.Streak, Banned: banned}
 }
 
-// rankedOnly keeps the ranked players.
-func rankedOnly(db *gorm.DB) *gorm.DB {
-	return db.Where("wins + losses > 0")
+// rankedOnly keeps the players ranked at now, as Standing.Ranked does.
+func rankedOnly(db *gorm.DB, now time.Time) *gorm.DB {
+	return db.Where("wins + losses > 0").Where(users.NotBannedAt(now))
 }
 
 // Service keeps the ratings. It is safe for concurrent use.
@@ -172,7 +179,7 @@ func (s *Service) Standing(ctx context.Context, userID string) (Standing, error)
 	if err != nil {
 		return Standing{}, fmt.Errorf("reading a player's rating: %w", err)
 	}
-	return row.standing(), nil
+	return row.standing(s.db.NowFunc()), nil
 }
 
 // Standings returns where each of the players stands, by id. Ids of players
@@ -187,8 +194,9 @@ func (s *Service) Standings(ctx context.Context, userIDs []string) (map[string]S
 	if err := s.db.WithContext(ctx).Where("id IN ?", userIDs).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("reading players' ratings: %w", err)
 	}
+	now := s.db.NowFunc()
 	for _, row := range rows {
-		standings[row.ID] = row.standing()
+		standings[row.ID] = row.standing(now)
 	}
 	return standings, nil
 }
@@ -199,7 +207,7 @@ func (s *Service) Place(ctx context.Context, standing Standing) (int, error) {
 	if !standing.Ranked() {
 		return 0, nil
 	}
-	places, err := s.places(ctx, []int{standing.Rank.Rating})
+	places, err := s.places(ctx, []int{standing.Rank.Rating}, s.db.NowFunc())
 	if err != nil {
 		return 0, err
 	}
@@ -218,7 +226,8 @@ func (s *Service) Rankings(ctx context.Context, query RankingsQuery) (Rankings, 
 		return Rankings{}, err
 	}
 
-	matching := rankedOnly(s.db.WithContext(ctx).Model(&standingRow{}))
+	now := s.db.NowFunc()
+	matching := rankedOnly(s.db.WithContext(ctx).Model(&standingRow{}), now)
 	if query.Search != "" {
 		matching = matching.Where(store.Contains("username_key", users.Key(query.Search)))
 	}
@@ -239,25 +248,25 @@ func (s *Service) Rankings(ctx context.Context, query RankingsQuery) (Rankings, 
 	for _, row := range rows {
 		ratings = append(ratings, row.Rating)
 	}
-	places, err := s.places(ctx, ratings)
+	places, err := s.places(ctx, ratings, now)
 	if err != nil {
 		return Rankings{}, err
 	}
 
 	placed := make([]Placed, 0, len(rows))
 	for _, row := range rows {
-		placed = append(placed, Placed{Standing: row.standing(), Place: places[row.Rating]})
+		placed = append(placed, Placed{Standing: row.standing(now), Place: places[row.Rating]})
 	}
 	return Rankings{Players: placed, Total: int(total), Page: query.Page, PageSize: query.PageSize}, nil
 }
 
-// places returns the place in the full rankings of each rating: one more
-// than the ranked players rated above it.
-func (s *Service) places(ctx context.Context, ratings []int) (map[int]int, error) {
+// places returns the place in the full rankings at now of each rating: one
+// more than the ranked players rated above it.
+func (s *Service) places(ctx context.Context, ratings []int, now time.Time) (map[int]int, error) {
 	places := make(map[int]int, len(ratings))
 	for _, rating := range slices.Compact(slices.Sorted(slices.Values(ratings))) {
 		var above int64
-		err := rankedOnly(s.db.WithContext(ctx).Model(&standingRow{})).Where("rating > ?", rating).Count(&above).Error
+		err := rankedOnly(s.db.WithContext(ctx).Model(&standingRow{}), now).Where("rating > ?", rating).Count(&above).Error
 		if err != nil {
 			return nil, fmt.Errorf("placing a rating in the rankings: %w", err)
 		}
