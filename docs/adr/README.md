@@ -18,6 +18,7 @@ supersedes the old one.
 | [0010](0010-battle-zone-theme.md)                       | Battle Zone theme                                     | Accepted |
 | [0011](0011-engine-keeps-its-original-layout.md)        | The engine keeps its original layout                  | Accepted |
 | [0012](0012-gorm-for-data-access.md)                    | GORM for data access                                  | Accepted |
+| [0013](0013-card-catalogue-in-the-database.md)         | The card catalogue is copied into the database        | Accepted |
 
 ## Template
 

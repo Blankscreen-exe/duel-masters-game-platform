@@ -45,6 +45,7 @@ The server is configured with environment variables, checked at startup:
 | `DATA_DIR`     | `./data`                   | Where the server keeps its files, including the SQLite file. |
 | `DB_DRIVER`    | `sqlite`                   | `sqlite` or `postgres`                                       |
 | `SQLITE_PATH`  | `<DATA_DIR>/platform.db`   | The SQLite database file.                                    |
+| `CARD_DATABASE_DIR` | `../../resources/duelmasters_db` | The card database's folder; the default finds the linked one from `apps/server`. The Docker image includes it. |
 | `POSTGRES_URL` |                            | PostgreSQL address, required with `DB_DRIVER=postgres`.      |
 | `LOG_LEVEL`    | `info`                     | `debug`, `info`, `warn` or `error`                           |
 | `LOG_FORMAT`   | `text` (`json` in production) | `text` or `json`                                           |

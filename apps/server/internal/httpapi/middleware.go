@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -121,6 +122,23 @@ func requireJSON(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+type requestContextKey struct{}
+
+// keepRequest puts the request into its own context. Generated handlers only
+// see the context, and answering with a file needs the request's conditional
+// headers (If-Modified-Since, Range).
+func keepRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestContextKey{}, r)))
+	})
+}
+
+// requestFrom returns the request keepRequest put into ctx.
+func requestFrom(ctx context.Context) *http.Request {
+	request, _ := ctx.Value(requestContextKey{}).(*http.Request)
+	return request
 }
 
 // limitBodies makes reading a request body beyond limit bytes fail.

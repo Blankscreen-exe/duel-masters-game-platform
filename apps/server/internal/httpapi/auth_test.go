@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,42 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
 
 const testPassword = "correct horse battery staple"
 
-type authServer struct {
-	handler  http.Handler
-	settings *settings.Service
-}
-
-func newAuthServer(t *testing.T, secureCookies bool) authServer {
-	t.Helper()
-
-	db := storetest.Open(t, config.SQLite)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	siteSettings, err := settings.NewService(context.Background(), db, logger, auth.Settings()...)
-	require.NoError(t, err)
-
-	authService := auth.NewService(db, users.NewService(db, logger), siteSettings, auth.NewPasswordHasher(4), time.Now, logger)
-
-	return authServer{
-		handler:  NewHandler(Dependencies{DB: sqlDB, Auth: authService, Logger: logger, SecureCookies: secureCookies}),
-		settings: siteSettings,
-	}
-}
-
 // call sends a request the way the site does: changes as JSON, with the
 // session cookie when one is given.
-func (s authServer) call(method, path string, body any, session *http.Cookie) *httptest.ResponseRecorder {
+func (s testServer) call(method, path string, body any, session *http.Cookie) *httptest.ResponseRecorder {
 	var reader io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
@@ -74,7 +45,7 @@ func (s authServer) call(method, path string, body any, session *http.Cookie) *h
 	return recorder
 }
 
-func (s authServer) signUp(t *testing.T, username string) *http.Cookie {
+func (s testServer) signUp(t *testing.T, username string) *http.Cookie {
 	t.Helper()
 
 	response := s.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: username, Password: testPassword}, nil)
@@ -96,7 +67,7 @@ func sessionCookieOf(t *testing.T, response *httptest.ResponseRecorder) *http.Co
 }
 
 func TestSignUpAnswersWithTheAccountAndASessionCookie(t *testing.T) {
-	server := newAuthServer(t, false)
+	server := newTestServer(t, false)
 
 	response := server.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: "Shobu", Password: testPassword}, nil)
 
@@ -121,13 +92,13 @@ func TestSignUpAnswersWithTheAccountAndASessionCookie(t *testing.T) {
 }
 
 func TestSessionCookiesAreHTTPSOnlyWhenConfigured(t *testing.T) {
-	server := newAuthServer(t, true)
+	server := newTestServer(t, true)
 
 	assert.True(t, server.signUp(t, "Shobu").Secure)
 }
 
 func TestSignUpErrors(t *testing.T) {
-	server := newAuthServer(t, false)
+	server := newTestServer(t, false)
 	server.signUp(t, "Shobu")
 
 	invalid := server.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: "no", Password: testPassword}, nil)
@@ -154,7 +125,7 @@ func TestSignUpErrors(t *testing.T) {
 }
 
 func TestLogInAndOut(t *testing.T) {
-	server := newAuthServer(t, false)
+	server := newTestServer(t, false)
 	server.signUp(t, "Shobu")
 
 	login := server.call(http.MethodPost, "/api/auth/login", api.Credentials{Username: "shobu", Password: testPassword}, nil)
@@ -176,7 +147,7 @@ func TestLogInAndOut(t *testing.T) {
 }
 
 func TestLogInErrors(t *testing.T) {
-	server := newAuthServer(t, false)
+	server := newTestServer(t, false)
 	server.signUp(t, "Shobu")
 
 	wrong := server.call(http.MethodPost, "/api/auth/login", api.Credentials{Username: "Shobu", Password: "not the password"}, nil)
@@ -202,7 +173,7 @@ func TestLogInErrors(t *testing.T) {
 }
 
 func TestCurrentAccountNeedsASession(t *testing.T) {
-	server := newAuthServer(t, false)
+	server := newTestServer(t, false)
 
 	for name, cookie := range map[string]*http.Cookie{
 		"no cookie":     nil,
@@ -218,7 +189,7 @@ func TestCurrentAccountNeedsASession(t *testing.T) {
 }
 
 func TestChangePassword(t *testing.T) {
-	server := newAuthServer(t, false)
+	server := newTestServer(t, false)
 	session := server.signUp(t, "Shobu")
 
 	unauthenticated := server.call(http.MethodPost, "/api/auth/password", api.PasswordChange{CurrentPassword: testPassword, NewPassword: "a brand new password"}, nil)
@@ -246,7 +217,7 @@ func TestChangePassword(t *testing.T) {
 }
 
 func TestChangesMustBeSentAsJSON(t *testing.T) {
-	server := newAuthServer(t, false)
+	server := newTestServer(t, false)
 
 	for _, contentType := range []string{"", "text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x"} {
 		request := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"username":"Shobu","password":"correct horse battery staple"}`))
@@ -268,7 +239,7 @@ func TestChangesMustBeSentAsJSON(t *testing.T) {
 }
 
 func TestMalformedJSONIsABadRequest(t *testing.T) {
-	server := newAuthServer(t, false)
+	server := newTestServer(t, false)
 
 	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"username":`))
 	request.Header.Set("Content-Type", "application/json")

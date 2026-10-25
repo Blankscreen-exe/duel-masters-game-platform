@@ -51,6 +51,10 @@ type Config struct {
 	// DataDir holds the server's files, including the SQLite database. An
 	// empty value counts as unset.
 	DataDir string `env:"DATA_DIR" envDefault:"./data"`
+	// CardDatabaseDir is the card database's folder (resources/duelmasters_db
+	// in the repository). The default finds it from apps/server, where the
+	// server runs in development.
+	CardDatabaseDir string `env:"CARD_DATABASE_DIR" envDefault:"../../resources/duelmasters_db"`
 	// SecureCookiesSetting is SECURE_COOKIES as given, nil when unset.
 	SecureCookiesSetting *bool `env:"SECURE_COOKIES"`
 	// SecureCookies makes browsers send the session cookie over HTTPS only. It

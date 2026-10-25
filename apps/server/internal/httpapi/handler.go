@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 )
 
@@ -26,9 +27,10 @@ type Pinger interface {
 
 // Dependencies are what the handlers need.
 type Dependencies struct {
-	DB     Pinger
-	Auth   *auth.Service
-	Logger *slog.Logger
+	DB        Pinger
+	Auth      *auth.Service
+	Catalogue *cards.Catalogue
+	Logger    *slog.Logger
 	// SecureCookies makes the session cookie HTTPS-only.
 	SecureCookies bool
 }
@@ -37,6 +39,7 @@ type Dependencies struct {
 type handlers struct {
 	db            Pinger
 	auth          *auth.Service
+	catalogue     *cards.Catalogue
 	secureCookies bool
 }
 
@@ -49,7 +52,7 @@ var _ api.StrictServerInterface = (*handlers)(nil)
 func NewHandler(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
-	strict := api.NewStrictHandlerWithOptions(&handlers{db: deps.DB, auth: deps.Auth, secureCookies: deps.SecureCookies}, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(&handlers{db: deps.DB, auth: deps.Auth, catalogue: deps.Catalogue, secureCookies: deps.SecureCookies}, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: badRequest,
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			deps.Logger.ErrorContext(r.Context(), "handling a request failed", "method", r.Method, "path", r.URL.Path, "error", err)
@@ -66,7 +69,7 @@ func NewHandler(deps Dependencies) http.Handler {
 	})
 	mux.HandleFunc(basePath+"/", unknownEndpoint(mux))
 
-	return logRequests(deps.Logger, recoverPanics(deps.Logger, limitBodies(maxRequestBodyBytes, readSession(mux))))
+	return logRequests(deps.Logger, recoverPanics(deps.Logger, limitBodies(maxRequestBodyBytes, readSession(keepRequest(mux)))))
 }
 
 func badRequest(w http.ResponseWriter, _ *http.Request, err error) {

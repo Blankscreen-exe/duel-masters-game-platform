@@ -21,6 +21,10 @@ tags:
     description: The server itself.
   - name: auth
     description: Accounts, logging in and out, and passwords.
+  - name: cards
+    description: >-
+      The card catalogue: every card in the card database, with its printings and pictures, and
+      whether the rules engine can play it. Reprints are one card with several printings.
 paths:
   /health:
     get:
@@ -167,6 +171,172 @@ paths:
                 $ref: "#/components/schemas/Error"
         "429":
           $ref: "#/components/responses/TooManyAttempts"
+  /cards:
+    get:
+      operationId: searchCards
+      summary: Search the card catalogue
+      description: >-
+        Cards in name order. Every filter narrows the search; a list filter, given once per value,
+        matches cards having any of its values.
+      tags: [cards]
+      parameters:
+        - name: q
+          in: query
+          description: Text looked for in the name and rules text, ignoring case and accents.
+          schema:
+            type: string
+            maxLength: 100
+        - name: civilization
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: type
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: race
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: keyword
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: set
+          in: query
+          description: Matches cards with a printing in the set.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: minCost
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+        - name: maxCost
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+        - name: playable
+          in: query
+          description: Only cards the rules engine can play.
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 60
+      responses:
+        "200":
+          description: One page of matching cards.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardPage"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+  /cards/filters:
+    get:
+      operationId: getCardFilters
+      summary: The values the card search can filter by
+      tags: [cards]
+      responses:
+        "200":
+          description: The values, from the cards in the catalogue.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardFilters"
+  /cards/{cardId}:
+    get:
+      operationId: getCard
+      summary: One card, with every printing
+      tags: [cards]
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          description: The card's id, its first printing's id in the card database.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The card.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cards/images/{key}:
+    get:
+      operationId: getCardImage
+      summary: A card's picture
+      description: >-
+        By printing id, or by the rules engine's card id, which the duel board uses and which gives
+        the card's first printing. Browsers may keep pictures for a day and check them again with
+        If-Modified-Since.
+      tags: [cards]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The picture.
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "304":
+          description: The browser's copy is still current.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cards/sets/{setCode}/icon:
+    get:
+      operationId: getCardSetIcon
+      summary: A set's icon
+      tags: [cards]
+      parameters:
+        - name: setCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The icon.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "304":
+          description: The browser's copy is still current.
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
     sessionCookie:
@@ -192,6 +362,12 @@ components:
       description: >-
         The request is not valid JSON (code "bad_request"), or a field breaks its rules (code
         "invalid_input", with the field named).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: There is no such thing (code "not_found").
       content:
         application/json:
           schema:
@@ -264,6 +440,135 @@ components:
     Role:
       type: string
       enum: [player, admin]
+    Card:
+      type: object
+      required: [id, name, type, cost, powerText, civilizations, races, rulesText, abilities, keywords, categories, playable, printings]
+      properties:
+        id:
+          description: The card's id, its first printing's id in the card database.
+          type: string
+        name:
+          type: string
+        type:
+          description: Such as "Creature", "Spell" or "Evolution Creature".
+          type: string
+        cost:
+          type: integer
+        power:
+          description: The printed power; absent for cards without one, such as spells.
+          type: integer
+        powerText:
+          description: The power as printed, such as "6000+"; empty without power.
+          type: string
+        civilizations:
+          type: array
+          items:
+            type: string
+        races:
+          type: array
+          items:
+            type: string
+        rulesText:
+          type: string
+        abilities:
+          description: The rules text, one line per ability.
+          type: array
+          items:
+            $ref: "#/components/schemas/CardAbility"
+        keywords:
+          type: array
+          items:
+            type: string
+        categories:
+          type: array
+          items:
+            type: string
+        playable:
+          description: Whether the rules engine can play the card, and so whether it may go in decks.
+          type: boolean
+        imageUrl:
+          description: The first printing's picture; absent when it has none.
+          type: string
+        printings:
+          description: In release order.
+          type: array
+          items:
+            $ref: "#/components/schemas/CardPrinting"
+    CardAbility:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        reminder:
+          description: The reminder text in brackets, when the line has one.
+          type: string
+    CardPrinting:
+      type: object
+      required: [id, set, collectorNumber, rarity, rarityCode]
+      properties:
+        id:
+          type: string
+        set:
+          type: string
+        collectorNumber:
+          type: string
+        rarity:
+          type: string
+        rarityCode:
+          type: string
+        imageUrl:
+          description: Absent when the printing has no picture.
+          type: string
+    CardPage:
+      type: object
+      required: [cards, total, page, pageSize]
+      properties:
+        cards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Card"
+        total:
+          description: How many cards match, on every page.
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+    CardFilters:
+      type: object
+      required: [civilizations, types, races, keywords, sets]
+      properties:
+        civilizations:
+          type: array
+          items:
+            type: string
+        types:
+          type: array
+          items:
+            type: string
+        races:
+          type: array
+          items:
+            type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        sets:
+          description: In release order.
+          type: array
+          items:
+            $ref: "#/components/schemas/CardSet"
+    CardSet:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+        iconUrl:
+          description: Absent when the set has no icon.
+          type: string
     Error:
       description: Returned with every error status.
       type: object

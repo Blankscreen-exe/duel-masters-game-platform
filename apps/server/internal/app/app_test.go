@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 )
@@ -21,7 +22,8 @@ import (
 func testConfig(t *testing.T) config.Config {
 	t.Helper()
 
-	cfg, err := config.Load([]string{"DATA_DIR=" + filepath.Join(t.TempDir(), "data")})
+	cardDatabase := cardstest.Write(t, []map[string]any{cardstest.Printing("0001", "Test Card", "DM-01", "1/1")}, []string{"0001"}, nil)
+	cfg, err := config.Load([]string{"DATA_DIR=" + filepath.Join(t.TempDir(), "data"), "CARD_DATABASE_DIR=" + cardDatabase})
 	require.NoError(t, err)
 
 	return cfg
@@ -145,4 +147,13 @@ func TestServeDeletesExpiredSessions(t *testing.T) {
 
 	cancel()
 	assert.NoError(t, <-served)
+}
+
+func TestNewNeedsTheCardDatabase(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.CardDatabaseDir = filepath.Join(t.TempDir(), "missing")
+
+	_, err := New(context.Background(), cfg, quietLogger())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CARD_DATABASE_DIR", "the error says which setting to fix")
 }

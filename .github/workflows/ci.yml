@@ -79,6 +79,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The card database, which the image includes.
+          submodules: true
 
       - name: Build
         run: docker build -f apps/server/Dockerfile -t duel-masters-server:ci .

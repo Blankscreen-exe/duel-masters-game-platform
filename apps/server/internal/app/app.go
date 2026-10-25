@@ -15,7 +15,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
@@ -87,6 +89,16 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	}
 
 	authService := auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(runtime.NumCPU()), time.Now, logger.With("component", "auth"))
+
+	source, err := cards.ReadSource(cfg.CardDatabaseDir)
+	if err != nil {
+		return nil, fmt.Errorf("the card database at %s (CARD_DATABASE_DIR): %w", cfg.CardDatabaseDir, err)
+	}
+	if _, err := cards.Sync(ctx, db, source, games.PlayableCards(), logger.With("component", "cards")); err != nil {
+		return nil, err
+	}
+	catalogue := cards.NewCatalogue(db, cfg.CardDatabaseDir)
+
 	httpLogger := logger.With("component", "http")
 
 	return &App{
@@ -97,6 +109,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 			Handler: httpapi.NewHandler(httpapi.Dependencies{
 				DB:            sqlDB,
 				Auth:          authService,
+				Catalogue:     catalogue,
 				Logger:        httpLogger,
 				SecureCookies: cfg.SecureCookies,
 			}),

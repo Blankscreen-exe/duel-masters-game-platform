@@ -9,7 +9,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -60,6 +62,88 @@ type Account struct {
 	Username  string    `json:"username"`
 }
 
+// Card defines model for Card.
+type Card struct {
+	// Abilities The rules text, one line per ability.
+	Abilities     []CardAbility `json:"abilities"`
+	Categories    []string      `json:"categories"`
+	Civilizations []string      `json:"civilizations"`
+	Cost          int           `json:"cost"`
+
+	// Id The card's id, its first printing's id in the card database.
+	Id string `json:"id"`
+
+	// ImageUrl The first printing's picture; absent when it has none.
+	ImageUrl *string  `json:"imageUrl,omitempty"`
+	Keywords []string `json:"keywords"`
+	Name     string   `json:"name"`
+
+	// Playable Whether the rules engine can play the card, and so whether it may go in decks.
+	Playable bool `json:"playable"`
+
+	// Power The printed power; absent for cards without one, such as spells.
+	Power *int `json:"power,omitempty"`
+
+	// PowerText The power as printed, such as "6000+"; empty without power.
+	PowerText string `json:"powerText"`
+
+	// Printings In release order.
+	Printings []CardPrinting `json:"printings"`
+	Races     []string       `json:"races"`
+	RulesText string         `json:"rulesText"`
+
+	// Type Such as "Creature", "Spell" or "Evolution Creature".
+	Type string `json:"type"`
+}
+
+// CardAbility defines model for CardAbility.
+type CardAbility struct {
+	// Reminder The reminder text in brackets, when the line has one.
+	Reminder *string `json:"reminder,omitempty"`
+	Text     string  `json:"text"`
+}
+
+// CardFilters defines model for CardFilters.
+type CardFilters struct {
+	Civilizations []string `json:"civilizations"`
+	Keywords      []string `json:"keywords"`
+	Races         []string `json:"races"`
+
+	// Sets In release order.
+	Sets  []CardSet `json:"sets"`
+	Types []string  `json:"types"`
+}
+
+// CardPage defines model for CardPage.
+type CardPage struct {
+	Cards    []Card `json:"cards"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+
+	// Total How many cards match, on every page.
+	Total int `json:"total"`
+}
+
+// CardPrinting defines model for CardPrinting.
+type CardPrinting struct {
+	CollectorNumber string `json:"collectorNumber"`
+	Id              string `json:"id"`
+
+	// ImageUrl Absent when the printing has no picture.
+	ImageUrl   *string `json:"imageUrl,omitempty"`
+	Rarity     string  `json:"rarity"`
+	RarityCode string  `json:"rarityCode"`
+	Set        string  `json:"set"`
+}
+
+// CardSet defines model for CardSet.
+type CardSet struct {
+	Code string `json:"code"`
+
+	// IconUrl Absent when the set has no icon.
+	IconUrl *string `json:"iconUrl,omitempty"`
+}
+
 // Credentials defines model for Credentials.
 type Credentials struct {
 	// Password 8 to 128 characters.
@@ -104,11 +188,34 @@ type Role string
 // InvalidInput Returned with every error status.
 type InvalidInput = Error
 
+// NotFound Returned with every error status.
+type NotFound = Error
+
 // TooManyAttempts Returned with every error status.
 type TooManyAttempts = Error
 
 // Unauthenticated Returned with every error status.
 type Unauthenticated = Error
+
+// SearchCardsParams defines parameters for SearchCards.
+type SearchCardsParams struct {
+	// Q Text looked for in the name and rules text, ignoring case and accents.
+	Q            *string   `form:"q,omitempty" json:"q,omitempty"`
+	Civilization *[]string `form:"civilization,omitempty" json:"civilization,omitempty"`
+	Type         *[]string `form:"type,omitempty" json:"type,omitempty"`
+	Race         *[]string `form:"race,omitempty" json:"race,omitempty"`
+	Keyword      *[]string `form:"keyword,omitempty" json:"keyword,omitempty"`
+
+	// Set Matches cards with a printing in the set.
+	Set     *[]string `form:"set,omitempty" json:"set,omitempty"`
+	MinCost *int      `form:"minCost,omitempty" json:"minCost,omitempty"`
+	MaxCost *int      `form:"maxCost,omitempty" json:"maxCost,omitempty"`
+
+	// Playable Only cards the rules engine can play.
+	Playable *bool `form:"playable,omitempty" json:"playable,omitempty"`
+	Page     *int  `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int  `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
 
 // LogInJSONRequestBody defines body for LogIn for application/json ContentType.
 type LogInJSONRequestBody = Credentials
@@ -136,6 +243,21 @@ type ServerInterface interface {
 	// SignUp Create an account and log it in
 	// (POST /auth/signup)
 	SignUp(w http.ResponseWriter, r *http.Request)
+	// SearchCards Search the card catalogue
+	// (GET /cards)
+	SearchCards(w http.ResponseWriter, r *http.Request, params SearchCardsParams)
+	// GetCardFilters The values the card search can filter by
+	// (GET /cards/filters)
+	GetCardFilters(w http.ResponseWriter, r *http.Request)
+	// GetCardImage A card's picture
+	// (GET /cards/images/{key})
+	GetCardImage(w http.ResponseWriter, r *http.Request, key string)
+	// GetCardSetIcon A set's icon
+	// (GET /cards/sets/{setCode}/icon)
+	GetCardSetIcon(w http.ResponseWriter, r *http.Request, setCode string)
+	// GetCard One card, with every printing
+	// (GET /cards/{cardId})
+	GetCard(w http.ResponseWriter, r *http.Request, cardId string)
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -211,6 +333,261 @@ func (siw *ServerInterfaceWrapper) SignUp(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SignUp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SearchCards operation middleware
+func (siw *ServerInterfaceWrapper) SearchCards(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchCardsParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "civilization" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "civilization", r.URL.Query(), &params.Civilization, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "civilization"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "civilization", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", r.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "type", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "race" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "race", r.URL.Query(), &params.Race, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "race"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "race", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "set" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "set", r.URL.Query(), &params.Set, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "set"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "set", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "minCost" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "minCost", r.URL.Query(), &params.MinCost, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "minCost"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "minCost", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "maxCost" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "maxCost", r.URL.Query(), &params.MaxCost, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "maxCost"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "maxCost", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "playable" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "playable", r.URL.Query(), &params.Playable, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "playable"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "playable", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SearchCards(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCardFilters operation middleware
+func (siw *ServerInterfaceWrapper) GetCardFilters(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCardFilters(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCardImage operation middleware
+func (siw *ServerInterfaceWrapper) GetCardImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCardImage(w, r, key)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCardSetIcon operation middleware
+func (siw *ServerInterfaceWrapper) GetCardSetIcon(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "setCode" -------------
+	var setCode string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "setCode", r.PathValue("setCode"), &setCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "setCode", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCardSetIcon(w, r, setCode)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCard operation middleware
+func (siw *ServerInterfaceWrapper) GetCard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "cardId" -------------
+	var cardId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "cardId", r.PathValue("cardId"), &cardId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cardId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCard(w, r, cardId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -360,11 +737,18 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.LogOut)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/me", wrapper.GetCurrentAccount)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/password", wrapper.ChangePassword)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.SearchCards)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/filters", wrapper.GetCardFilters)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/{cardId}", wrapper.GetCard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/images/{key}", wrapper.GetCardImage)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/sets/{setCode}/icon", wrapper.GetCardSetIcon)
 
 	return m
 }
 
 type InvalidInputJSONResponse Error
+
+type NotFoundJSONResponse Error
 
 type TooManyAttemptsResponseHeaders struct {
 	RetryAfter *int
@@ -661,6 +1045,199 @@ func (response SignUp409JSONResponse) VisitSignUpResponse(w http.ResponseWriter)
 	return err
 }
 
+type SearchCardsRequestObject struct {
+	Params SearchCardsParams
+}
+
+type SearchCardsResponseObject interface {
+	VisitSearchCardsResponse(w http.ResponseWriter) error
+}
+
+type SearchCards200JSONResponse CardPage
+
+func (response SearchCards200JSONResponse) VisitSearchCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SearchCards400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response SearchCards400JSONResponse) VisitSearchCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCardFiltersRequestObject struct {
+}
+
+type GetCardFiltersResponseObject interface {
+	VisitGetCardFiltersResponse(w http.ResponseWriter) error
+}
+
+type GetCardFilters200JSONResponse CardFilters
+
+func (response GetCardFilters200JSONResponse) VisitGetCardFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCardImageRequestObject struct {
+	Key string `json:"key"`
+}
+
+type GetCardImageResponseObject interface {
+	VisitGetCardImageResponse(w http.ResponseWriter) error
+}
+
+type GetCardImage200ImagewebpResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetCardImage200ImagewebpResponse) VisitGetCardImageResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "image/webp")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetCardImage304Response struct {
+}
+
+func (response GetCardImage304Response) VisitGetCardImageResponse(w http.ResponseWriter) error {
+	w.WriteHeader(304)
+	return nil
+}
+
+type GetCardImage404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetCardImage404JSONResponse) VisitGetCardImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCardSetIconRequestObject struct {
+	SetCode string `json:"setCode"`
+}
+
+type GetCardSetIconResponseObject interface {
+	VisitGetCardSetIconResponse(w http.ResponseWriter) error
+}
+
+type GetCardSetIcon200ImagepngResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetCardSetIcon200ImagepngResponse) VisitGetCardSetIconResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "image/png")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetCardSetIcon304Response struct {
+}
+
+func (response GetCardSetIcon304Response) VisitGetCardSetIconResponse(w http.ResponseWriter) error {
+	w.WriteHeader(304)
+	return nil
+}
+
+type GetCardSetIcon404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetCardSetIcon404JSONResponse) VisitGetCardSetIconResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCardRequestObject struct {
+	CardId string `json:"cardId"`
+}
+
+type GetCardResponseObject interface {
+	VisitGetCardResponse(w http.ResponseWriter) error
+}
+
+type GetCard200JSONResponse Card
+
+func (response GetCard200JSONResponse) VisitGetCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCard404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetCard404JSONResponse) VisitGetCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthRequestObject struct {
 }
 
@@ -713,6 +1290,21 @@ type StrictServerInterface interface {
 	// SignUp Create an account and log it in
 	// (POST /auth/signup)
 	SignUp(ctx context.Context, request SignUpRequestObject) (SignUpResponseObject, error)
+	// SearchCards Search the card catalogue
+	// (GET /cards)
+	SearchCards(ctx context.Context, request SearchCardsRequestObject) (SearchCardsResponseObject, error)
+	// GetCardFilters The values the card search can filter by
+	// (GET /cards/filters)
+	GetCardFilters(ctx context.Context, request GetCardFiltersRequestObject) (GetCardFiltersResponseObject, error)
+	// GetCardImage A card's picture
+	// (GET /cards/images/{key})
+	GetCardImage(ctx context.Context, request GetCardImageRequestObject) (GetCardImageResponseObject, error)
+	// GetCardSetIcon A set's icon
+	// (GET /cards/sets/{setCode}/icon)
+	GetCardSetIcon(ctx context.Context, request GetCardSetIconRequestObject) (GetCardSetIconResponseObject, error)
+	// GetCard One card, with every printing
+	// (GET /cards/{cardId})
+	GetCard(ctx context.Context, request GetCardRequestObject) (GetCardResponseObject, error)
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -891,6 +1483,134 @@ func (sh *strictHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SignUpResponseObject); ok {
 		if err := validResponse.VisitSignUpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SearchCards operation middleware
+func (sh *strictHandler) SearchCards(w http.ResponseWriter, r *http.Request, params SearchCardsParams) {
+	var request SearchCardsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SearchCards(ctx, request.(SearchCardsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SearchCards")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SearchCardsResponseObject); ok {
+		if err := validResponse.VisitSearchCardsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCardFilters operation middleware
+func (sh *strictHandler) GetCardFilters(w http.ResponseWriter, r *http.Request) {
+	var request GetCardFiltersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCardFilters(ctx, request.(GetCardFiltersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCardFilters")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCardFiltersResponseObject); ok {
+		if err := validResponse.VisitGetCardFiltersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCardImage operation middleware
+func (sh *strictHandler) GetCardImage(w http.ResponseWriter, r *http.Request, key string) {
+	var request GetCardImageRequestObject
+
+	request.Key = key
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCardImage(ctx, request.(GetCardImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCardImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCardImageResponseObject); ok {
+		if err := validResponse.VisitGetCardImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCardSetIcon operation middleware
+func (sh *strictHandler) GetCardSetIcon(w http.ResponseWriter, r *http.Request, setCode string) {
+	var request GetCardSetIconRequestObject
+
+	request.SetCode = setCode
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCardSetIcon(ctx, request.(GetCardSetIconRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCardSetIcon")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCardSetIconResponseObject); ok {
+		if err := validResponse.VisitGetCardSetIconResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCard operation middleware
+func (sh *strictHandler) GetCard(w http.ResponseWriter, r *http.Request, cardId string) {
+	var request GetCardRequestObject
+
+	request.CardId = cardId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCard(ctx, request.(GetCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCardResponseObject); ok {
+		if err := validResponse.VisitGetCardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

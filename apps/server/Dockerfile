@@ -1,5 +1,5 @@
-# The Go server. Build from the repository root, which later images also need
-# for the card resources:
+# The Go server, with the card database it serves. Build from the repository
+# root, with the card database checked out (git submodule update --init):
 #
 #   docker build -f apps/server/Dockerfile -t duel-masters-server .
 #
@@ -25,9 +25,16 @@ COPY --from=build /out/server /server
 # mounted there is writable.
 COPY --from=build --chown=nonroot:nonroot /out/data /data
 
+# The parts of the card database the server reads: the card data, the
+# pictures and the set icons.
+COPY resources/duelmasters_db/data/cards.json /resources/duelmasters_db/data/cards.json
+COPY resources/duelmasters_db/data/images /resources/duelmasters_db/data/images
+COPY resources/duelmasters_db/data/icons/sets /resources/duelmasters_db/data/icons/sets
+
 ENV APP_ENV=production \
     HTTP_ADDR=0.0.0.0:8080 \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    CARD_DATABASE_DIR=/resources/duelmasters_db
 
 VOLUME /data
 EXPOSE 8080

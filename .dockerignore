@@ -3,3 +3,6 @@
 *
 !apps/server/
 apps/server/**/data/
+!resources/duelmasters_db/data/cards.json
+!resources/duelmasters_db/data/images/
+!resources/duelmasters_db/data/icons/sets/

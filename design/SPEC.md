@@ -97,14 +97,22 @@ Browser ──HTTP──▶ Next.js (pages) ──/api, /ws──▶ Go server �
   pictures of **all 2,647 cards** (WebP, about 145 MB), the card data (rarity, set, collector
   number, abilities, keywords, races, rules text) and the civilization, rarity, set and keyword
   icons. Nothing is fetched from outside at runtime.
-- The Go server reads them through one **card resources** component, pointed at a folder by
-  configuration. No other code knows where pictures or card data come from.
-- The playable cards are the ones the rules engine implements (about 895). The card list shows
-  every card, with the ones the engine cannot play yet marked and kept out of decks.
-- Pictures keep the card database's numbering (`0079.webp`); a mapping links each engine card to
-  its picture. Cards are matched by name; the engine's card list has two misspellings
-  ("Hypersprint Warior Uzesol" and a garbled "Überdragon Zaschack"), covered by a small alias
-  list. A test fails if any playable card has no picture.
+- The Go server reads them through one **card resources** component (package `cards`), pointed
+  at a folder by configuration (`CARD_DATABASE_DIR`). No other code knows where pictures or card
+  data come from.
+- **The catalogue is copied into the server's database** at startup, when a fingerprint of the
+  card database, the engine's cards and the copy format has changed, in one transaction (ADR
+  0013). Cards that leave the card database stay in the catalogue, hidden, so nothing referring
+  to them breaks. Pictures and set icons are served from the files.
+- **A reprinted card is one card** with every printing listed in release order (18 names, such
+  as Solar Ray in DM-01, DM-10 and DM-32). Its details and picture are its first printing's, the
+  same picture the board shows in games; deck copy limits count the card, not the printing.
+- The playable cards are the ones the rules engine implements (895). The card list shows every
+  card (2,625), with the ones the engine cannot play yet marked and kept out of decks.
+- Cards are known by their first printing's id in the card database (`0079`). Engine cards are
+  linked by name: exactly, then ignoring case, accents, spaces and punctuation, then through an
+  alias for the engine's misspelt "Hypersprint Warior Uzesol". A test fails if any playable card
+  is not linked or has no picture.
 - Card pictures are 491 × 682 WebP, the same shape the board expects. The board's picture address,
   hard-coded to the original project's server today, becomes a setting.
 
@@ -315,7 +323,10 @@ Chosen 2026-10-24. Reference mockup: `design/themes/theme-battle-zone.html` (the
 | ---------------------------------- | ----------------------------------------------------------------- |
 | users                              | name, password hash, role, rating, streaks, banned and muted flags, settings |
 | sessions                           | user, token hash, expiry                                          |
-| cards                              | engine card id, name, picture, details from the card database     |
+| card_sets                          | sets in release order, with their icons                           |
+| cards / card_printings             | the card catalogue copied from the card database: one row per card (engine id, details, search text, name order, whether still in the card database) and one per printing (set, collector number, rarity, picture) |
+| card_civilizations / card_races / card_keywords / card_categories / card_abilities | each card's lists, for filtering and display |
+| card_catalogue_state               | the fingerprint of the last copy                                  |
 | decks / deck_cards                 | player's decks, cover card, the 40 cards                          |
 | formats / format_sets / format_cards | formats, their allowed sets, banned and limited cards           |
 | starter_decks / starter_deck_cards | admin-built starter decks                                         |

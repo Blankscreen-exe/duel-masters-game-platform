@@ -21,6 +21,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	assert.Equal(t, slog.LevelInfo, cfg.Log.Level)
 	assert.Equal(t, LogText, cfg.Log.Format)
 	assert.False(t, cfg.SecureCookies, "development serves plain HTTP")
+	assert.Equal(t, "../../resources/duelmasters_db", cfg.CardDatabaseDir)
 }
 
 func TestSecureCookies(t *testing.T) {
@@ -53,6 +54,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		"DB_DRIVER=postgres",
 		"POSTGRES_URL=postgres://user:secret@db:5432/platform",
 		"LOG_LEVEL=debug",
+		"CARD_DATABASE_DIR=/resources/duelmasters_db",
 		"LOG_FORMAT=text",
 	})
 	require.NoError(t, err)
@@ -64,6 +66,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 	assert.Equal(t, "postgres://user:secret@db:5432/platform", cfg.Database.PostgresURL)
 	assert.Empty(t, cfg.Database.SQLitePath, "no SQLite file is chosen for PostgreSQL")
 	assert.Equal(t, slog.LevelDebug, cfg.Log.Level)
+	assert.Equal(t, "/resources/duelmasters_db", cfg.CardDatabaseDir)
 	assert.Equal(t, LogText, cfg.Log.Format, "an explicit format wins over the environment's")
 }
 
