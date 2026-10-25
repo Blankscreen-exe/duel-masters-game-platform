@@ -8,6 +8,7 @@ import {
 } from "react";
 import { AnimatePresence } from "motion/react";
 import { useDuel } from "./useDuel";
+import type { ActionAnswer } from "./answers";
 import {
   ActionMessage,
   ActionWarningMessage,
@@ -348,6 +349,14 @@ export function Duel({
       setWait("");
     },
   });
+
+  /** Answers a question on screen, naming its number. A preview that only
+   * shows cards asks nothing, so it has no number and nothing is sent. */
+  const answerQuestion = (question: ActionMessage, answer: ActionAnswer) => {
+    if (question.prompt !== undefined) {
+      sendAction(question.prompt, answer);
+    }
+  };
 
   // Whose turn it is only reaches the client as part of the match state, so a
   // new turn is the turn changing from the one previously seen rather than an
@@ -1666,8 +1675,8 @@ export function Duel({
           cancellable={action.cancellable || false}
           unselectableCards={action.unselectableCards}
           choices={action.choices || null}
-          onChoose={sendAction}
-          onClose={() => sendAction({ cards: [], cancel: true })}
+          onChoose={(answer) => answerQuestion(action, answer)}
+          onClose={() => answerQuestion(action, { cards: [], cancel: true })}
           onDismiss={() => setAction(null)}
           onCardRightClick={(imageId, name) =>
             setPreviewCard({ imageId, name: name || "" })

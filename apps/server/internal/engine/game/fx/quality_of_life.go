@@ -476,7 +476,7 @@ func selectMultipartBase(p *match.Player, m *match.Match, cards map[string][]*ma
 
 	// Bypass the prompt when a mandatory selection has only one possible
 	// outcome. Empty groups were removed above so the remaining cards can be
-	// returned without opening a redundant Player.Action prompt.
+	// returned without opening a redundant prompt.
 	if !cancellable && min == max && totalCardsLength == min && len(cards) == 1 {
 		for key := range cards {
 			return cards[key]

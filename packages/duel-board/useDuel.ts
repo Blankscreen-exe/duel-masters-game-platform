@@ -18,6 +18,7 @@ import {
   type CoinSide,
   type CoinTossState,
 } from "./coinTossState";
+import { answerMessage, type ActionAnswer } from "./answers";
 
 interface UseDuelOptions {
   /** The game's websocket, such as wss://site.example/api/games/abc/socket. */
@@ -192,6 +193,7 @@ export function useDuel({
             case "show_cards_non_dismissible":
               onActionMessage?.({
                 header: data.header,
+                prompt: data.prompt,
                 actionType: ActionType.ShowCards,
                 text: data.message,
                 showCards: {
@@ -306,12 +308,8 @@ export function useDuel({
     send({ header: "resign" });
   };
 
-  const sendAction = (data: {
-    cards: string[];
-    cancel: boolean;
-    count?: number;
-  }) => {
-    send({ header: "action", ...data });
+  const sendAction = (prompt: number, answer: ActionAnswer) => {
+    send(answerMessage(prompt, answer));
   };
 
   const sendChat = useCallback((message: string) => {

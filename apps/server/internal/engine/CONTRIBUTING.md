@@ -7,7 +7,7 @@ These rules apply to every change to the rules engine: cards, effects, events, a
 - Read the relevant implementation, its tests, and the engine code that invokes it. Do not infer engine behavior from a card's wording alone.
 - Preserve unrelated working-tree changes. Keep card changes narrowly scoped (normally one card per change).
 - Prefer existing abstractions and repository conventions. Search with `rg` before adding a helper, condition, event, selection loop, or goroutine.
-- For any behavior involving `Player.Action`, goroutines, event scheduling, match disposal, or sockets, treat deadlocks and goroutine leaks as correctness failures. Follow the channel rules below for all development, not only card work.
+- For any behavior involving prompts and `Player.NextAction`, goroutines, event scheduling, match disposal, or sockets, treat deadlocks and goroutine leaks as correctness failures. Follow the prompt rules below for all development, not only card work.
 
 ## Mandatory workflow for implementing or changing a card
 
@@ -126,19 +126,19 @@ Use the correct timing event:
 - An optional cost and its payoff are one transaction semantically: do not apply the payoff if the player cancels, cannot fully pay, or a selected cost card moved before payment.
 - Validate selections against the exact offered snapshot and re-fetch from the expected zone before applying them. Never trust client `Count`, card IDs, or cancellation flags without validation.
 
-## Player.Action channels and goroutines
+## Prompts, answers and goroutines
 
-`Player.Action` is an unbuffered channel. The parser delivers action messages from a parallel event, while card resolution normally blocks the sequential event loop waiting for exactly one response. A small mistake can leave the match event loop, a sender, or a test goroutine blocked forever.
+A prompt is a question put to a player. `Match.ask`, which every `New*Action` method and `ShowCardsNonDismissible` use, numbers the question, opens it and sends it; card resolution then blocks the sequential event loop in `Player.NextAction` until the player answers. Answers arrive from the player's connection on another goroutine, and each names the number of the question it answers. Only an answer naming the open question is kept: one sent while no question is open, a late answer to a question already closed, and a second click before the first answer was taken are dropped (`game/match/prompt.go`). A kept answer waits for `NextAction`, so an answer that arrives before the loop starts waiting is not lost, and giving an answer never blocks. A small mistake can still leave the match event loop or a test goroutine blocked forever.
 
 Rules for all code:
 
 - Prefer `fx.Select`, `SelectFilter`, `SelectBackside`, `SelectMultipart`, `BinaryQuestion`, `SelectCount`, `OrderCards`, and multiple-choice helpers. They centralize validation and balance `NewAction`/`CloseAction` plus opponent `Wait`/`EndWait` messages.
-- Never create a goroutine merely to wait on or send to `Player.Action`. Never close the channel except through the existing player/match disposal owner. Never replace it with a buffered channel to mask a protocol bug.
+- Open every question through the existing `New*Action` methods, and close it with `CloseAction`. Never create a goroutine merely to wait for an answer, and never end a wait except through the existing player/match disposal owner.
 - Allow only one outstanding prompt/receiver per player. Do not install persistent handlers that can prompt concurrently, prompt from power calculation/filter predicates, or prompt from a `ParallelEvent` path.
 - Before waiting, prove there is a legal response path. Handle empty lists synchronously. Every cancellation, invalid selection, moved target, early return, match end, and disconnect path must leave action and wait UI state balanced.
 - Use `defer CloseAction`/`defer EndWait` where the existing helper pattern supports it. In manual loops, validate card count, membership, current zone, and optional cancellation before mutating state; warnings must continue the same loop without spawning another waiter.
 - Do not hold a mutex while sending, receiving, prompting, invoking `HandleFx`, or doing network I/O. These calls can block or re-enter engine code.
-- Never receive from `Player.Action` directly. Read answers through `Player.NextAction`. Disposing a player closes `Action`, and receives from a closed channel immediately return zero values forever, so a loop that treats that value as merely invalid and retries spins a core for the lifetime of the process. `tests.TestNoRawActionChannelReceives` enforces this.
+- Read answers through `Player.NextAction`, which returns an answer to the open question and leaves it open, so a prompt that refuses an answer warns and calls it again. The prompt itself is unexported, so nothing else can take an answer.
 - `NextAction` does not return when the match is disposed while it is waiting. It aborts by panicking, which unwinds every enclosing prompt, loop, and card handler, and the match event loop recovers it as an ordinary shutdown. This is deliberate: there is no honest value to return, a zero value is indistinguishable from the player declining, and an effect must not go on resolving for a game that no longer exists. Write prompt code as if an answer always arrives; do not handle the disposed case at the call site.
 - Do not call `recover` in `game/cards` or `game/fx`. It would swallow that abort and let the effect resolve against a disposed match. If code outside the engine ever needs a recover on the path from a prompt to the event loop, it must re-raise anything `match.IsMatchDisposed` reports. `tests.TestNoRecoverInEffectCode` enforces this.
 - The event loop already schedules work. Avoid nested goroutines in card/effect code. If general development truly needs background work, give it explicit ownership, cancellation, bounded lifetime, and a test proving disposal terminates it.
@@ -203,5 +203,5 @@ Before declaring the work complete, verify all of the following:
 - Continuous/temporary conditions use unique source IDs and clean up without removing another card's contribution.
 - Movement, destruction, power, targeting protection, hidden information, shields, and evolution interactions use engine APIs.
 - Empty, insufficient, stale, and cancelled selections cannot block the event loop.
-- No new unowned goroutine or unmatched `Player.Action` send/receive/close exists.
+- No new unowned goroutine, unanswered question, or question left open without `CloseAction` exists.
 - Focused, interaction, full-suite, and (when relevant) race tests pass.

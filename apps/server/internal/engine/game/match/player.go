@@ -44,16 +44,11 @@ type Spectator struct {
 
 // PlayerAction is the parsed response we retrieve after prompting the client for a selection of cards
 type PlayerAction struct {
+	// Prompt is the number of the question answered.
+	Prompt int      `json:"prompt"`
 	Cards  []string `json:"cards"`
 	Count  int      `json:"count"`
 	Cancel bool     `json:"cancel"`
-}
-
-// PlayerActionState is used to store the last sent action message to the client.
-// When a player reconnects, if the last action is still active, we send it to the player
-type PlayerActionState struct {
-	resolved bool
-	data     interface{}
 }
 
 // NewPlayerReference returns a new player reference
@@ -88,9 +83,8 @@ type Player struct {
 
 	mutex *sync.Mutex
 
-	ActionState PlayerActionState
-	Action      chan PlayerAction
-	disposeOnce sync.Once
+	// prompt is the question the player is being asked, if any.
+	prompt *prompt
 
 	HasChargedMana bool
 	CanChargeMana  bool
@@ -113,8 +107,7 @@ func NewPlayer(match *Match, turn byte) *Player {
 		spellzone:      make([]*Card, 0),
 		hiddenzone:     make([]*Card, 0),
 		mutex:          &sync.Mutex{},
-		ActionState:    PlayerActionState{resolved: true},
-		Action:         make(chan PlayerAction),
+		prompt:         newPrompt(),
 		HasChargedMana: false,
 		CanChargeMana:  true,
 		Turn:           turn,
@@ -884,20 +877,16 @@ func IsMatchDisposed(recovered any) bool {
 	return ok
 }
 
-// NextAction blocks until the player answers the prompt that is currently open
-// for them.
+// NextAction blocks until the player answers the question that is currently
+// open for them, and returns the answer. The question stays open: a prompt
+// that refuses the answer warns the player and calls NextAction again.
 //
-// It does not return if the match is disposed while it waits. Disposal closes the
-// action channel, and a receive from a closed channel yields the zero
-// PlayerAction immediately and forever, so there is no answer to report and no
-// honest value to return: a returned zero value is indistinguishable from the
-// player declining, and callers would go on to resolve an effect for a game that
-// no longer exists. Instead it aborts the effect in progress, which unwinds to
-// the match event loop and stops every enclosing prompt, loop, and card handler
-// on the way.
-//
-// Always read player answers through this method rather than receiving from
-// Player.Action directly.
+// It does not return if the match is disposed while it waits. There is no
+// answer to report and no honest value to return: a zero value is
+// indistinguishable from the player declining, and callers would go on to
+// resolve an effect for a game that no longer exists. Instead it aborts the
+// effect in progress, which unwinds to the match event loop and stops every
+// enclosing prompt, loop, and card handler on the way.
 func (p *Player) NextAction() PlayerAction {
 
 	// The match may already have been disposed before the prompt was opened, in
@@ -906,7 +895,7 @@ func (p *Player) NextAction() PlayerAction {
 		panic(matchDisposed{})
 	}
 
-	action, ok := <-p.Action
+	action, ok := p.prompt.take()
 
 	if !ok {
 		panic(matchDisposed{})
@@ -916,9 +905,7 @@ func (p *Player) NextAction() PlayerAction {
 
 }
 
-// Dispose clears out references in the player object
+// Dispose ends any wait for the player's answer.
 func (p *Player) Dispose() {
-	p.disposeOnce.Do(func() {
-		close(p.Action)
-	})
+	p.prompt.dispose()
 }

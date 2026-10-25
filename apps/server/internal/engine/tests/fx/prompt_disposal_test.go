@@ -17,19 +17,18 @@ import (
 const immortalBaronVorgUID = "af3bc221-1cc2-4f58-83ea-2673ac2c66c5"
 
 // promptReturnTimeout is generous on purpose. The prompts under test either
-// abort promptly once the action channel is closed, or they never return at
-// all, so the exact value only decides how long a regression takes to report.
+// abort promptly once the match is disposed, or they never return at all, so the exact value only decides how long a regression takes to report.
 const promptReturnTimeout = 2 * time.Second
 
 // TestPromptsAbandonThemselvesOnDisposal covers the prompts that block the match
 // event loop while waiting for a player.
 //
-// Disposing a match closes both players' action channels. A receive from a
-// closed channel returns the zero PlayerAction immediately and forever, so a
-// prompt that treats it as an invalid answer and retries turns the match event
-// loop into a busy loop that outlives the match and burns a core until the
-// process restarts. Every prompt must instead abort the effect in progress, so
-// that no card logic resolves for a game that no longer exists.
+// Disposing a match ends both players' waits for an answer. There is no answer
+// to return then, and a prompt that took a made-up one as invalid and asked
+// again would turn the match event loop into a busy loop that outlives the
+// match and burns a core until the process restarts. Every prompt must instead
+// abort the effect in progress, so that no card logic resolves for a game that
+// no longer exists.
 func TestPromptsAbandonThemselvesOnDisposal(t *testing.T) {
 
 	prompts := []struct {
@@ -112,7 +111,7 @@ func TestPromptsAbandonThemselvesOnDisposal(t *testing.T) {
 				assert.True(t, match.IsMatchDisposed(recovered),
 					"the prompt must abort with the match disposed signal rather than resolving, got %v", recovered)
 			case <-time.After(promptReturnTimeout):
-				t.Fatal("the prompt never returned after the match was disposed; it is spinning on the closed action channel")
+				t.Fatal("the prompt never returned after the match was disposed; it is still waiting or asking again")
 			}
 		})
 	}
@@ -121,7 +120,7 @@ func TestPromptsAbandonThemselvesOnDisposal(t *testing.T) {
 // TestDisconnectDuringPromptStopsMatch drives the production path end to end:
 // a card is played through Match.Parse so the mana payment prompt blocks the
 // match event loop, then both websockets close, which is what makes
-// OnSocketClose dispose the match and close the players' action channels.
+// OnSocketClose dispose the match and end the players' waits for answers.
 //
 // It also covers the abort reaching its recover: if the match event loop did not
 // recover the abort raised by the abandoned prompt, it would take the test

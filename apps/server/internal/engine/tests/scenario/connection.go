@@ -21,6 +21,10 @@ type MockConnection struct {
 
 	hold *writeHold
 
+	// openPrompt is the number of the question the client shows, or 0, as a
+	// client keeps it: from the last question sent and not closed since.
+	openPrompt int
+
 	mu sync.Mutex
 }
 
@@ -134,7 +138,35 @@ func (m *MockConnection) WriteJSON(v interface{}) error {
 	}
 	m.LastJSONWritten = v
 	m.JSONWritten = append(m.JSONWritten, string(data))
+	m.followPrompt(data)
 	return err
+}
+
+// followPrompt keeps track of the question the client shows. The caller holds
+// the lock.
+func (m *MockConnection) followPrompt(data []byte) {
+	var message struct {
+		Header string `json:"header"`
+		Prompt int    `json:"prompt"`
+	}
+	if json.Unmarshal(data, &message) != nil {
+		return
+	}
+
+	switch message.Header {
+	case "action", "show_cards_non_dismissible":
+		m.openPrompt = message.Prompt
+	case "close_action":
+		m.openPrompt = 0
+	}
+}
+
+// OpenPrompt returns the number of the question the client shows, or 0 when
+// it shows none.
+func (m *MockConnection) OpenPrompt() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.openPrompt
 }
 
 func (m *MockConnection) JSONWriteCount() int {

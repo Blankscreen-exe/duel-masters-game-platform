@@ -98,8 +98,8 @@ func (m *Match) join(s *server.Socket) {
 		if m.hasStarted() {
 			m.sendLatestState(s)
 			// Ask again for an answer still owed.
-			if player := (*seat).Player; !player.ActionState.resolved {
-				s.Send(player.ActionState.data)
+			if question, open := (*seat).Player.prompt.pending(); open {
+				s.Send(question)
 			}
 		} else {
 			m.sendTossStep(s)

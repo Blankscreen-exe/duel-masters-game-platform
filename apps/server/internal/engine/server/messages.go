@@ -196,8 +196,25 @@ type TossResultMessage struct {
 	Winner  TossPlayer `json:"winner"`
 }
 
+// Prompt is the number of a question put to a player. They name it in their
+// answer, so that an answer only ever settles the question it was given to.
+type Prompt struct {
+	ID int `json:"prompt,omitempty"`
+}
+
+// Number gives the question its number.
+func (p *Prompt) Number(id int) {
+	p.ID = id
+}
+
+// Prompting is a message that puts a question to a player.
+type Prompting interface {
+	Number(id int)
+}
+
 // ActionMessage is used to prompt the user to make a selection of the specified cards
 type ActionMessage struct {
+	Prompt
 	Header            string      `json:"header"`
 	ActionType        string      `json:"actionType"`
 	Cards             []CardState `json:"cards"`
@@ -211,6 +228,7 @@ type ActionMessage struct {
 
 // MultipartActionMessage is used to prompt the user to make a selection of the specified cards
 type MultipartActionMessage struct {
+	Prompt
 	Header        string                 `json:"header"`
 	Cards         map[string][]CardState `json:"cards"`
 	Text          string                 `json:"text"`
@@ -231,8 +249,10 @@ type WaitMessage struct {
 	Message string `json:"message"`
 }
 
-// ShowCardsMessage is used to show the user n cards without an action to perform
+// ShowCardsMessage is used to show the user n cards without an action to
+// perform. A preview the player must close is a question, and is numbered.
 type ShowCardsMessage struct {
+	Prompt
 	Header  string   `json:"header"`
 	Message string   `json:"message"`
 	Cards   []string `json:"cards"`

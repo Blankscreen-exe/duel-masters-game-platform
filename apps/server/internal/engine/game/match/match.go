@@ -164,9 +164,9 @@ func (m *Match) Dispose() {
 	defer m.system.observer.MatchClosed(m.ID)
 
 	// Stop the event loop from resolving anything further. Disposing the players
-	// below closes their action channels, which releases the event loop from any
-	// prompt it is currently waiting on, and it must unwind without resolving
-	// more of the game.
+	// below ends any wait for their answers, which releases the event loop from
+	// any prompt it is currently waiting on, and it must unwind without
+	// resolving more of the game.
 	m.ending.Store(true)
 
 	logrus.Debugf("Disposing match %s", m.ID)
@@ -1056,12 +1056,7 @@ func (m *Match) NewActionFullList(player *Player, cards []*Card, minSelections i
 		UnselectableCards: denormalizeCards(unselectableCards, false),
 	}
 
-	player.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
-
-	m.PlayerRef(player).Socket.Send(msg)
+	m.ask(player, msg)
 
 }
 
@@ -1077,12 +1072,7 @@ func (m *Match) NewBacksideAction(player *Player, cards []*Card, minSelections i
 		Cancellable:   cancellable,
 	}
 
-	player.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
-
-	m.PlayerRef(player).Socket.Send(msg)
+	m.ask(player, msg)
 
 }
 
@@ -1113,12 +1103,7 @@ func (m *Match) newMultipartActionBase(player *Player, cards map[string][]*Card,
 		Cancellable:   cancellable,
 	}
 
-	player.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
-
-	m.PlayerRef(player).Socket.Send(msg)
+	m.ask(player, msg)
 
 }
 
@@ -1133,12 +1118,7 @@ func (m *Match) NewCountAction(player *Player, text string, minSelections int, m
 		MaxSelections: maxSelections,
 	}
 
-	player.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
-
-	m.PlayerRef(player).Socket.Send(msg)
+	m.ask(player, msg)
 
 }
 
@@ -1151,12 +1131,7 @@ func (m *Match) NewQuestionAction(player *Player, text string) {
 		Text:       text,
 	}
 
-	player.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
-
-	m.PlayerRef(player).Socket.Send(msg)
+	m.ask(player, msg)
 
 }
 
@@ -1169,12 +1144,7 @@ func (m *Match) NewOrderAction(player *Player, cards []*Card, text string) {
 		Text:       text,
 	}
 
-	player.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
-
-	m.PlayerRef(player).Socket.Send(msg)
+	m.ask(player, msg)
 
 }
 
@@ -1188,12 +1158,7 @@ func (m *Match) NewMultipleChoiceQuestionAction(player *Player, text string, cho
 		Choices:    choices,
 	}
 
-	player.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
-
-	m.PlayerRef(player).Socket.Send(msg)
+	m.ask(player, msg)
 
 }
 
@@ -1208,18 +1173,20 @@ func (m *Match) NewMultipleChoiceSearchableAction(player *Player, text string, c
 		Choices:    choices,
 	}
 
-	player.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
+	m.ask(player, msg)
 
+}
+
+// ask puts a question to a player: it opens their prompt, numbering msg, and
+// sends it to them.
+func (m *Match) ask(player *Player, msg server.Prompting) {
+	player.prompt.ask(msg)
 	m.PlayerRef(player).Socket.Send(msg)
-
 }
 
 // CloseAction closes the card selection popup for the given player
 func (m *Match) CloseAction(p *Player) {
-	p.ActionState.resolved = true
+	p.prompt.close()
 	m.PlayerRef(p).Socket.Send(server.Message{
 		Header: "close_action",
 	})
@@ -1259,12 +1226,7 @@ func (m *Match) ShowCardsNonDismissible(p *Player, message string, cards []strin
 		Cards:   cards,
 	}
 
-	p.ActionState = PlayerActionState{
-		resolved: false,
-		data:     msg,
-	}
-
-	m.PlayerRef(p).Socket.Send(msg)
+	m.ask(p, msg)
 
 	defer m.CloseAction(p)
 
@@ -1780,60 +1742,9 @@ func (m *Match) Parse(s *server.Socket, data []byte) {
 		}, SequentialEvent)
 
 	case "action":
-		m.eventloop.schedule(func() {
-
-			p, err := m.PlayerForSocket(s)
-
-			if err != nil {
-				return
-			}
-
-			msg := PlayerAction{}
-
-			if err := json.Unmarshal(data, &msg); err != nil {
-				m.ActionWarning(p.Player, "Invalid selection")
-				return
-			}
-
-			// Check to see if the client is trying something fishy with selecting the same card multiple times
-			for _, c := range msg.Cards {
-				count := 0
-				for _, c2 := range msg.Cards {
-					if c == c2 {
-						count++
-					}
-				}
-				if count >= 2 {
-					m.ActionWarning(p.Player, "You cannot select the same card multiple times")
-					return
-				}
-			}
-
-			// The player's action channel is closed when the match is disposed, and
-			// a receive from a closed channel is always ready, so draining it would
-			// spin forever. Sending to it would panic. There is nothing to answer
-			// once the match is gone.
-			if m.IsClosed() {
-				return
-			}
-
-			// Drain the player action channel to prevent malicious exhaustion of goroutines
-			// as the msg is sent to the channel in a new grouroutine for every event
-		Drain:
-			for {
-				select {
-				case _, open := <-p.Player.Action:
-					if !open {
-						return
-					}
-				default:
-					break Drain
-				}
-			}
-
-			p.Player.Action <- msg
-
-		}, ParallelEvent)
+		// Answered at once rather than scheduled: the event loop is waiting
+		// for the answer, and giving it never blocks.
+		m.answer(s, data)
 
 	case "attack_player":
 		m.eventloop.schedule(func() {

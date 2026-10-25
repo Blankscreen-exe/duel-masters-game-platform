@@ -53,6 +53,8 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 - **Status:** Fixed. The new socket takes the seat before the old one is closed, and closing a socket that is no longer a player's changes nothing. Test: `TestComingBackWhileTheOpponentIsAwayKeepsTheMatch`.
 
 ### [ ] 7. Stale action answers get delivered to the next prompt (Verified)
+- **Status (answers):** Fixed. Every question a player is asked is numbered (`Match.ask`), every answer names the question it answers, and only an answer to the open question is kept (`game/match/prompt.go`). An answer sent while nothing is open, a late answer to a closed question and a second click are dropped. Giving an answer never blocks, so no sender is left waiting when the match is disposed, and an answer that arrives before the engine waits for it is kept. A player coming back is asked the open question again under its number. The board answers with the number of the question on screen (`packages/duel-board/answers.ts`). Tests: `game/match/prompt_test.go`, `tests/prompt_test.go`.
+- **Left:** the dropped events described under "Also".
 - **Where:** `game/match/match.go:1779-1833`
 - **Problem:** An `action` message sent while no prompt is open blocks forever on the unbuffered `p.Player.Action <- msg`. The next prompt, even an unrelated one, receives it, and a stale `Cancel: true` cancels it. When the match is disposed, that blocked send panics "send on closed channel", which `recoverEvent` logs as a real fault.
 - **Fix idea:** Only deliver an action when the player has an open, unresolved prompt (`ActionState`). Otherwise reject it with a warning and do not block. Make sure the disposal path does not log a stack trace.

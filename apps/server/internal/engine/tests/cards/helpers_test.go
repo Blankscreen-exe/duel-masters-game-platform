@@ -125,13 +125,10 @@ func settleTurn(t *testing.T, scn *scenario.TestScenario) {
 // with: the event loop is idle, a new prompt is open, or the answer was
 // refused. Nothing the test sends next can then be lost.
 //
-// Two things lose messages sent too early. The parallel action handler drains
-// Player.Action before writing to it, to stop a client flooding the match with
-// goroutines, so an answer not yet picked up is thrown away by the next one.
-// And the event that was waiting on the prompt goes on running after the
-// answer, so an action sent meanwhile is dropped by the busy event loop. A real
-// client cannot do either, because it only ever shows one prompt at a time and
-// waits for the board to settle.
+// An action sent too early is lost: the event that was waiting on the prompt
+// goes on running after the answer, and an action sent meanwhile is dropped by
+// the busy event loop. A real client cannot do this, because it only ever shows
+// one prompt at a time and waits for the board to settle.
 func answerInTurn(t *testing.T, scn *scenario.TestScenario, player *match.PlayerReference, cardIDs ...string) {
 	t.Helper()
 

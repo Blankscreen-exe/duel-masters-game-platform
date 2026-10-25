@@ -135,19 +135,7 @@ func (s *TestScenario) ActionPlayCard(player *match.PlayerReference, cardID stri
 		return err
 	}
 
-	messageCount := conn.JSONWriteCount()
-
-	if err := s.send(player, struct {
-		Header string `json:"header"`
-		ID     string `json:"virtualId"`
-	}{
-		Header: "add_to_playzone",
-		ID:     cardID,
-	}); err != nil {
-		return err
-	}
-
-	action, err := s.waitForActionMessage(player, messageCount)
+	action, err := s.ActionPlayCardPrompt(player, cardID)
 	if err != nil {
 		return err
 	}
@@ -174,6 +162,37 @@ func (s *TestScenario) ActionPlayCard(player *match.PlayerReference, cardID stri
 	// A spell broadcasts once it has resolved and again once PlayCard has, so
 	// the first state is not the end of the play.
 	return s.settleUnlessPrompted(player, completionStart)
+}
+
+// ActionPlayCardPrompt plays a card from the player's hand and returns the
+// question asking which mana pays for it, without answering it. The caller
+// must always answer that question so the sequential event loop is never left
+// waiting on it.
+//
+// Use ActionPlayCard instead when the card is meant to be played.
+func (s *TestScenario) ActionPlayCardPrompt(player *match.PlayerReference, cardID string) (*server.ActionMessage, error) {
+	conn, err := s.connectionFor(player)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := player.Player.GetCard(cardID, match.HAND); err != nil {
+		return nil, err
+	}
+
+	messageCount := conn.JSONWriteCount()
+
+	if err := s.send(player, struct {
+		Header string `json:"header"`
+		ID     string `json:"virtualId"`
+	}{
+		Header: "add_to_playzone",
+		ID:     cardID,
+	}); err != nil {
+		return nil, err
+	}
+
+	return s.waitForActionMessage(player, messageCount)
 }
 
 func (s *TestScenario) ActionEndTurn(player *match.PlayerReference) error {
@@ -688,62 +707,65 @@ func (s *TestScenario) WaitForAnswerToSettle(player *match.PlayerReference, mark
 	})
 }
 
-func (s *TestScenario) SubmitAction(player *match.PlayerReference, cardIDs ...string) error {
-	return s.send(player, struct {
-		Header string   `json:"header"`
-		Cards  []string `json:"cards"`
-		Count  int      `json:"count"`
-		Cancel bool     `json:"cancel"`
-	}{
+// playerAnswer is the message a client answers a question with.
+type playerAnswer struct {
+	Header string   `json:"header"`
+	Prompt int      `json:"prompt"`
+	Cards  []string `json:"cards"`
+	Count  int      `json:"count"`
+	Cancel bool     `json:"cancel"`
+}
+
+// answerOpenPrompt answers the question open for player, as a client answers
+// the question it shows. It waits for a question to be open.
+func (s *TestScenario) answerOpenPrompt(player *match.PlayerReference, answer playerAnswer) error {
+	conn, err := s.connectionFor(player)
+	if err != nil {
+		return err
+	}
+
+	var prompt int
+	if err := s.waitFor(func() bool {
+		prompt = conn.OpenPrompt()
+		return prompt != 0
+	}); err != nil {
+		return fmt.Errorf("no question is open for %s to answer: %w", player.Username, err)
+	}
+
+	return s.SendAnswer(player, prompt, answer.Cancel, answer.Count, answer.Cards...)
+}
+
+// SendAnswer sends player's answer to question prompt, whether or not it is
+// open, as a client does that answers a question it showed earlier.
+func (s *TestScenario) SendAnswer(player *match.PlayerReference, prompt int, cancel bool, count int, cardIDs ...string) error {
+	return s.send(player, playerAnswer{
 		Header: "action",
+		Prompt: prompt,
 		Cards:  cardIDs,
-		Count:  len(cardIDs),
-		Cancel: false,
+		Count:  count,
+		Cancel: cancel,
 	})
 }
 
-// SubmitChoice answers a multiple-choice action using its zero-based option index.
+// SubmitAction answers the open question by choosing cards.
+func (s *TestScenario) SubmitAction(player *match.PlayerReference, cardIDs ...string) error {
+	return s.answerOpenPrompt(player, playerAnswer{Cards: cardIDs, Count: len(cardIDs)})
+}
+
 // SubmitCount answers a prompt that asks for a number rather than for cards,
 // such as fx.SelectCount.
 func (s *TestScenario) SubmitCount(player *match.PlayerReference, count int) error {
-	return s.send(player, struct {
-		Header string   `json:"header"`
-		Cards  []string `json:"cards"`
-		Count  int      `json:"count"`
-		Cancel bool     `json:"cancel"`
-	}{
-		Header: "action",
-		Cards:  []string{},
-		Count:  count,
-		Cancel: false,
-	})
+	return s.answerOpenPrompt(player, playerAnswer{Cards: []string{}, Count: count})
 }
 
+// SubmitChoice answers a multiple-choice action using its zero-based option index.
 func (s *TestScenario) SubmitChoice(player *match.PlayerReference, choice int) error {
-	return s.send(player, struct {
-		Header string `json:"header"`
-		Count  int    `json:"count"`
-		Cancel bool   `json:"cancel"`
-	}{
-		Header: "action",
-		Count:  choice,
-		Cancel: false,
-	})
+	return s.answerOpenPrompt(player, playerAnswer{Count: choice})
 }
 
 // CancelAction answers "no" or cancels a pending action prompt (e.g. a binary yes/no question).
 func (s *TestScenario) CancelAction(player *match.PlayerReference) error {
-	return s.send(player, struct {
-		Header string   `json:"header"`
-		Cards  []string `json:"cards"`
-		Count  int      `json:"count"`
-		Cancel bool     `json:"cancel"`
-	}{
-		Header: "action",
-		Cards:  []string{},
-		Count:  0,
-		Cancel: true,
-	})
+	return s.answerOpenPrompt(player, playerAnswer{Cards: []string{}, Cancel: true})
 }
 
 // MessageHeaders returns the header field of every JSON message sent to the player so far,

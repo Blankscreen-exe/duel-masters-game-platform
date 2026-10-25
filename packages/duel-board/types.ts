@@ -223,6 +223,9 @@ export enum ActionType {
 // ActionMessage is used to prompt the user to make a selection of the specified cards
 export interface ActionMessage {
   header: string;
+  /** The question's number, which its answer names. Absent from a preview
+   * that only shows cards and waits for nothing. */
+  prompt?: number;
   actionType: ActionType;
   cards?: CardState[] | Record<string, CardState[]>;
   text: string;
@@ -333,6 +336,8 @@ export interface MatchForwardMessage {
 // ShowCardsMessage is used to show the user n cards without an action to perform
 export interface ShowCardsMessage {
   header: string;
+  /** Set when the preview is a question that must be closed. */
+  prompt?: number;
   message: string;
   cards: string[];
 }

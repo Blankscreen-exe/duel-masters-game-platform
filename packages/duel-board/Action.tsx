@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Popup } from "./Popup";
 import { ActionType, CardState } from "./types";
+import type { ActionAnswer } from "./answers";
 import { Button } from "./Button";
 import { CountInput } from "./CountInput";
 import { SELECTED_CARD_OUTLINE, SelectionMark } from "./SelectionMark";
@@ -19,11 +20,7 @@ export interface ActionProps {
   title: string;
   visible: boolean;
   error?: string;
-  onChoose: (data: {
-    cards: string[];
-    cancel: boolean;
-    count?: number;
-  }) => void;
+  onChoose: (answer: ActionAnswer) => void;
   onClose: () => void;
   onDismiss?: () => void;
   onCardRightClick?: (imageId: string, name?: string) => void;

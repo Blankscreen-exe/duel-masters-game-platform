@@ -56,7 +56,7 @@ func TestBlizzardOfSpears(t *testing.T) {
 	assert.Equal(t, match.BATTLEZONE, protectedAtResolution.Zone)
 	assert.Equal(t, 4000, scn.Match.GetPower(protectedAtResolution, false))
 
-	// Ensure spell resolution left no blocked Player.Action sender or event loop.
+	// Ensure spell resolution left no question open or event loop blocked.
 	require.NoError(t, scn.ActionEndTurn(player))
 }
 
