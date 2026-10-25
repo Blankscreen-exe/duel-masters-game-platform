@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState, type SubmitEvent } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useLiveMessage } from '@/components/live/live-provider';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalClose } from '@/components/ui/modal';
@@ -18,50 +18,63 @@ const HISTORY_LENGTH = 100;
 /** The longest message, as the server allows. */
 const MAX_LENGTH = 300;
 
-interface LobbyChatPanelProps {
+interface LobbyChatProps {
   readonly initial: readonly ChatMessage[];
   /** Whether the viewer may post: players can, visitors only read. */
   readonly canPost: boolean;
   /** The player's mute, while an admin has muted them: they read, but do not post. */
   readonly mute?: Penalty;
-  readonly className?: string;
+}
+
+/** What a frame around the lobby chat lays out. */
+export interface LobbyChatParts {
+  /** The button that expands the chat. */
+  readonly expand: ReactNode;
+  /** The chat, or a note while it is expanded. */
+  readonly body: ReactNode;
 }
 
 /**
- * The lobby chat in a panel: everyone reads it, players write in it, and new messages arrive live.
- * It expands into a modal that fills most of the screen, showing the same conversation and keeping
- * what the player was typing.
+ * The lobby chat: everyone reads it, players write in it, and new messages arrive live. It expands
+ * into a modal that fills most of the screen, showing the same conversation and keeping what the
+ * player was typing. `frame` places the chat and its expand button, such as in a panel or a tab.
  */
-export function LobbyChatPanel({ initial, canPost, mute, className = '' }: LobbyChatPanelProps) {
+export function LobbyChat({
+  initial,
+  canPost,
+  mute,
+  frame,
+}: LobbyChatProps & { readonly frame: (parts: LobbyChatParts) => ReactNode }) {
   const chat = useLobbyChat(initial);
   const muted = useMuted(mute);
   const [expanded, setExpanded] = useState(false);
   const body = <ChatBody chat={chat} canPost={canPost} muted={muted} />;
 
-  return (
-    <Panel
-      title="Lobby chat"
-      actions={
-        <Button
-          variant="quiet"
-          aria-label="Expand the chat"
-          title="Expand"
-          onClick={() => {
-            setExpanded(true);
-          }}
-        >
-          <ExpandIcon />
-        </Button>
-      }
-      className={`flex flex-col ${className}`}
+  const expand = (
+    <Button
+      variant="quiet"
+      aria-label="Expand the chat"
+      title="Expand"
+      onClick={() => {
+        setExpanded(true);
+      }}
     >
-      {expanded ? (
-        <p className="flex-1 px-4 py-3 text-sm text-slate-500">
-          The chat is open in a larger view.
-        </p>
-      ) : (
-        body
-      )}
+      <ExpandIcon />
+    </Button>
+  );
+
+  return (
+    <>
+      {frame({
+        expand,
+        body: expanded ? (
+          <p className="flex-1 px-4 py-3 text-sm text-slate-500">
+            The chat is open in a larger view.
+          </p>
+        ) : (
+          body
+        ),
+      })}
       {expanded && (
         <Modal
           title="Lobby chat"
@@ -78,7 +91,24 @@ export function LobbyChatPanel({ initial, canPost, mute, className = '' }: Lobby
           {body}
         </Modal>
       )}
-    </Panel>
+    </>
+  );
+}
+
+/** The lobby chat in a panel of its own. */
+export function LobbyChatPanel({
+  className = '',
+  ...props
+}: LobbyChatProps & { readonly className?: string }) {
+  return (
+    <LobbyChat
+      {...props}
+      frame={({ expand, body }) => (
+        <Panel title="Lobby chat" actions={expand} className={`flex flex-col ${className}`}>
+          {body}
+        </Panel>
+      )}
+    />
   );
 }
 
