@@ -165,9 +165,11 @@ project not affiliated with or endorsed by them, and credit them as the owners.
 | Visibility         | **Public** (listed) or **Private** (invite link only) |
 | Spectators         | Allowed or not                                 |
 
-- **Quick match**: the player picks a format and deck and waits; they are paired with the next
-  waiting player in that format, closest rating first **(default: widening the rating range the
-  longer they wait)**.
+- **Quick match**: the player picks a format and deck and waits; they are paired with the waiting
+  player in that format whose rating is closest, within a range that widens the longer they wait.
+  The range starts at **100 points** (the admin setting `matchmaking.rating_range`), grows by 100
+  for every 15 seconds a player waits, and after a minute anyone can be paired. Two players suit
+  each other when they are within either one's range.
 - **Spectators**: logged-in players can watch public games that allow them. Visitors cannot watch
   games.
 - **Who goes first is never a game option**: every game starts with a coin toss (7.1).
@@ -217,8 +219,8 @@ Every game, rematches included, starts with a coin toss that both players (and s
 
 ## 8. Ratings and history
 
-- Each player has an **Elo-style rating starting at 1000** and a named tier, as in Triple Triad
-  **(default)**:
+- Each player has **one Elo-style rating, starting at 1000**, whatever format they play, and a
+  named tier, as in Triple Triad:
 
 | Tier     | Rating         |
 | -------- | -------------- |
@@ -229,10 +231,15 @@ Every game, rematches included, starts with a coin toss that both players (and s
 | Diamond  | 1700 and above |
 
 - Each tier except Diamond is split into III, II and I.
-- Wins raise the rating and losses lower it; players also have win/loss streaks.
+- Wins raise the rating and losses lower it, by the same points for both players and at least 1;
+  how far one game can move a rating is the admin setting `ratings.speed` (the K-factor, 32 by
+  default). Players also have win/loss streaks.
+- **Rankings** list the players who have finished a game that counted, the best rated first;
+  players level on rating share a place.
 - Games shorter than **60 seconds (default)** do not count, so instant leaves cannot farm rating.
 - **Match history** keeps every finished game: players, decks, format, winner, how it ended,
-  turns, length and rating changes.
+  turns, length and rating changes. Private (invite-only) games are listed like every other game:
+  nothing shows which games were private.
 
 ## 9. Admin panel
 
@@ -364,9 +371,10 @@ duel-masters-game-platform/
 │  │  │  ├─ formats/                  formats, allowed sets, banned and limited cards
 │  │  │  ├─ lobby/                    open games, invites, spectators
 │  │  │  ├─ matchmaking/              quick match queue
-│  │  │  ├─ games/                    the only bridge to the engine: start, surrender, results
+│  │  │  ├─ games/                    the only bridge to the engine: start, surrender, results,
+│  │  │  │                             match history
 │  │  │  ├─ chat/                     lobby chat and moderation
-│  │  │  ├─ ratings/                  Elo, tiers, streaks, history
+│  │  │  ├─ ratings/                  Elo, tiers, streaks, rankings
 │  │  │  ├─ settings/                 key-value settings: definitions, types, defaults, limits
 │  │  │  ├─ backup/                   database-neutral export and import
 │  │  │  ├─ store/                    database connection (GORM: SQLite or PostgreSQL), migrations
