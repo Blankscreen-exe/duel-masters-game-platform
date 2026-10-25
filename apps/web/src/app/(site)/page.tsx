@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { CardImage } from '@/components/cards/card-image';
-import { LobbyChat } from '@/components/chat/lobby-chat';
+import { LobbyChatPanel } from '@/components/chat/lobby-chat';
 import { SiteStatsLine } from '@/components/live/site-stats';
 import { buttonClasses } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
@@ -77,14 +77,12 @@ export default async function HomePage() {
           </Panel>
         )}
         {chat.data && (
-          <Panel title="Lobby chat" className="flex max-h-[28rem] flex-col">
-            <LobbyChat
-              initial={chat.data}
-              canPost={account !== null}
-              mute={account?.mute}
-              className="flex-1"
-            />
-          </Panel>
+          <LobbyChatPanel
+            initial={chat.data}
+            canPost={account !== null}
+            mute={account?.mute}
+            className="max-h-[28rem]"
+          />
         )}
       </div>
     </div>

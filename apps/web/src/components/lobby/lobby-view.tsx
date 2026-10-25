@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { LobbyChat } from '@/components/chat/lobby-chat';
+import { useState, type ReactNode } from 'react';
+import { LobbyChatPanel } from '@/components/chat/lobby-chat';
 import { useLiveMessage } from '@/components/live/live-provider';
 import { Panel } from '@/components/ui/panel';
+import { TabList } from '@/components/ui/tabs';
 import type { Account, Format } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { activityOf, type PlayableDecks } from '@/lib/lobby';
@@ -25,6 +26,10 @@ interface LobbyViewProps {
 /**
  * The lobby: open a game or find a quick match, join an open game, watch a running one, and chat.
  * Everything on it stays up to date over the live connection.
+ *
+ * On a wide screen it has four columns: starting a game on the left, the open games two columns
+ * wide with the running games and who is online under them, and the chat on the right, the height
+ * of the screen. Narrower, the chat goes under the rest; on a phone everything stacks.
  */
 export function LobbyView({
   account,
@@ -69,9 +74,9 @@ export function LobbyView({
         <YourActivity activity={activity} hosted={hosted} />
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
-        <div className="space-y-6">
-          <Panel title="Quick match" accent="fire">
+      <div className="grid gap-6 lg:grid-cols-[20rem_1fr] xl:grid-cols-[20rem_1fr_22rem]">
+        <StartGamePanel
+          quickMatch={
             <QuickMatchPanel
               decks={decks}
               formats={formats}
@@ -79,13 +84,11 @@ export function LobbyView({
               waitingFormatName={waitingFormatName}
               disabled={lobby.paused || (busy && activity.kind !== 'queued')}
             />
-          </Panel>
-          {!busy && (
-            <Panel title="Open a game" accent="water">
-              <OpenGameForm decks={decks} formats={formats} disabled={lobby.paused} />
-            </Panel>
-          )}
-        </div>
+          }
+          openGame={
+            <OpenGameForm decks={decks} formats={formats} disabled={lobby.paused || busy} />
+          }
+        />
 
         <div className="space-y-6">
           <Panel title="Open games" actions={<Count n={lobby.openGames.length} />}>
@@ -96,22 +99,69 @@ export function LobbyView({
               canJoin={!busy && !lobby.paused}
             />
           </Panel>
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Panel title="Lobby chat" className="flex max-h-[28rem] flex-col">
-              <LobbyChat initial={chat} canPost mute={account.mute} className="flex-1" />
+          <div className="grid gap-6 md:grid-cols-2">
+            <Panel title="Games running" actions={<Count n={lobby.runningGames.length} />}>
+              <RunningGamesList games={lobby.runningGames} />
             </Panel>
-            <div className="space-y-6">
-              <Panel title="Games running" actions={<Count n={lobby.runningGames.length} />}>
-                <RunningGamesList games={lobby.runningGames} />
-              </Panel>
-              <Panel title="Online" actions={<Count n={lobby.online.length} />}>
-                <OnlinePlayers players={lobby.online} />
-              </Panel>
-            </div>
+            <Panel title="Online" actions={<Count n={lobby.online.length} />}>
+              <OnlinePlayers players={lobby.online} />
+            </Panel>
           </div>
         </div>
+
+        <LobbyChatPanel
+          initial={chat}
+          canPost
+          mute={account.mute}
+          className="max-h-[32rem] lg:col-span-2 xl:sticky xl:top-20 xl:col-span-1 xl:self-start xl:h-[calc(100dvh-6.5rem)] xl:max-h-none"
+        />
       </div>
     </div>
+  );
+}
+
+type StartGameTab = 'quick' | 'open';
+
+const START_GAME_PANELS = 'start-game';
+
+interface StartGamePanelProps {
+  readonly quickMatch: ReactNode;
+  readonly openGame: ReactNode;
+}
+
+/**
+ * Starting a game, in one box: finding a quick match or opening a game, one tab each. Both stay
+ * mounted, so switching tabs keeps what was picked in each.
+ */
+function StartGamePanel({ quickMatch, openGame }: StartGamePanelProps) {
+  const [tab, setTab] = useState<StartGameTab>('quick');
+  const panels: Record<StartGameTab, ReactNode> = { quick: quickMatch, open: openGame };
+
+  return (
+    <Panel accent="fire" className="self-start">
+      <TabList
+        label="Start a game"
+        panelIdPrefix={START_GAME_PANELS}
+        value={tab}
+        onChange={setTab}
+        className="m-3 mb-0"
+        tabs={[
+          { id: 'quick', label: 'Quick match' },
+          { id: 'open', label: 'Open a game' },
+        ]}
+      />
+      {(Object.keys(panels) as StartGameTab[]).map((id) => (
+        <div
+          key={id}
+          id={`${START_GAME_PANELS}-${id}`}
+          role="tabpanel"
+          aria-labelledby={`${START_GAME_PANELS}-tab-${id}`}
+          hidden={tab !== id}
+        >
+          {panels[id]}
+        </div>
+      ))}
+    </Panel>
   );
 }
 
