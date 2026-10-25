@@ -1,7 +1,6 @@
 package cards
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,59 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 )
 
-// printing is a card database entry for tests, with the fields that matter
-// filled in.
-func printing(id, name, set, collector string) map[string]any {
-	return map[string]any{
-		"id":               id,
-		"name":             name,
-		"card_type":        "Creature",
-		"cost":             3,
-		"power":            2000,
-		"power_text":       "2000",
-		"civilizations":    []string{"Fire"},
-		"races":            []string{"Human"},
-		"rarity":           "Common",
-		"rarity_code":      "c",
-		"collector_number": collector,
-		"set_code":         set,
-		"rules_text":       "Blocker",
-		"abilities":        []map[string]any{{"text": "Blocker", "reminder": nil}},
-		"keywords":         []string{"blocker"},
-		"categories":       []string{},
-		"image_path":       "images/" + id + ".webp",
-	}
-}
-
-// writeCardDatabase lays out a card database in a temporary folder: the
-// printings, a picture for each id in pictures, and an icon for each set in
-// setIcons.
-func writeCardDatabase(t *testing.T, printings []map[string]any, pictures []string, setIcons []string) string {
-	t.Helper()
-
-	dir := t.TempDir()
-	write := func(path string, content []byte) {
-		full := filepath.Join(dir, filepath.FromSlash(path))
-		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o750))
-		require.NoError(t, os.WriteFile(full, content, 0o600))
-	}
-
-	raw, err := json.Marshal(printings)
-	require.NoError(t, err)
-	write("data/cards.json", raw)
-
-	for _, id := range pictures {
-		write("data/images/"+id+".webp", []byte("picture "+id))
-	}
-	for _, set := range setIcons {
-		write("icons/sets/"+set+".png", []byte("icon "+set))
-	}
-
-	return dir
-}
+var (
+	printing          = cardstest.Printing
+	writeCardDatabase = cardstest.Write
+)
 
 func TestReadSourceReadsPrintingsSetsAndPictures(t *testing.T) {
 	dir := writeCardDatabase(t, []map[string]any{
@@ -81,7 +35,7 @@ func TestReadSourceReadsPrintingsSetsAndPictures(t *testing.T) {
 	assert.Equal(t, 2000, *source.Printings[0].Power)
 
 	assert.Equal(t, []SourceSet{
-		{Code: "DM-02", IconPath: "icons/sets/dm-02.png"},
+		{Code: "DM-02", IconPath: "data/icons/sets/dm-02.png"},
 		{Code: "DM-10"},
 		{Code: "PROMO"},
 	}, source.Sets, "numbered sets by number, promotional cards last")

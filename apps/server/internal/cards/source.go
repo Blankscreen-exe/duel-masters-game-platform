@@ -25,7 +25,7 @@ import (
 const (
 	cardsFile    = "data/cards.json"
 	dataFolder   = "data"
-	setIconsPath = "icons/sets"
+	setIconsPath = "data/icons/sets"
 )
 
 // promoSetCode is the set code of promotional cards, which come after every

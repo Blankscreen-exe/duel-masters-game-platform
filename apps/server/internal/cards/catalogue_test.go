@@ -349,7 +349,7 @@ func TestSetIconFile(t *testing.T) {
 
 		icon, err := catalogue.SetIconFile(ctx, "DM-01")
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(dir, "icons", "sets", "dm-01.png"), icon)
+		assert.Equal(t, filepath.Join(dir, "data", "icons", "sets", "dm-01.png"), icon)
 
 		_, err = catalogue.SetIconFile(ctx, "DM-20")
 		assert.ErrorIs(t, err, ErrNotFound, "a set without an icon")
@@ -389,5 +389,16 @@ func TestSyncCopiesTheRealCardDatabase(t *testing.T) {
 		picture, err := catalogue.ImageFile(ctx, page.Cards[0].EngineID)
 		require.NoError(t, err)
 		assert.FileExists(t, picture)
+
+		values, err := catalogue.FilterValues(ctx)
+		require.NoError(t, err)
+		for _, set := range values.Sets {
+			if set.Code == "DM-01" || set.Code == "PROMO" {
+				assert.True(t, set.HasIcon, "%s has its icon", set.Code)
+			}
+		}
+		icon, err := catalogue.SetIconFile(ctx, "DM-01")
+		require.NoError(t, err)
+		assert.FileExists(t, icon)
 	})
 }
