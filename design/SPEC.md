@@ -209,6 +209,11 @@ Every game, rematches included, starts with a coin toss that both players (and s
 - When both have accepted, a new game starts in the same format and with the same options,
   beginning with a coin toss (7.1). Declining, leaving or closing the result screen ends the
   rematch offer and sends both players to the lobby.
+- The offer stays open for **2 minutes (default)**, the admin setting `rematch.offer_seconds`.
+- A player who switches decks after the other accepted takes back that acceptance: the other
+  player agreed to the deck they saw, so they must accept again.
+- Every game offers a rematch, quick-match games included; a quick-match rematch stays a quick
+  match. A game the server stopped, or whose opponent has left the site, offers none.
 
 ## 8. Ratings and history
 
