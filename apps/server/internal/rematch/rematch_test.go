@@ -441,11 +441,12 @@ func TestNoRematchWithAPlayerWhoHasLeft(t *testing.T) {
 		f.Directory.Set(f.Kokujo, false)
 		shobu.Say(map[string]any{"header": "resign"})
 		kokujo.WaitFor(t, "duel_finished")
-		require.Eventually(t, func() bool { return f.Doing(f.Shobu) == "" }, waitTimeout, 5*time.Millisecond, "freed as the game closes")
+		// The game closing frees one player, then the other; neither is
+		// kept deciding on a rematch.
+		require.Eventually(t, func() bool { return f.Doing(f.Shobu) == "" && f.Doing(f.Kokujo) == "" }, waitTimeout, 5*time.Millisecond, "both freed as the game closes")
 
 		_, err = f.rematches.Get(f.Shobu.ID, game.ID)
 		assert.ErrorIs(t, err, rematch.ErrNotFound)
-		assert.Empty(t, f.Doing(f.Kokujo))
 	})
 }
 
