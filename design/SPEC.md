@@ -146,8 +146,10 @@ project not affiliated with or endorsed by them, and credit them as the owners.
   and limited cards (limited = at most 1 or 2 copies). Starting formats **(default)**:
   - **Open**: every playable card.
   - **DM-01 to DM-12**: the first twelve sets.
-- A deck is checked against a format when it is used. The deck builder shows, for each format,
-  whether the deck is legal and what breaks the rules.
+- A deck may be **saved unfinished** (fewer than 40 cards), but never with more than 40 cards,
+  more than 4 copies of a card, or a card the game cannot play.
+- A deck is checked against a format when it is used, by one check in the server (`decks.Check`).
+  The deck builder shows, for each format, whether the deck is legal and what breaks the rules.
 - **Starter decks**: admins build ready-made decks; every new account receives copies of them.
 - Decks can be exported and imported as text (`4 Bolshack Dragon` per line).
 

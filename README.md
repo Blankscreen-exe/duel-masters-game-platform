@@ -6,9 +6,9 @@ rules engine and duel board from the [`duel-masters`](https://github.com/sindres
 project, maintained here.
 
 > **Status:** early build. The rules engine (`apps/server/internal/engine`), the duel board
-> (`packages/duel-board`), the server foundation, accounts, the card catalogue and the first
-> website pages (`apps/web`: home, sign up, log in, cards) are in place; decks, the lobby and
-> games come next. The full
+> (`packages/duel-board`), the server foundation, accounts, the card catalogue, formats, decks
+> and their website pages (`apps/web`: home, sign up, log in, cards, My decks, the deck builder)
+> are in place; the lobby and games come next. The full
 > specification lives in [`design/SPEC.md`](design/SPEC.md) and the reasons behind each decision
 > in [`docs/adr/`](docs/adr/).
 
