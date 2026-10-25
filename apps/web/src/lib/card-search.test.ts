@@ -3,7 +3,6 @@ import {
   CARDS_PER_PAGE,
   cardSearchHref,
   isFiltered,
-  pageCount,
   parseCardSearch,
   SEARCH_TEXT_MAX_LENGTH,
 } from './card-search';
@@ -85,14 +84,6 @@ describe('isFiltered', () => {
   it('ignores the page', () => {
     expect(isFiltered(parseCardSearch({ page: '4' }))).toBe(false);
     expect(isFiltered(parseCardSearch({ maxCost: '0' }))).toBe(true);
-  });
-});
-
-describe('pageCount', () => {
-  it('rounds up, and has a page even without cards', () => {
-    expect(pageCount(0, 60)).toBe(1);
-    expect(pageCount(60, 60)).toBe(1);
-    expect(pageCount(61, 60)).toBe(2);
   });
 });
 

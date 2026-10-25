@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { PlayerName } from '@/components/players/player-name';
 import { buttonClasses, Button } from '@/components/ui/button';
 import type { DeckSummary } from '@/lib/api/client';
 import { describeActivity } from '@/lib/lobby';
@@ -40,9 +41,12 @@ export function OpenGamesList({
           <li key={game.id} className={ROW}>
             <div className="min-w-0">
               <p className="truncate font-semibold text-slate-100">{game.name}</p>
-              <p className="text-xs text-slate-400">
-                {game.host.username} · {game.formatName}
-                {game.spectators ? '' : ' · no spectators'}
+              <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-400">
+                <PlayerName username={game.host.username} rank={game.host.rank} />
+                <span>
+                  · {game.formatName}
+                  {game.spectators ? '' : ' · no spectators'}
+                </span>
               </p>
             </div>
             {game.host.id === userId ? (
@@ -85,8 +89,10 @@ export function RunningGamesList({ games }: { readonly games: readonly RunningGa
       {games.map((game) => (
         <li key={game.id} className={ROW}>
           <div className="min-w-0">
-            <p className="truncate font-semibold text-slate-100">
-              {game.host.username} <span className="text-slate-500">vs</span> {game.guest.username}
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              <PlayerName username={game.host.username} rank={game.host.rank} />
+              <span className="text-slate-500">vs</span>
+              <PlayerName username={game.guest.username} rank={game.guest.rank} />
             </p>
             <p className="text-xs text-slate-400">
               {game.name} · {game.formatName}
@@ -109,7 +115,9 @@ export function OnlinePlayers({ players }: { readonly players: readonly OnlinePl
     <ul>
       {players.map((player) => (
         <li key={player.id} className={`${ROW} py-2`}>
-          <span className="truncate text-sm font-semibold text-slate-100">{player.username}</span>
+          <span className="min-w-0 text-sm">
+            <PlayerName username={player.username} rank={player.rank} />
+          </span>
           <span className="shrink-0 text-xs text-slate-400">
             {describeActivity(player.activity)}
           </span>

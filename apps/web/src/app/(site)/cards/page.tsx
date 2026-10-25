@@ -4,7 +4,8 @@ import { CardTile } from '@/components/cards/card-tile';
 import { Pagination } from '@/components/ui/pagination';
 import { Panel } from '@/components/ui/panel';
 import { serverApi } from '@/lib/api/server';
-import { cardSearchHref, isFiltered, pageCount, parseCardSearch } from '@/lib/card-search';
+import { cardSearchHref, isFiltered, parseCardSearch } from '@/lib/card-search';
+import { pageCount } from '@/lib/search-params';
 
 export const metadata: Metadata = { title: 'Cards' };
 

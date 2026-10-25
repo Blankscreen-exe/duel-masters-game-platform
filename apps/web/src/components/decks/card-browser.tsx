@@ -11,7 +11,8 @@ import {
   type CardFilters,
   type CardPage,
 } from '@/lib/api/client';
-import { SEARCH_TEXT_MAX_LENGTH, pageCount, type CardSearch } from '@/lib/card-search';
+import { SEARCH_TEXT_MAX_LENGTH, type CardSearch } from '@/lib/card-search';
+import { pageCount } from '@/lib/search-params';
 import { CIVILIZATIONS } from '@/lib/civilizations';
 import type { CannotAdd } from '@/lib/deck-draft';
 import { useDebouncedValue } from '@/lib/use-debounced-value';

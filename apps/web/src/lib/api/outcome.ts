@@ -21,6 +21,18 @@ export async function attempt<T>(send: () => Promise<Answer<T>>): Promise<Outcom
   }
 }
 
+/** Sends a request for something that may not exist: its answer, or null when not found. */
+export async function attemptFound<T>(send: () => Promise<Answer<T>>): Promise<Outcome<T | null>> {
+  try {
+    const { data, error, response } = await send();
+    if (response.ok && data !== undefined) return { ok: true, value: data };
+    if (response.status === 404) return { ok: true, value: null };
+    return { ok: false, message: errorMessage(error) };
+  } catch {
+    return { ok: false, message: UNREACHABLE };
+  }
+}
+
 /** Sends a request answered with no content. */
 export async function attemptEmpty(send: () => Promise<Answer<unknown>>): Promise<Outcome<null>> {
   try {

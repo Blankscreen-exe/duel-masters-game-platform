@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { buttonClasses } from '@/components/ui/button';
 import { describeResult } from '@/lib/game-result';
 import type { GameViewer } from './game-viewer';
+import { MatchRatings } from './match-ratings';
 import { RematchPanel } from './rematch-panel';
 
 const HEADLINE_COLOUR = {
@@ -33,6 +34,7 @@ export function GameResultPanel({
           <li key={detail}>{detail}</li>
         ))}
       </ul>
+      {message.counted && <MatchRatings gameId={message.duelId} />}
       {viewer.isPlayer && (
         <RematchPanel gameId={message.duelId} viewerName={viewer.username} decks={viewer.decks} />
       )}

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
+import { RankBadge } from '@/components/players/rank-badge';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalClose } from '@/components/ui/modal';
 import type { DeckSummary } from '@/lib/api/client';
@@ -35,8 +36,12 @@ export function JoinForm({ game, decks, cancel }: JoinFormProps) {
 
   return (
     <>
-      <p className="mb-4 text-sm text-slate-300">
-        Against <strong className="text-white">{game.host.username}</strong>, in {game.formatName}.
+      <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-300">
+        <span>
+          Against <strong className="text-white">{game.host.username}</strong>
+        </span>
+        {game.host.rank && <RankBadge rank={game.host.rank} />}
+        <span>in {game.formatName}.</span>
       </p>
       <DeckPicker decks={decks} formatId={game.formatId} value={deckId} onChange={setDeckId} />
       <div className="mt-6 flex justify-end gap-2">

@@ -1,9 +1,8 @@
 import type { paths } from './api/schema';
+import { allParams, firstParam, wholeNumberParam, type SearchParams } from './search-params';
 
 /** The card search as the API takes it. */
 export type CardSearch = NonNullable<paths['/cards']['get']['parameters']['query']>;
-
-type SearchParams = Readonly<Record<string, string | string[] | undefined>>;
 
 /** The longest search text the API accepts. */
 export const SEARCH_TEXT_MAX_LENGTH = 100;
@@ -18,22 +17,22 @@ const LIST_FILTERS = ['civilization', 'type', 'race', 'keyword', 'set'] as const
 export function parseCardSearch(params: SearchParams): CardSearch {
   const search: CardSearch = { pageSize: CARDS_PER_PAGE };
 
-  const q = first(params['q'])?.trim().slice(0, SEARCH_TEXT_MAX_LENGTH);
+  const q = firstParam(params['q'])?.trim().slice(0, SEARCH_TEXT_MAX_LENGTH);
   if (q) search.q = q;
 
   for (const filter of LIST_FILTERS) {
-    const chosen = [...new Set(all(params[filter]).filter((value) => value !== ''))];
+    const chosen = [...new Set(allParams(params[filter]).filter((value) => value !== ''))];
     if (chosen.length > 0) search[filter] = chosen;
   }
 
-  const minCost = wholeNumber(first(params['minCost']), 0);
-  const maxCost = wholeNumber(first(params['maxCost']), 0);
+  const minCost = wholeNumberParam(params['minCost'], 0);
+  const maxCost = wholeNumberParam(params['maxCost'], 0);
   if (minCost !== undefined) search.minCost = minCost;
   if (maxCost !== undefined) search.maxCost = maxCost;
 
-  if (first(params['playable']) === 'true') search.playable = true;
+  if (firstParam(params['playable']) === 'true') search.playable = true;
 
-  const page = wholeNumber(first(params['page']), 1);
+  const page = wholeNumberParam(params['page'], 1);
   if (page !== undefined) search.page = page;
 
   return search;
@@ -59,25 +58,4 @@ export function cardSearchHref(search: CardSearch, page = search.page ?? 1): str
 /** Whether the search narrows the catalogue at all. */
 export function isFiltered(search: CardSearch): boolean {
   return cardSearchHref({ ...search, page: 1 }) !== '/cards';
-}
-
-/** How many pages a search has; at least one, so an empty search still has a page to show. */
-export function pageCount(total: number, pageSize: number): number {
-  return Math.max(1, Math.ceil(total / pageSize));
-}
-
-function first(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function all(value: string | string[] | undefined): string[] {
-  if (value === undefined) return [];
-  return Array.isArray(value) ? value : [value];
-}
-
-function wholeNumber(value: string | undefined, minimum: number): number | undefined {
-  if (value === undefined || !/^\d{1,6}$/.test(value)) return undefined;
-
-  const number = Number(value);
-  return number >= minimum ? number : undefined;
 }

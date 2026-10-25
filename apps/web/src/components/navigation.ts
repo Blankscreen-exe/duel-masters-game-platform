@@ -13,6 +13,7 @@ export const MAIN_LINKS: readonly NavLink[] = [
   { href: '/play', label: 'Play' },
   { href: '/decks', label: 'Decks' },
   { href: '/cards', label: 'Cards' },
+  { href: '/rankings', label: 'Rankings' },
 ];
 
 /** Whether a menu link belongs to the current page: its own path or one below it. */

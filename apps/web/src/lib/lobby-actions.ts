@@ -1,6 +1,7 @@
-import { api, errorMessage, UNREACHABLE } from './api/client';
+import { api } from './api/client';
 import type { components } from './api/schema';
-import { attempt, attemptEmpty, type Outcome } from './api/outcome';
+import { attempt, attemptEmpty, attemptFound, type Outcome } from './api/outcome';
+import type { Match } from './players';
 import type { Rematch } from './rematch';
 
 type Schemas = components['schemas'];
@@ -48,17 +49,13 @@ export function leaveQuickMatch(): Promise<Outcome<null>> {
 }
 
 /** The rematch of a game that just ended, or null when there is none to decide. */
-export async function getRematch(gameId: string): Promise<Outcome<Rematch | null>> {
-  try {
-    const { data, error, response } = await api.GET('/rematches/{gameId}', {
-      params: { path: { gameId } },
-    });
-    if (data) return { ok: true, value: data };
-    if (response.status === 404) return { ok: true, value: null };
-    return { ok: false, message: errorMessage(error) };
-  } catch {
-    return { ok: false, message: UNREACHABLE };
-  }
+export function getRematch(gameId: string): Promise<Outcome<Rematch | null>> {
+  return attemptFound(() => api.GET('/rematches/{gameId}', { params: { path: { gameId } } }));
+}
+
+/** A finished game from the match history, or null until it is saved. */
+export function getMatch(gameId: string): Promise<Outcome<Match | null>> {
+  return attemptFound(() => api.GET('/matches/{gameId}', { params: { path: { gameId } } }));
 }
 
 export function chooseRematchDeck(gameId: string, deckId: string): Promise<Outcome<Rematch>> {
