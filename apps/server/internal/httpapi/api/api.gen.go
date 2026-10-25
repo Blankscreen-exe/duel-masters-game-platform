@@ -48,6 +48,24 @@ func (e DeckProblemCode) Valid() bool {
 	}
 }
 
+// Defines values for GameRole.
+const (
+	GameRolePlayer    GameRole = "player"
+	GameRoleSpectator GameRole = "spectator"
+)
+
+// Valid indicates whether the value is a known member of the GameRole enum.
+func (e GameRole) Valid() bool {
+	switch e {
+	case GameRolePlayer:
+		return true
+	case GameRoleSpectator:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthStatus.
 const (
 	HealthStatusOk          HealthStatus = "ok"
@@ -66,6 +84,27 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for PlayerActivityKind.
+const (
+	PlayerActivityKindHosting PlayerActivityKind = "hosting"
+	PlayerActivityKindPlaying PlayerActivityKind = "playing"
+	PlayerActivityKindQueued  PlayerActivityKind = "queued"
+)
+
+// Valid indicates whether the value is a known member of the PlayerActivityKind enum.
+func (e PlayerActivityKind) Valid() bool {
+	switch e {
+	case PlayerActivityKindHosting:
+		return true
+	case PlayerActivityKindPlaying:
+		return true
+	case PlayerActivityKindQueued:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RealtimeChatMessageType.
 const (
 	RealtimeChatMessageTypeChatMessage RealtimeChatMessageType = "chat_message"
@@ -75,6 +114,81 @@ const (
 func (e RealtimeChatMessageType) Valid() bool {
 	switch e {
 	case RealtimeChatMessageTypeChatMessage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeGameStartedType.
+const (
+	RealtimeGameStartedTypeGameStarted RealtimeGameStartedType = "game_started"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeGameStartedType enum.
+func (e RealtimeGameStartedType) Valid() bool {
+	switch e {
+	case RealtimeGameStartedTypeGameStarted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeLobbyType.
+const (
+	RealtimeLobbyTypeLobby RealtimeLobbyType = "lobby"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeLobbyType enum.
+func (e RealtimeLobbyType) Valid() bool {
+	switch e {
+	case RealtimeLobbyTypeLobby:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeOpenGameExpiredType.
+const (
+	RealtimeOpenGameExpiredTypeOpenGameExpired RealtimeOpenGameExpiredType = "open_game_expired"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeOpenGameExpiredType enum.
+func (e RealtimeOpenGameExpiredType) Valid() bool {
+	switch e {
+	case RealtimeOpenGameExpiredTypeOpenGameExpired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeQuickMatchQueueType.
+const (
+	RealtimeQuickMatchQueueTypeQuickMatchQueue RealtimeQuickMatchQueueType = "quick_match_queue"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeQuickMatchQueueType enum.
+func (e RealtimeQuickMatchQueueType) Valid() bool {
+	switch e {
+	case RealtimeQuickMatchQueueTypeQuickMatchQueue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeSiteStatsType.
+const (
+	RealtimeSiteStatsTypeSiteStats RealtimeSiteStatsType = "site_stats"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeSiteStatsType enum.
+func (e RealtimeSiteStatsType) Valid() bool {
+	switch e {
+	case RealtimeSiteStatsTypeSiteStats:
 		return true
 	default:
 		return false
@@ -341,6 +455,9 @@ type Error struct {
 
 	// Message A readable explanation of the error.
 	Message string `json:"message"`
+
+	// Problems Every rule the deck breaks, for "deck_not_legal" errors.
+	Problems *[]DeckProblem `json:"problems,omitempty"`
 }
 
 // Format defines model for Format.
@@ -366,6 +483,21 @@ type FormatCardLimit struct {
 	MaxCopies int `json:"maxCopies"`
 }
 
+// GamePlayer defines model for GamePlayer.
+type GamePlayer struct {
+	DeckName string `json:"deckName"`
+	Id       string `json:"id"`
+	Username string `json:"username"`
+}
+
+// GameRole defines model for GameRole.
+type GameRole string
+
+// GameStarted defines model for GameStarted.
+type GameStarted struct {
+	GameId string `json:"gameId"`
+}
+
 // Health defines model for Health.
 type Health struct {
 	Database HealthStatus `json:"database"`
@@ -375,12 +507,134 @@ type Health struct {
 // HealthStatus defines model for HealthStatus.
 type HealthStatus string
 
+// JoinGameInput defines model for JoinGameInput.
+type JoinGameInput struct {
+	DeckId string `json:"deckId"`
+}
+
+// LiveGame defines model for LiveGame.
+type LiveGame struct {
+	FormatName  string     `json:"formatName"`
+	Guest       GamePlayer `json:"guest"`
+	Host        GamePlayer `json:"host"`
+	Id          string     `json:"id"`
+	Matchmaking bool       `json:"matchmaking"`
+	Name        string     `json:"name"`
+	Role        GameRole   `json:"role"`
+	Spectators  bool       `json:"spectators"`
+}
+
+// Lobby defines model for Lobby.
+type Lobby struct {
+	// Online The players online, by name.
+	Online []OnlinePlayer `json:"online"`
+
+	// OpenGames The listed open games, the oldest first.
+	OpenGames []OpenGame `json:"openGames"`
+
+	// Paused An admin has paused new games.
+	Paused bool `json:"paused"`
+
+	// RunningGames The listed running games, the oldest first.
+	RunningGames []RunningGame `json:"runningGames"`
+}
+
+// LobbyPerson defines model for LobbyPerson.
+type LobbyPerson struct {
+	Id       string `json:"id"`
+	Username string `json:"username"`
+}
+
+// OnlinePlayer defines model for OnlinePlayer.
+type OnlinePlayer struct {
+	// Activity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name) or playing (with the game's id).
+	Activity *PlayerActivity `json:"activity,omitempty"`
+	Id       string          `json:"id"`
+	Username string          `json:"username"`
+}
+
+// OpenGame defines model for OpenGame.
+type OpenGame struct {
+	CreatedAt  time.Time   `json:"createdAt"`
+	FormatId   string      `json:"formatId"`
+	FormatName string      `json:"formatName"`
+	Host       LobbyPerson `json:"host"`
+
+	// Id Also the game's invite link, /play/join/{id}.
+	Id string `json:"id"`
+
+	// Listed Shown in the lobby; otherwise only the invite link leads to it.
+	Listed bool   `json:"listed"`
+	Name   string `json:"name"`
+
+	// Spectators Other players may watch once it runs.
+	Spectators bool `json:"spectators"`
+}
+
+// OpenGameInput defines model for OpenGameInput.
+type OpenGameInput struct {
+	DeckId   string `json:"deckId"`
+	FormatId string `json:"formatId"`
+	Listed   bool   `json:"listed"`
+
+	// Name Up to 50 characters; empty or absent picks a name.
+	Name       *string `json:"name,omitempty"`
+	Spectators bool    `json:"spectators"`
+}
+
 // PasswordChange defines model for PasswordChange.
 type PasswordChange struct {
 	CurrentPassword string `json:"currentPassword"`
 
 	// NewPassword 8 to 128 characters.
 	NewPassword string `json:"newPassword"`
+}
+
+// PlayerActivity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name) or playing (with the game's id).
+type PlayerActivity struct {
+	FormatName *string            `json:"formatName,omitempty"`
+	GameId     *string            `json:"gameId,omitempty"`
+	Kind       PlayerActivityKind `json:"kind"`
+}
+
+// PlayerActivityKind defines model for PlayerActivity.Kind.
+type PlayerActivityKind string
+
+// QueueCount defines model for QueueCount.
+type QueueCount struct {
+	FormatId string `json:"formatId"`
+	Players  int    `json:"players"`
+}
+
+// QuickMatchEntered Either the game, when paired at once, or the player's ticket, while waiting.
+type QuickMatchEntered struct {
+	GameId *string `json:"gameId,omitempty"`
+
+	// Ticket A player's place in quick match.
+	Ticket *QuickMatchTicket `json:"ticket,omitempty"`
+}
+
+// QuickMatchInput defines model for QuickMatchInput.
+type QuickMatchInput struct {
+	DeckId   string `json:"deckId"`
+	FormatId string `json:"formatId"`
+}
+
+// QuickMatchStatus defines model for QuickMatchStatus.
+type QuickMatchStatus struct {
+	// Ticket A player's place in quick match.
+	Ticket *QuickMatchTicket `json:"ticket,omitempty"`
+
+	// Waiting The formats with players waiting.
+	Waiting []QueueCount `json:"waiting"`
+}
+
+// QuickMatchTicket A player's place in quick match.
+type QuickMatchTicket struct {
+	DeckId     string    `json:"deckId"`
+	FormatId   string    `json:"formatId"`
+	FormatName string    `json:"formatName"`
+	Since      time.Time `json:"since"`
 }
 
 // RealtimeChatMessage Someone posted to the lobby chat.
@@ -392,19 +646,99 @@ type RealtimeChatMessage struct {
 // RealtimeChatMessageType defines model for RealtimeChatMessage.Type.
 type RealtimeChatMessageType string
 
-// RealtimeMessage A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added.
+// RealtimeGameStarted The player's game has started; go to it. Sent to its two players.
+type RealtimeGameStarted struct {
+	GameId string                  `json:"gameId"`
+	Type   RealtimeGameStartedType `json:"type"`
+}
+
+// RealtimeGameStartedType defines model for RealtimeGameStarted.Type.
+type RealtimeGameStartedType string
+
+// RealtimeLobby The lobby as it now is, for players.
+type RealtimeLobby struct {
+	Lobby Lobby             `json:"lobby"`
+	Type  RealtimeLobbyType `json:"type"`
+}
+
+// RealtimeLobbyType defines model for RealtimeLobby.Type.
+type RealtimeLobbyType string
+
+// RealtimeMessage A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. Visitors receive only the chat and the site's numbers.
 type RealtimeMessage struct {
 	union json.RawMessage
 }
 
+// RealtimeOpenGameExpired Nobody joined the player's open game in time, so it closed. Sent to its host.
+type RealtimeOpenGameExpired struct {
+	OpenGame OpenGame                    `json:"openGame"`
+	Type     RealtimeOpenGameExpiredType `json:"type"`
+}
+
+// RealtimeOpenGameExpiredType defines model for RealtimeOpenGameExpired.Type.
+type RealtimeOpenGameExpiredType string
+
+// RealtimeQuickMatchQueue How many players wait in each format, for players.
+type RealtimeQuickMatchQueue struct {
+	Type    RealtimeQuickMatchQueueType `json:"type"`
+	Waiting []QueueCount                `json:"waiting"`
+}
+
+// RealtimeQuickMatchQueueType defines model for RealtimeQuickMatchQueue.Type.
+type RealtimeQuickMatchQueueType string
+
+// RealtimeSiteStats How many players are online and games running, for everyone.
+type RealtimeSiteStats struct {
+	Stats SiteStats             `json:"stats"`
+	Type  RealtimeSiteStatsType `json:"type"`
+}
+
+// RealtimeSiteStatsType defines model for RealtimeSiteStats.Type.
+type RealtimeSiteStatsType string
+
 // Role defines model for Role.
 type Role string
+
+// RunningGame defines model for RunningGame.
+type RunningGame struct {
+	FormatId   string     `json:"formatId"`
+	FormatName string     `json:"formatName"`
+	Guest      GamePlayer `json:"guest"`
+	Host       GamePlayer `json:"host"`
+	Id         string     `json:"id"`
+
+	// Matchmaking Paired by quick match.
+	Matchmaking bool   `json:"matchmaking"`
+	Name        string `json:"name"`
+
+	// Spectators Other players may watch it.
+	Spectators bool      `json:"spectators"`
+	StartedAt  time.Time `json:"startedAt"`
+}
+
+// SiteStats defines model for SiteStats.
+type SiteStats struct {
+	GamesRunning  int `json:"gamesRunning"`
+	PlayersOnline int `json:"playersOnline"`
+}
+
+// Busy Returned with every error status.
+type Busy = Error
+
+// GamesPaused Returned with every error status.
+type GamesPaused = Error
+
+// InvalidDeckOrInput Returned with every error status.
+type InvalidDeckOrInput = Error
 
 // InvalidInput Returned with every error status.
 type InvalidInput = Error
 
 // NotFound Returned with every error status.
 type NotFound = Error
+
+// NotWatchable Returned with every error status.
+type NotWatchable = Error
 
 // TooFast Returned with every error status.
 type TooFast = Error
@@ -456,6 +790,15 @@ type ReadDeckListJSONRequestBody = DeckListText
 // UpdateDeckJSONRequestBody defines body for UpdateDeck for application/json ContentType.
 type UpdateDeckJSONRequestBody = DeckInput
 
+// OpenGameJSONRequestBody defines body for OpenGame for application/json ContentType.
+type OpenGameJSONRequestBody = OpenGameInput
+
+// JoinOpenGameJSONRequestBody defines body for JoinOpenGame for application/json ContentType.
+type JoinOpenGameJSONRequestBody = JoinGameInput
+
+// EnterQuickMatchJSONRequestBody defines body for EnterQuickMatch for application/json ContentType.
+type EnterQuickMatchJSONRequestBody = QuickMatchInput
+
 // AsRealtimeChatMessage returns the union data inside the RealtimeMessage as a RealtimeChatMessage
 func (t RealtimeMessage) AsRealtimeChatMessage() (RealtimeChatMessage, error) {
 	var body RealtimeChatMessage
@@ -490,6 +833,176 @@ func (t *RealtimeMessage) MergeRealtimeChatMessage(v RealtimeChatMessage) error 
 	return err
 }
 
+// AsRealtimeSiteStats returns the union data inside the RealtimeMessage as a RealtimeSiteStats
+func (t RealtimeMessage) AsRealtimeSiteStats() (RealtimeSiteStats, error) {
+	var body RealtimeSiteStats
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeSiteStats overwrites any union data inside the RealtimeMessage as the provided RealtimeSiteStats
+func (t *RealtimeMessage) FromRealtimeSiteStats(v RealtimeSiteStats) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"site_stats"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeSiteStats performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeSiteStats
+func (t *RealtimeMessage) MergeRealtimeSiteStats(v RealtimeSiteStats) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"site_stats"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRealtimeLobby returns the union data inside the RealtimeMessage as a RealtimeLobby
+func (t RealtimeMessage) AsRealtimeLobby() (RealtimeLobby, error) {
+	var body RealtimeLobby
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeLobby overwrites any union data inside the RealtimeMessage as the provided RealtimeLobby
+func (t *RealtimeMessage) FromRealtimeLobby(v RealtimeLobby) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"lobby"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeLobby performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeLobby
+func (t *RealtimeMessage) MergeRealtimeLobby(v RealtimeLobby) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"lobby"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRealtimeQuickMatchQueue returns the union data inside the RealtimeMessage as a RealtimeQuickMatchQueue
+func (t RealtimeMessage) AsRealtimeQuickMatchQueue() (RealtimeQuickMatchQueue, error) {
+	var body RealtimeQuickMatchQueue
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeQuickMatchQueue overwrites any union data inside the RealtimeMessage as the provided RealtimeQuickMatchQueue
+func (t *RealtimeMessage) FromRealtimeQuickMatchQueue(v RealtimeQuickMatchQueue) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"quick_match_queue"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeQuickMatchQueue performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeQuickMatchQueue
+func (t *RealtimeMessage) MergeRealtimeQuickMatchQueue(v RealtimeQuickMatchQueue) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"quick_match_queue"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRealtimeGameStarted returns the union data inside the RealtimeMessage as a RealtimeGameStarted
+func (t RealtimeMessage) AsRealtimeGameStarted() (RealtimeGameStarted, error) {
+	var body RealtimeGameStarted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeGameStarted overwrites any union data inside the RealtimeMessage as the provided RealtimeGameStarted
+func (t *RealtimeMessage) FromRealtimeGameStarted(v RealtimeGameStarted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"game_started"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeGameStarted performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeGameStarted
+func (t *RealtimeMessage) MergeRealtimeGameStarted(v RealtimeGameStarted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"game_started"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRealtimeOpenGameExpired returns the union data inside the RealtimeMessage as a RealtimeOpenGameExpired
+func (t RealtimeMessage) AsRealtimeOpenGameExpired() (RealtimeOpenGameExpired, error) {
+	var body RealtimeOpenGameExpired
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeOpenGameExpired overwrites any union data inside the RealtimeMessage as the provided RealtimeOpenGameExpired
+func (t *RealtimeMessage) FromRealtimeOpenGameExpired(v RealtimeOpenGameExpired) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"open_game_expired"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeOpenGameExpired performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeOpenGameExpired
+func (t *RealtimeMessage) MergeRealtimeOpenGameExpired(v RealtimeOpenGameExpired) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"open_game_expired"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t RealtimeMessage) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -506,6 +1019,16 @@ func (t RealtimeMessage) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "chat_message":
 		return t.AsRealtimeChatMessage()
+	case "game_started":
+		return t.AsRealtimeGameStarted()
+	case "lobby":
+		return t.AsRealtimeLobby()
+	case "open_game_expired":
+		return t.AsRealtimeOpenGameExpired()
+	case "quick_match_queue":
+		return t.AsRealtimeQuickMatchQueue()
+	case "site_stats":
+		return t.AsRealtimeSiteStats()
 	default:
 		return nil, errors.New("unknown discriminator value: " + discriminator)
 	}
@@ -583,12 +1106,45 @@ type ServerInterface interface {
 	// ListFormats Every format, in the order admins set
 	// (GET /formats)
 	ListFormats(w http.ResponseWriter, r *http.Request)
+	// GetLiveGame A running game, for its players and its spectators
+	// (GET /games/{gameId})
+	GetLiveGame(w http.ResponseWriter, r *http.Request, gameId string)
+	// OpenGameSocket Play or watch a game
+	// (GET /games/{gameId}/socket)
+	OpenGameSocket(w http.ResponseWriter, r *http.Request, gameId string)
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+	// GetLobby The lobby as players see it
+	// (GET /lobby)
+	GetLobby(w http.ResponseWriter, r *http.Request)
+	// OpenGame Open a game for an opponent to join
+	// (POST /lobby/games)
+	OpenGame(w http.ResponseWriter, r *http.Request)
+	// CancelOpenGame Cancel an open game; only its host may
+	// (DELETE /lobby/games/{openGameId})
+	CancelOpenGame(w http.ResponseWriter, r *http.Request, openGameId string)
+	// GetOpenGame An open game, listed or not, as its invite link shows it
+	// (GET /lobby/games/{openGameId})
+	GetOpenGame(w http.ResponseWriter, r *http.Request, openGameId string)
+	// JoinOpenGame Join an open game, which starts it
+	// (POST /lobby/games/{openGameId}/join)
+	JoinOpenGame(w http.ResponseWriter, r *http.Request, openGameId string)
+	// LeaveQuickMatch Stop waiting for a quick match
+	// (DELETE /quick-match)
+	LeaveQuickMatch(w http.ResponseWriter, r *http.Request)
+	// GetQuickMatch Quick match as the player sees it
+	// (GET /quick-match)
+	GetQuickMatch(w http.ResponseWriter, r *http.Request)
+	// EnterQuickMatch Wait for a quick match
+	// (POST /quick-match)
+	EnterQuickMatch(w http.ResponseWriter, r *http.Request)
 	// OpenRealtime Open the live connection
 	// (GET /realtime)
 	OpenRealtime(w http.ResponseWriter, r *http.Request)
+	// GetSiteStats How many players are online and games running
+	// (GET /stats)
+	GetSiteStats(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1113,6 +1669,58 @@ func (siw *ServerInterfaceWrapper) ListFormats(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetLiveGame operation middleware
+func (siw *ServerInterfaceWrapper) GetLiveGame(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "gameId" -------------
+	var gameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "gameId", r.PathValue("gameId"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLiveGame(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// OpenGameSocket operation middleware
+func (siw *ServerInterfaceWrapper) OpenGameSocket(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "gameId" -------------
+	var gameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "gameId", r.PathValue("gameId"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.OpenGameSocket(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
 
@@ -1127,11 +1735,173 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetLobby operation middleware
+func (siw *ServerInterfaceWrapper) GetLobby(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLobby(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// OpenGame operation middleware
+func (siw *ServerInterfaceWrapper) OpenGame(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.OpenGame(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelOpenGame operation middleware
+func (siw *ServerInterfaceWrapper) CancelOpenGame(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "openGameId" -------------
+	var openGameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "openGameId", r.PathValue("openGameId"), &openGameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "openGameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelOpenGame(w, r, openGameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetOpenGame operation middleware
+func (siw *ServerInterfaceWrapper) GetOpenGame(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "openGameId" -------------
+	var openGameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "openGameId", r.PathValue("openGameId"), &openGameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "openGameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetOpenGame(w, r, openGameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// JoinOpenGame operation middleware
+func (siw *ServerInterfaceWrapper) JoinOpenGame(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "openGameId" -------------
+	var openGameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "openGameId", r.PathValue("openGameId"), &openGameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "openGameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.JoinOpenGame(w, r, openGameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LeaveQuickMatch operation middleware
+func (siw *ServerInterfaceWrapper) LeaveQuickMatch(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LeaveQuickMatch(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetQuickMatch operation middleware
+func (siw *ServerInterfaceWrapper) GetQuickMatch(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetQuickMatch(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EnterQuickMatch operation middleware
+func (siw *ServerInterfaceWrapper) EnterQuickMatch(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EnterQuickMatch(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // OpenRealtime operation middleware
 func (siw *ServerInterfaceWrapper) OpenRealtime(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.OpenRealtime(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSiteStats operation middleware
+func (siw *ServerInterfaceWrapper) GetSiteStats(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSiteStats(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1275,6 +2045,17 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/realtime", wrapper.OpenRealtime)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/chat", wrapper.GetChat)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/chat", wrapper.PostChatMessage)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/stats", wrapper.GetSiteStats)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/lobby", wrapper.GetLobby)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/lobby/games", wrapper.OpenGame)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/lobby/games/{openGameId}", wrapper.CancelOpenGame)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/lobby/games/{openGameId}", wrapper.GetOpenGame)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/lobby/games/{openGameId}/join", wrapper.JoinOpenGame)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/quick-match", wrapper.LeaveQuickMatch)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/quick-match", wrapper.GetQuickMatch)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/quick-match", wrapper.EnterQuickMatch)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/games/{gameId}", wrapper.GetLiveGame)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/games/{gameId}/socket", wrapper.OpenGameSocket)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/formats", wrapper.ListFormats)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks", wrapper.ListDecks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/decks", wrapper.CreateDeck)
@@ -1287,9 +2068,17 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	return m
 }
 
+type BusyJSONResponse Error
+
+type GamesPausedJSONResponse Error
+
+type InvalidDeckOrInputJSONResponse Error
+
 type InvalidInputJSONResponse Error
 
 type NotFoundJSONResponse Error
+
+type NotWatchableJSONResponse Error
 
 type TooFastResponseHeaders struct {
 	RetryAfter *int
@@ -2252,6 +3041,128 @@ func (response ListFormats200JSONResponse) VisitListFormatsResponse(w http.Respo
 	return err
 }
 
+type GetLiveGameRequestObject struct {
+	GameId string `json:"gameId"`
+}
+
+type GetLiveGameResponseObject interface {
+	VisitGetLiveGameResponse(w http.ResponseWriter) error
+}
+
+type GetLiveGame200JSONResponse LiveGame
+
+func (response GetLiveGame200JSONResponse) VisitGetLiveGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLiveGame401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetLiveGame401JSONResponse) VisitGetLiveGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLiveGame403JSONResponse struct{ NotWatchableJSONResponse }
+
+func (response GetLiveGame403JSONResponse) VisitGetLiveGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLiveGame404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetLiveGame404JSONResponse) VisitGetLiveGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGameSocketRequestObject struct {
+	GameId string `json:"gameId"`
+}
+
+type OpenGameSocketResponseObject interface {
+	VisitOpenGameSocketResponse(w http.ResponseWriter) error
+}
+
+type OpenGameSocket101Response struct {
+}
+
+func (response OpenGameSocket101Response) VisitOpenGameSocketResponse(w http.ResponseWriter) error {
+	w.WriteHeader(101)
+	return nil
+}
+
+type OpenGameSocket401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response OpenGameSocket401JSONResponse) VisitOpenGameSocketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGameSocket403JSONResponse struct{ NotWatchableJSONResponse }
+
+func (response OpenGameSocket403JSONResponse) VisitOpenGameSocketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGameSocket404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response OpenGameSocket404JSONResponse) VisitOpenGameSocketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthRequestObject struct {
 }
 
@@ -2287,6 +3198,462 @@ func (response GetHealth503JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	return err
 }
 
+type GetLobbyRequestObject struct {
+}
+
+type GetLobbyResponseObject interface {
+	VisitGetLobbyResponse(w http.ResponseWriter) error
+}
+
+type GetLobby200JSONResponse Lobby
+
+func (response GetLobby200JSONResponse) VisitGetLobbyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLobby401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetLobby401JSONResponse) VisitGetLobbyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGameRequestObject struct {
+	Body *OpenGameJSONRequestBody
+}
+
+type OpenGameResponseObject interface {
+	VisitOpenGameResponse(w http.ResponseWriter) error
+}
+
+type OpenGame201JSONResponse OpenGame
+
+func (response OpenGame201JSONResponse) VisitOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGame400JSONResponse struct{ InvalidDeckOrInputJSONResponse }
+
+func (response OpenGame400JSONResponse) VisitOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGame401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response OpenGame401JSONResponse) VisitOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGame403JSONResponse struct{ GamesPausedJSONResponse }
+
+func (response OpenGame403JSONResponse) VisitOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGame409JSONResponse struct{ BusyJSONResponse }
+
+func (response OpenGame409JSONResponse) VisitOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelOpenGameRequestObject struct {
+	OpenGameId string `json:"openGameId"`
+}
+
+type CancelOpenGameResponseObject interface {
+	VisitCancelOpenGameResponse(w http.ResponseWriter) error
+}
+
+type CancelOpenGame204Response struct {
+}
+
+func (response CancelOpenGame204Response) VisitCancelOpenGameResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CancelOpenGame401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response CancelOpenGame401JSONResponse) VisitCancelOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelOpenGame403JSONResponse Error
+
+func (response CancelOpenGame403JSONResponse) VisitCancelOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelOpenGame404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CancelOpenGame404JSONResponse) VisitCancelOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOpenGameRequestObject struct {
+	OpenGameId string `json:"openGameId"`
+}
+
+type GetOpenGameResponseObject interface {
+	VisitGetOpenGameResponse(w http.ResponseWriter) error
+}
+
+type GetOpenGame200JSONResponse OpenGame
+
+func (response GetOpenGame200JSONResponse) VisitGetOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOpenGame401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetOpenGame401JSONResponse) VisitGetOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOpenGame404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetOpenGame404JSONResponse) VisitGetOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinOpenGameRequestObject struct {
+	OpenGameId string `json:"openGameId"`
+	Body       *JoinOpenGameJSONRequestBody
+}
+
+type JoinOpenGameResponseObject interface {
+	VisitJoinOpenGameResponse(w http.ResponseWriter) error
+}
+
+type JoinOpenGame201JSONResponse GameStarted
+
+func (response JoinOpenGame201JSONResponse) VisitJoinOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinOpenGame400JSONResponse struct{ InvalidDeckOrInputJSONResponse }
+
+func (response JoinOpenGame400JSONResponse) VisitJoinOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinOpenGame401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response JoinOpenGame401JSONResponse) VisitJoinOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinOpenGame403JSONResponse struct{ GamesPausedJSONResponse }
+
+func (response JoinOpenGame403JSONResponse) VisitJoinOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinOpenGame404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response JoinOpenGame404JSONResponse) VisitJoinOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinOpenGame409JSONResponse Error
+
+func (response JoinOpenGame409JSONResponse) VisitJoinOpenGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LeaveQuickMatchRequestObject struct {
+}
+
+type LeaveQuickMatchResponseObject interface {
+	VisitLeaveQuickMatchResponse(w http.ResponseWriter) error
+}
+
+type LeaveQuickMatch204Response struct {
+}
+
+func (response LeaveQuickMatch204Response) VisitLeaveQuickMatchResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type LeaveQuickMatch401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response LeaveQuickMatch401JSONResponse) VisitLeaveQuickMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetQuickMatchRequestObject struct {
+}
+
+type GetQuickMatchResponseObject interface {
+	VisitGetQuickMatchResponse(w http.ResponseWriter) error
+}
+
+type GetQuickMatch200JSONResponse QuickMatchStatus
+
+func (response GetQuickMatch200JSONResponse) VisitGetQuickMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetQuickMatch401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetQuickMatch401JSONResponse) VisitGetQuickMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterQuickMatchRequestObject struct {
+	Body *EnterQuickMatchJSONRequestBody
+}
+
+type EnterQuickMatchResponseObject interface {
+	VisitEnterQuickMatchResponse(w http.ResponseWriter) error
+}
+
+type EnterQuickMatch200JSONResponse QuickMatchEntered
+
+func (response EnterQuickMatch200JSONResponse) VisitEnterQuickMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterQuickMatch400JSONResponse struct{ InvalidDeckOrInputJSONResponse }
+
+func (response EnterQuickMatch400JSONResponse) VisitEnterQuickMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterQuickMatch401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response EnterQuickMatch401JSONResponse) VisitEnterQuickMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterQuickMatch403JSONResponse struct{ GamesPausedJSONResponse }
+
+func (response EnterQuickMatch403JSONResponse) VisitEnterQuickMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterQuickMatch409JSONResponse struct{ BusyJSONResponse }
+
+func (response EnterQuickMatch409JSONResponse) VisitEnterQuickMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type OpenRealtimeRequestObject struct {
 }
 
@@ -2316,6 +3683,27 @@ type OpenRealtime403Response struct {
 func (response OpenRealtime403Response) VisitOpenRealtimeResponse(w http.ResponseWriter) error {
 	w.WriteHeader(403)
 	return nil
+}
+
+type GetSiteStatsRequestObject struct {
+}
+
+type GetSiteStatsResponseObject interface {
+	VisitGetSiteStatsResponse(w http.ResponseWriter) error
+}
+
+type GetSiteStats200JSONResponse SiteStats
+
+func (response GetSiteStats200JSONResponse) VisitGetSiteStatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 // StrictServerInterface represents all server handlers.
@@ -2380,12 +3768,45 @@ type StrictServerInterface interface {
 	// ListFormats Every format, in the order admins set
 	// (GET /formats)
 	ListFormats(ctx context.Context, request ListFormatsRequestObject) (ListFormatsResponseObject, error)
+	// GetLiveGame A running game, for its players and its spectators
+	// (GET /games/{gameId})
+	GetLiveGame(ctx context.Context, request GetLiveGameRequestObject) (GetLiveGameResponseObject, error)
+	// OpenGameSocket Play or watch a game
+	// (GET /games/{gameId}/socket)
+	OpenGameSocket(ctx context.Context, request OpenGameSocketRequestObject) (OpenGameSocketResponseObject, error)
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+	// GetLobby The lobby as players see it
+	// (GET /lobby)
+	GetLobby(ctx context.Context, request GetLobbyRequestObject) (GetLobbyResponseObject, error)
+	// OpenGame Open a game for an opponent to join
+	// (POST /lobby/games)
+	OpenGame(ctx context.Context, request OpenGameRequestObject) (OpenGameResponseObject, error)
+	// CancelOpenGame Cancel an open game; only its host may
+	// (DELETE /lobby/games/{openGameId})
+	CancelOpenGame(ctx context.Context, request CancelOpenGameRequestObject) (CancelOpenGameResponseObject, error)
+	// GetOpenGame An open game, listed or not, as its invite link shows it
+	// (GET /lobby/games/{openGameId})
+	GetOpenGame(ctx context.Context, request GetOpenGameRequestObject) (GetOpenGameResponseObject, error)
+	// JoinOpenGame Join an open game, which starts it
+	// (POST /lobby/games/{openGameId}/join)
+	JoinOpenGame(ctx context.Context, request JoinOpenGameRequestObject) (JoinOpenGameResponseObject, error)
+	// LeaveQuickMatch Stop waiting for a quick match
+	// (DELETE /quick-match)
+	LeaveQuickMatch(ctx context.Context, request LeaveQuickMatchRequestObject) (LeaveQuickMatchResponseObject, error)
+	// GetQuickMatch Quick match as the player sees it
+	// (GET /quick-match)
+	GetQuickMatch(ctx context.Context, request GetQuickMatchRequestObject) (GetQuickMatchResponseObject, error)
+	// EnterQuickMatch Wait for a quick match
+	// (POST /quick-match)
+	EnterQuickMatch(ctx context.Context, request EnterQuickMatchRequestObject) (EnterQuickMatchResponseObject, error)
 	// OpenRealtime Open the live connection
 	// (GET /realtime)
 	OpenRealtime(ctx context.Context, request OpenRealtimeRequestObject) (OpenRealtimeResponseObject, error)
+	// GetSiteStats How many players are online and games running
+	// (GET /stats)
+	GetSiteStats(ctx context.Context, request GetSiteStatsRequestObject) (GetSiteStatsResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -2972,6 +4393,58 @@ func (sh *strictHandler) ListFormats(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetLiveGame operation middleware
+func (sh *strictHandler) GetLiveGame(w http.ResponseWriter, r *http.Request, gameId string) {
+	var request GetLiveGameRequestObject
+
+	request.GameId = gameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLiveGame(ctx, request.(GetLiveGameRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLiveGame")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLiveGameResponseObject); ok {
+		if err := validResponse.VisitGetLiveGameResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// OpenGameSocket operation middleware
+func (sh *strictHandler) OpenGameSocket(w http.ResponseWriter, r *http.Request, gameId string) {
+	var request OpenGameSocketRequestObject
+
+	request.GameId = gameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.OpenGameSocket(ctx, request.(OpenGameSocketRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "OpenGameSocket")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(OpenGameSocketResponseObject); ok {
+		if err := validResponse.VisitOpenGameSocketResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetHealth operation middleware
 func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	var request GetHealthRequestObject
@@ -2996,6 +4469,225 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetLobby operation middleware
+func (sh *strictHandler) GetLobby(w http.ResponseWriter, r *http.Request) {
+	var request GetLobbyRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLobby(ctx, request.(GetLobbyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLobby")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLobbyResponseObject); ok {
+		if err := validResponse.VisitGetLobbyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// OpenGame operation middleware
+func (sh *strictHandler) OpenGame(w http.ResponseWriter, r *http.Request) {
+	var request OpenGameRequestObject
+
+	var body OpenGameJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.OpenGame(ctx, request.(OpenGameRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "OpenGame")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(OpenGameResponseObject); ok {
+		if err := validResponse.VisitOpenGameResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelOpenGame operation middleware
+func (sh *strictHandler) CancelOpenGame(w http.ResponseWriter, r *http.Request, openGameId string) {
+	var request CancelOpenGameRequestObject
+
+	request.OpenGameId = openGameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelOpenGame(ctx, request.(CancelOpenGameRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelOpenGame")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelOpenGameResponseObject); ok {
+		if err := validResponse.VisitCancelOpenGameResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetOpenGame operation middleware
+func (sh *strictHandler) GetOpenGame(w http.ResponseWriter, r *http.Request, openGameId string) {
+	var request GetOpenGameRequestObject
+
+	request.OpenGameId = openGameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetOpenGame(ctx, request.(GetOpenGameRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetOpenGame")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetOpenGameResponseObject); ok {
+		if err := validResponse.VisitGetOpenGameResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// JoinOpenGame operation middleware
+func (sh *strictHandler) JoinOpenGame(w http.ResponseWriter, r *http.Request, openGameId string) {
+	var request JoinOpenGameRequestObject
+
+	request.OpenGameId = openGameId
+
+	var body JoinOpenGameJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.JoinOpenGame(ctx, request.(JoinOpenGameRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "JoinOpenGame")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(JoinOpenGameResponseObject); ok {
+		if err := validResponse.VisitJoinOpenGameResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LeaveQuickMatch operation middleware
+func (sh *strictHandler) LeaveQuickMatch(w http.ResponseWriter, r *http.Request) {
+	var request LeaveQuickMatchRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LeaveQuickMatch(ctx, request.(LeaveQuickMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LeaveQuickMatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LeaveQuickMatchResponseObject); ok {
+		if err := validResponse.VisitLeaveQuickMatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetQuickMatch operation middleware
+func (sh *strictHandler) GetQuickMatch(w http.ResponseWriter, r *http.Request) {
+	var request GetQuickMatchRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetQuickMatch(ctx, request.(GetQuickMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetQuickMatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetQuickMatchResponseObject); ok {
+		if err := validResponse.VisitGetQuickMatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EnterQuickMatch operation middleware
+func (sh *strictHandler) EnterQuickMatch(w http.ResponseWriter, r *http.Request) {
+	var request EnterQuickMatchRequestObject
+
+	var body EnterQuickMatchJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EnterQuickMatch(ctx, request.(EnterQuickMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EnterQuickMatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EnterQuickMatchResponseObject); ok {
+		if err := validResponse.VisitEnterQuickMatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // OpenRealtime operation middleware
 func (sh *strictHandler) OpenRealtime(w http.ResponseWriter, r *http.Request) {
 	var request OpenRealtimeRequestObject
@@ -3013,6 +4705,30 @@ func (sh *strictHandler) OpenRealtime(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(OpenRealtimeResponseObject); ok {
 		if err := validResponse.VisitOpenRealtimeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSiteStats operation middleware
+func (sh *strictHandler) GetSiteStats(w http.ResponseWriter, r *http.Request) {
+	var request GetSiteStatsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSiteStats(ctx, request.(GetSiteStatsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSiteStats")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSiteStatsResponseObject); ok {
+		if err := validResponse.VisitGetSiteStatsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

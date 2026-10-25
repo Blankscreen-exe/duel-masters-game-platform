@@ -27,6 +27,14 @@ tags:
       whether the rules engine can play it. Reprints are one card with several printings.
   - name: chat
     description: The lobby chat, which everyone can read and players can write in.
+  - name: lobby
+    description: >-
+      Open games waiting for an opponent, listed or reached by invite link, and quick match. A
+      player hosts, waits in quick match or plays one game at a time.
+  - name: games
+    description: >-
+      Running games: their players play, and other players watch listed games that allow it, over
+      a websocket the duel board opens.
   - name: formats
     description: >-
       The formats games are played in: the sets each allows and the cards it bans or limits, on
@@ -408,6 +416,264 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "429":
           $ref: "#/components/responses/TooFast"
+  /stats:
+    get:
+      operationId: getSiteStats
+      summary: How many players are online and games running
+      description: For everyone, visitors included. Updates arrive on the live connection as RealtimeSiteStats.
+      tags: [system]
+      responses:
+        "200":
+          description: The numbers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteStats"
+  /lobby:
+    get:
+      operationId: getLobby
+      summary: The lobby as players see it
+      description: Updates arrive on the live connection as RealtimeLobby.
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The lobby.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lobby"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /lobby/games:
+    post:
+      operationId: openGame
+      summary: Open a game for an opponent to join
+      description: >-
+        With one of the player's decks, legal in the format. A game nobody joins within 10 minutes
+        closes, and so does a game whose host leaves the site.
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenGameInput"
+      responses:
+        "201":
+          description: The game is open.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenGame"
+        "400":
+          $ref: "#/components/responses/InvalidDeckOrInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/GamesPaused"
+        "409":
+          $ref: "#/components/responses/Busy"
+  /lobby/games/{openGameId}:
+    parameters:
+      - name: openGameId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getOpenGame
+      summary: An open game, listed or not, as its invite link shows it
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The open game.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenGame"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: cancelOpenGame
+      summary: Cancel an open game; only its host may
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: The game is closed.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: Only the host can cancel the game (code "not_host").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /lobby/games/{openGameId}/join:
+    post:
+      operationId: joinOpenGame
+      summary: Join an open game, which starts it
+      description: Both players are then told on the live connection (RealtimeGameStarted) to go to the game.
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: openGameId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinGameInput"
+      responses:
+        "201":
+          description: The game started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameStarted"
+        "400":
+          $ref: "#/components/responses/InvalidDeckOrInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/GamesPaused"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            The player is busy (code "busy"), this is their own game (code "own_game"), or the
+            host's deck no longer keeps to the format (code "host_deck_not_legal"), which closes the
+            game.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /quick-match:
+    get:
+      operationId: getQuickMatch
+      summary: Quick match as the player sees it
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: How many wait in each format, and whether this player waits.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuickMatchStatus"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+    post:
+      operationId: enterQuickMatch
+      summary: Wait for a quick match
+      description: >-
+        With one of the player's decks, legal in the format. A player already waiting in the format
+        is paired at once and the game starts; otherwise the player waits, and is told on the live
+        connection (RealtimeGameStarted) once paired.
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuickMatchInput"
+      responses:
+        "200":
+          description: Paired, with the game, or waiting.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuickMatchEntered"
+        "400":
+          $ref: "#/components/responses/InvalidDeckOrInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/GamesPaused"
+        "409":
+          $ref: "#/components/responses/Busy"
+    delete:
+      operationId: leaveQuickMatch
+      summary: Stop waiting for a quick match
+      description: Not waiting is not an error.
+      tags: [lobby]
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: No longer waiting.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /games/{gameId}:
+    get:
+      operationId: getLiveGame
+      summary: A running game, for its players and its spectators
+      tags: [games]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The game, and how this player takes part.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveGame"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/NotWatchable"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /games/{gameId}/socket:
+    get:
+      operationId: openGameSocket
+      summary: Play or watch a game
+      description: >-
+        The websocket the duel board plays or watches over, in the engine's own message format.
+        Only the site's own pages may open it.
+      tags: [games]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "101":
+          description: Switching to the websocket.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/NotWatchable"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /formats:
     get:
       operationId: listFormats
@@ -626,6 +892,35 @@ components:
             $ref: "#/components/schemas/Error"
     Unauthenticated:
       description: Not logged in, or the session has expired (code "unauthenticated").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InvalidDeckOrInput:
+      description: >-
+        A field breaks its rules (code "invalid_input", with the field named), or the player's deck
+        does not keep to the format (code "deck_not_legal", with every problem).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    GamesPaused:
+      description: An admin has paused new games (code "games_paused").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Busy:
+      description: >-
+        The player is already hosting a game, waiting for a quick match or playing (code "busy").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotWatchable:
+      description: >-
+        The game cannot be watched: it is not listed, or does not allow spectators (code
+        "not_watchable").
       content:
         application/json:
           schema:
@@ -1076,16 +1371,303 @@ components:
           type: string
           minLength: 1
           maxLength: 300
+    SiteStats:
+      type: object
+      required: [playersOnline, gamesRunning]
+      properties:
+        playersOnline:
+          type: integer
+        gamesRunning:
+          type: integer
+    LobbyPerson:
+      type: object
+      required: [id, username]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+    PlayerActivity:
+      description: >-
+        What a player is doing: hosting an open game (with its id), waiting for a quick match (with
+        the format's name) or playing (with the game's id).
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [hosting, queued, playing]
+        gameId:
+          type: string
+        formatName:
+          type: string
+    OnlinePlayer:
+      type: object
+      required: [id, username]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        activity:
+          description: Absent for a player doing nothing in particular.
+          $ref: "#/components/schemas/PlayerActivity"
+    OpenGame:
+      type: object
+      required: [id, name, host, formatId, formatName, listed, spectators, createdAt]
+      properties:
+        id:
+          description: Also the game's invite link, /play/join/{id}.
+          type: string
+        name:
+          type: string
+        host:
+          $ref: "#/components/schemas/LobbyPerson"
+        formatId:
+          type: string
+        formatName:
+          type: string
+        listed:
+          description: Shown in the lobby; otherwise only the invite link leads to it.
+          type: boolean
+        spectators:
+          description: Other players may watch once it runs.
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    GamePlayer:
+      type: object
+      required: [id, username, deckName]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        deckName:
+          type: string
+    RunningGame:
+      type: object
+      required: [id, name, formatId, formatName, host, guest, spectators, matchmaking, startedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        formatId:
+          type: string
+        formatName:
+          type: string
+        host:
+          $ref: "#/components/schemas/GamePlayer"
+        guest:
+          $ref: "#/components/schemas/GamePlayer"
+        spectators:
+          description: Other players may watch it.
+          type: boolean
+        matchmaking:
+          description: Paired by quick match.
+          type: boolean
+        startedAt:
+          type: string
+          format: date-time
+    Lobby:
+      type: object
+      required: [openGames, runningGames, online, paused]
+      properties:
+        openGames:
+          description: The listed open games, the oldest first.
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenGame"
+        runningGames:
+          description: The listed running games, the oldest first.
+          type: array
+          items:
+            $ref: "#/components/schemas/RunningGame"
+        online:
+          description: The players online, by name.
+          type: array
+          items:
+            $ref: "#/components/schemas/OnlinePlayer"
+        paused:
+          description: An admin has paused new games.
+          type: boolean
+    OpenGameInput:
+      type: object
+      required: [deckId, formatId, listed, spectators]
+      properties:
+        name:
+          description: Up to 50 characters; empty or absent picks a name.
+          type: string
+          maxLength: 50
+        deckId:
+          type: string
+        formatId:
+          type: string
+        listed:
+          type: boolean
+        spectators:
+          type: boolean
+    JoinGameInput:
+      type: object
+      required: [deckId]
+      properties:
+        deckId:
+          type: string
+    GameStarted:
+      type: object
+      required: [gameId]
+      properties:
+        gameId:
+          type: string
+    QuickMatchInput:
+      type: object
+      required: [formatId, deckId]
+      properties:
+        formatId:
+          type: string
+        deckId:
+          type: string
+    QueueCount:
+      type: object
+      required: [formatId, players]
+      properties:
+        formatId:
+          type: string
+        players:
+          type: integer
+    QuickMatchTicket:
+      description: A player's place in quick match.
+      type: object
+      required: [formatId, formatName, deckId, since]
+      properties:
+        formatId:
+          type: string
+        formatName:
+          type: string
+        deckId:
+          type: string
+        since:
+          type: string
+          format: date-time
+    QuickMatchStatus:
+      type: object
+      required: [waiting]
+      properties:
+        waiting:
+          description: The formats with players waiting.
+          type: array
+          items:
+            $ref: "#/components/schemas/QueueCount"
+        ticket:
+          description: Present while this player waits.
+          $ref: "#/components/schemas/QuickMatchTicket"
+    QuickMatchEntered:
+      description: Either the game, when paired at once, or the player's ticket, while waiting.
+      type: object
+      properties:
+        gameId:
+          type: string
+        ticket:
+          $ref: "#/components/schemas/QuickMatchTicket"
+    GameRole:
+      type: string
+      enum: [player, spectator]
+    LiveGame:
+      type: object
+      required: [id, name, formatName, host, guest, spectators, matchmaking, role]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        formatName:
+          type: string
+        host:
+          $ref: "#/components/schemas/GamePlayer"
+        guest:
+          $ref: "#/components/schemas/GamePlayer"
+        spectators:
+          type: boolean
+        matchmaking:
+          type: boolean
+        role:
+          description: How this player takes part.
+          $ref: "#/components/schemas/GameRole"
     RealtimeMessage:
       description: >-
         A message on the live connection (GET /realtime), told apart by its type. Messages of a type
-        the page does not know are ignored, so new ones can be added.
+        the page does not know are ignored, so new ones can be added. Visitors receive only the chat
+        and the site's numbers.
       oneOf:
         - $ref: "#/components/schemas/RealtimeChatMessage"
+        - $ref: "#/components/schemas/RealtimeSiteStats"
+        - $ref: "#/components/schemas/RealtimeLobby"
+        - $ref: "#/components/schemas/RealtimeQuickMatchQueue"
+        - $ref: "#/components/schemas/RealtimeGameStarted"
+        - $ref: "#/components/schemas/RealtimeOpenGameExpired"
       discriminator:
         propertyName: type
         mapping:
           chat_message: "#/components/schemas/RealtimeChatMessage"
+          site_stats: "#/components/schemas/RealtimeSiteStats"
+          lobby: "#/components/schemas/RealtimeLobby"
+          quick_match_queue: "#/components/schemas/RealtimeQuickMatchQueue"
+          game_started: "#/components/schemas/RealtimeGameStarted"
+          open_game_expired: "#/components/schemas/RealtimeOpenGameExpired"
+    RealtimeSiteStats:
+      description: How many players are online and games running, for everyone.
+      type: object
+      required: [type, stats]
+      properties:
+        type:
+          type: string
+          enum: [site_stats]
+        stats:
+          $ref: "#/components/schemas/SiteStats"
+    RealtimeLobby:
+      description: The lobby as it now is, for players.
+      type: object
+      required: [type, lobby]
+      properties:
+        type:
+          type: string
+          enum: [lobby]
+        lobby:
+          $ref: "#/components/schemas/Lobby"
+    RealtimeQuickMatchQueue:
+      description: How many players wait in each format, for players.
+      type: object
+      required: [type, waiting]
+      properties:
+        type:
+          type: string
+          enum: [quick_match_queue]
+        waiting:
+          type: array
+          items:
+            $ref: "#/components/schemas/QueueCount"
+    RealtimeGameStarted:
+      description: The player's game has started; go to it. Sent to its two players.
+      type: object
+      required: [type, gameId]
+      properties:
+        type:
+          type: string
+          enum: [game_started]
+        gameId:
+          type: string
+    RealtimeOpenGameExpired:
+      description: Nobody joined the player's open game in time, so it closed. Sent to its host.
+      type: object
+      required: [type, openGame]
+      properties:
+        type:
+          type: string
+          enum: [open_game_expired]
+        openGame:
+          $ref: "#/components/schemas/OpenGame"
     RealtimeChatMessage:
       description: Someone posted to the lobby chat.
       type: object
@@ -1107,6 +1689,11 @@ components:
         message:
           description: A readable explanation of the error.
           type: string
+        problems:
+          description: Every rule the deck breaks, for "deck_not_legal" errors.
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckProblem"
         field:
           description: The request field at fault, for "invalid_input" errors.
           type: string

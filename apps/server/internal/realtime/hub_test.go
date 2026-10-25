@@ -260,3 +260,17 @@ func TestTheUpgraderAcceptsOnlyTheSitesPages(t *testing.T) {
 		assert.Equal(t, allowed, upgrader.CheckOrigin(request), "%q", origin)
 	}
 }
+
+func TestBroadcastPlayersLeavesVisitorsOut(t *testing.T) {
+	hub, _ := newHub(t, time.Minute)
+	server := testServer(t, hub)
+
+	visitor := dial(t, server, "", "")
+	player := dial(t, server, "u1", "Shobu")
+	waitUntil(t, func() bool { return hub.Connections() == 2 }, "both should be connected")
+
+	hub.BroadcastPlayers(map[string]any{"type": "lobby"})
+
+	assert.Equal(t, "lobby", receive(t, player)["type"])
+	nothingArrives(t, visitor)
+}

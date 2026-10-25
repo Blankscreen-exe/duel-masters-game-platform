@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"runtime"
 	"slices"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -23,6 +24,8 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
@@ -52,11 +55,14 @@ const offlineAfter = 10 * time.Second
 
 // App is the assembled server.
 type App struct {
-	logger *slog.Logger
-	db     *gorm.DB
-	auth   *auth.Service
-	hub    *realtime.Hub
-	server *http.Server
+	logger     *slog.Logger
+	db         *gorm.DB
+	auth       *auth.Service
+	hub        *realtime.Hub
+	games      *games.Service
+	lobby      *lobby.Service
+	quickMatch *matchmaking.Service
+	server     *http.Server
 }
 
 // New opens and migrates the database and builds the HTTP server. The caller
@@ -86,7 +92,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		return nil, err
 	}
 
-	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings())...)
 	if err != nil {
 		return nil, err
 	}
@@ -109,24 +115,52 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	}
 	catalogue := cards.NewCatalogue(db, cfg.CardDatabaseDir)
 	deckService := decks.NewService(db, catalogue, siteSettings, logger.With("component", "decks"))
+	formatService := formats.NewService(db)
 
 	httpLogger := logger.With("component", "http")
 	hub := realtime.NewHub(realtime.Options{OfflineAfter: offlineAfter, Logger: logger.With("component", "realtime")})
 	live := httpapi.NewLiveUpdates(hub)
 
+	gameService := games.NewService(db, catalogue, siteSettings, logger.With("component", "games"))
+	lobbyService := lobby.NewService(lobby.Dependencies{
+		Decks:     deckService,
+		Formats:   formatService,
+		Games:     gameService,
+		Directory: live,
+		Settings:  siteSettings,
+		Listener:  live,
+		Logger:    logger.With("component", "lobby"),
+		Now:       time.Now,
+	})
+	quickMatch := matchmaking.NewService(matchmaking.Dependencies{
+		Lobby:     lobbyService,
+		Games:     gameService,
+		Directory: live,
+		Listener:  live,
+		Logger:    logger.With("component", "matchmaking"),
+		Now:       time.Now,
+	})
+	hub.Watch(presence{lobby: lobbyService, quickMatch: quickMatch})
+
 	return &App{
-		logger: logger,
-		db:     db,
-		auth:   authService,
-		hub:    hub,
+		logger:     logger,
+		db:         db,
+		auth:       authService,
+		hub:        hub,
+		games:      gameService,
+		lobby:      lobbyService,
+		quickMatch: quickMatch,
 		server: &http.Server{
 			Handler: httpapi.NewHandler(httpapi.Dependencies{
 				DB:            sqlDB,
 				Auth:          authService,
 				Catalogue:     catalogue,
-				Formats:       formats.NewService(db),
+				Formats:       formatService,
 				Decks:         deckService,
 				Chat:          chat.NewService(db, live, time.Now),
+				Games:         gameService,
+				Lobby:         lobbyService,
+				QuickMatch:    quickMatch,
 				Hub:           hub,
 				Upgrader:      realtime.NewUpgrader(cfg.SiteOrigins),
 				Logger:        httpLogger,
@@ -150,17 +184,20 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 	// Background work runs while Serve does, and has stopped before the
 	// database closes, whichever way Serve ends.
 	backgroundCtx, stopBackground := context.WithCancel(ctx)
-	background := make(chan struct{})
-	go func() {
-		defer close(background)
-		a.cleanUpSessions(backgroundCtx)
-	}()
-	// Live connections are taken over from the HTTP server, which does not
-	// wait for them, so they are closed here before the database.
+	var background sync.WaitGroup
+	background.Go(func() { a.cleanUpSessions(backgroundCtx) })
+	background.Go(func() { a.games.Run(backgroundCtx) })
+	background.Go(func() { a.lobby.Run(backgroundCtx) })
+	background.Go(func() { a.quickMatch.Run(backgroundCtx) })
+
+	// Games and live connections are taken over from the HTTP server, which
+	// does not wait for them, so they are closed here: running games are
+	// stopped and, once the background work stops, saved, before the
+	// database closes.
 	closeDown := func(ctx context.Context) error {
-		err := a.hub.Close(ctx)
+		err := errors.Join(a.games.Close(ctx), a.hub.Close(ctx))
 		stopBackground()
-		<-background
+		background.Wait()
 		return errors.Join(err, store.Close(a.db))
 	}
 
@@ -212,4 +249,16 @@ func (a *App) cleanUpSessions(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
+}
+
+// presence tells the lobby and quick match when players come and go, so a
+// player who leaves the site leaves their open game and the queue.
+type presence struct {
+	lobby      *lobby.Service
+	quickMatch *matchmaking.Service
+}
+
+func (p presence) PresenceChanged(viewer realtime.Viewer) {
+	p.lobby.PresenceChanged(viewer.UserID)
+	p.quickMatch.PresenceChanged(viewer.UserID)
 }

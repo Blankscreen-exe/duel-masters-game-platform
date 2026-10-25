@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
@@ -19,6 +20,10 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
@@ -34,22 +39,39 @@ type testServer struct {
 	handler  http.Handler
 	settings *settings.Service
 	hub      *realtime.Hub
+	games    *games.Service
 	// clock is the time the features see, which only moves when a test
 	// moves it, so answers that depend on time are exact.
 	clock *clocktest.Clock
-	// cardDatabase is the card database's folder.
+	// cardDatabase is the card database's folder, when the test made one.
 	cardDatabase string
 }
+
+// catalogueMaker copies a card database into a test's database and returns
+// its catalogue and folder.
+type catalogueMaker func(t *testing.T, db *gorm.DB) (*cards.Catalogue, string)
 
 func newTestServer(t *testing.T, secureCookies bool) testServer {
 	t.Helper()
 
-	return newTestServerWith(t, secureCookies, testCardDatabase(t), []cards.EngineCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon", Set: "dm-01"}})
+	return newTestServerWith(t, secureCookies, syncedCatalogue(testCardDatabase(t), []cards.EngineCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon", Set: "dm-01"}}))
 }
 
-// newTestServerWith is newTestServer with another card database and engine
-// cards.
-func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, playable []cards.EngineCard) testServer {
+// syncedCatalogue copies a card database folder with the given engine cards.
+func syncedCatalogue(dir string, playable []cards.EngineCard) catalogueMaker {
+	return func(t *testing.T, db *gorm.DB) (*cards.Catalogue, string) {
+		t.Helper()
+
+		source, err := cards.ReadSource(dir)
+		require.NoError(t, err)
+		_, err = cards.Sync(context.Background(), db, source, playable, storetest.Logger())
+		require.NoError(t, err)
+		return cards.NewCatalogue(db, dir), dir
+	}
+}
+
+// newTestServerWith is newTestServer with another card database.
+func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogueMaker) testServer {
 	t.Helper()
 
 	db := storetest.Open(t, config.SQLite)
@@ -58,28 +80,41 @@ func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, pl
 
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings())...)
 	require.NoError(t, err)
 
 	clock := clocktest.New(time.Now())
 	authService := auth.NewService(db, users.NewService(db, logger), siteSettings, auth.NewPasswordHasher(4), clock.Now, logger)
 
-	source, err := cards.ReadSource(cardDatabase)
-	require.NoError(t, err)
-	_, err = cards.Sync(ctx, db, source, playable, logger)
-	require.NoError(t, err)
-	catalogue := cards.NewCatalogue(db, cardDatabase)
+	catalogue, cardDatabase := makeCatalogue(t, db)
+	deckService := decks.NewService(db, catalogue, siteSettings, logger)
+	formatService := formats.NewService(db)
+
 	hub := realtime.NewHub(realtime.Options{OfflineAfter: time.Minute, Logger: logger})
 	t.Cleanup(func() { require.NoError(t, hub.Close(context.Background())) })
+	live := NewLiveUpdates(hub)
+
+	gameService := games.NewService(db, catalogue, siteSettings, logger)
+	gamestest.Run(t, gameService)
+	lobbyService := lobby.NewService(lobby.Dependencies{
+		Decks: deckService, Formats: formatService, Games: gameService, Directory: live,
+		Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
+	})
+	quickMatch := matchmaking.NewService(matchmaking.Dependencies{
+		Lobby: lobbyService, Games: gameService, Directory: live, Listener: live, Logger: logger, Now: clock.Now,
+	})
 
 	return testServer{
 		handler: NewHandler(Dependencies{
 			DB:            sqlDB,
 			Auth:          authService,
 			Catalogue:     catalogue,
-			Formats:       formats.NewService(db),
-			Decks:         decks.NewService(db, catalogue, siteSettings, logger),
-			Chat:          chat.NewService(db, NewLiveUpdates(hub), clock.Now),
+			Formats:       formatService,
+			Decks:         deckService,
+			Chat:          chat.NewService(db, live, clock.Now),
+			Games:         gameService,
+			Lobby:         lobbyService,
+			QuickMatch:    quickMatch,
 			Hub:           hub,
 			Upgrader:      realtime.NewUpgrader([]string{testSiteOrigin}),
 			Logger:        logger,
@@ -87,6 +122,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, pl
 		}),
 		settings:     siteSettings,
 		hub:          hub,
+		games:        gameService,
 		clock:        clock,
 		cardDatabase: cardDatabase,
 	}

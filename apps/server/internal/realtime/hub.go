@@ -276,6 +276,12 @@ func (h *Hub) Broadcast(message any) {
 	h.deliver(message, func(*client) bool { return true })
 }
 
+// BroadcastPlayers sends a message to every logged-in connection, leaving
+// visitors out.
+func (h *Hub) BroadcastPlayers(message any) {
+	h.deliver(message, func(c *client) bool { return c.viewer.LoggedIn() })
+}
+
 // SendTo sends a message to every connection of one player.
 func (h *Hub) SendTo(userID string, message any) {
 	h.deliver(message, func(c *client) bool { return c.viewer.UserID == userID })

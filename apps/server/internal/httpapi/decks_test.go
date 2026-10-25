@@ -39,7 +39,7 @@ func newDeckTestServer(t *testing.T) testServer {
 	printings = append(printings, promo, cardstest.Printing("1500", "Future Card", "DM-20", "1/55"))
 	playable = append(playable, cards.EngineCard{EngineID: "engine-promo", Name: "Promo Hero"})
 
-	return newTestServerWith(t, false, cardstest.Write(t, printings, pictures, nil), playable)
+	return newTestServerWith(t, false, syncedCatalogue(cardstest.Write(t, printings, pictures, nil), playable))
 }
 
 // legalDeckInput is 4 copies of each of the ten DM-01 cards.

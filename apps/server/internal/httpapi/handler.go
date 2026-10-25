@@ -16,7 +16,10 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 )
 
@@ -39,6 +42,10 @@ type Dependencies struct {
 	Formats   *formats.Service
 	Decks     *decks.Service
 	Chat      *chat.Service
+	Games     *games.Service
+	Lobby     *lobby.Service
+	// QuickMatch runs quick match.
+	QuickMatch *matchmaking.Service
 	// Hub keeps the live connections, which Upgrader opens for the site's
 	// pages only.
 	Hub      *realtime.Hub
@@ -56,6 +63,9 @@ type handlers struct {
 	formats       *formats.Service
 	decks         *decks.Service
 	chat          *chat.Service
+	games         *games.Service
+	lobby         *lobby.Service
+	quickMatch    *matchmaking.Service
 	hub           *realtime.Hub
 	upgrader      *websocket.Upgrader
 	secureCookies bool
@@ -77,6 +87,9 @@ func NewHandler(deps Dependencies) http.Handler {
 		formats:       deps.Formats,
 		decks:         deps.Decks,
 		chat:          deps.Chat,
+		games:         deps.Games,
+		lobby:         deps.Lobby,
+		quickMatch:    deps.QuickMatch,
 		hub:           deps.Hub,
 		upgrader:      deps.Upgrader,
 		secureCookies: deps.SecureCookies,

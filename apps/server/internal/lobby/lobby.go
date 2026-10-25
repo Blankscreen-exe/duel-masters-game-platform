@@ -106,6 +106,10 @@ type Snapshot struct {
 	Running []games.Game
 	// Online are the players online, by name.
 	Online []OnlinePlayer
+	// GamesRunning counts every running game, listed or not.
+	GamesRunning int
+	// Paused is set while an admin has paused new games.
+	Paused bool
 }
 
 // Listener passes what happens in the lobby on to the players. It is called
@@ -394,7 +398,8 @@ func (s *Service) Snapshot() Snapshot {
 	s.mu.Unlock()
 	slices.SortFunc(listed, func(a, b OpenGame) int { return a.CreatedAt.Compare(b.CreatedAt) })
 
-	running := slices.DeleteFunc(s.games.Games(), func(game games.Game) bool { return !game.Visible })
+	all := s.games.Games()
+	running := slices.DeleteFunc(slices.Clone(all), func(game games.Game) bool { return !game.Visible })
 
 	people := s.directory.Online()
 	online := make([]OnlinePlayer, 0, len(people))
@@ -406,7 +411,7 @@ func (s *Service) Snapshot() Snapshot {
 		online = append(online, player)
 	}
 
-	return Snapshot{OpenGames: listed, Running: running, Online: online}
+	return Snapshot{OpenGames: listed, Running: running, Online: online, GamesRunning: len(all), Paused: s.Paused()}
 }
 
 // Run closes open games nobody joined in time, and those whose host has

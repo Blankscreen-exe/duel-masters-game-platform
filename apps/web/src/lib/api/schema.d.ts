@@ -250,6 +250,168 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many players are online and games running
+         * @description For everyone, visitors included. Updates arrive on the live connection as RealtimeSiteStats.
+         */
+        get: operations["getSiteStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lobby": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The lobby as players see it
+         * @description Updates arrive on the live connection as RealtimeLobby.
+         */
+        get: operations["getLobby"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lobby/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a game for an opponent to join
+         * @description With one of the player's decks, legal in the format. A game nobody joins within 10 minutes closes, and so does a game whose host leaves the site.
+         */
+        post: operations["openGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lobby/games/{openGameId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                openGameId: string;
+            };
+            cookie?: never;
+        };
+        /** An open game, listed or not, as its invite link shows it */
+        get: operations["getOpenGame"];
+        put?: never;
+        post?: never;
+        /** Cancel an open game; only its host may */
+        delete: operations["cancelOpenGame"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lobby/games/{openGameId}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join an open game, which starts it
+         * @description Both players are then told on the live connection (RealtimeGameStarted) to go to the game.
+         */
+        post: operations["joinOpenGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quick-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Quick match as the player sees it */
+        get: operations["getQuickMatch"];
+        put?: never;
+        /**
+         * Wait for a quick match
+         * @description With one of the player's decks, legal in the format. A player already waiting in the format is paired at once and the game starts; otherwise the player waits, and is told on the live connection (RealtimeGameStarted) once paired.
+         */
+        post: operations["enterQuickMatch"];
+        /**
+         * Stop waiting for a quick match
+         * @description Not waiting is not an error.
+         */
+        delete: operations["leaveQuickMatch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{gameId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A running game, for its players and its spectators */
+        get: operations["getLiveGame"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{gameId}/socket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Play or watch a game
+         * @description The websocket the duel board plays or watches over, in the engine's own message format. Only the site's own pages may open it.
+         */
+        get: operations["openGameSocket"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/formats": {
         parameters: {
             query?: never;
@@ -562,8 +724,171 @@ export interface components {
             /** @description 1 to 300 characters, after surrounding spaces are trimmed. */
             text: string;
         };
-        /** @description A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. */
-        RealtimeMessage: components["schemas"]["RealtimeChatMessage"];
+        SiteStats: {
+            playersOnline: number;
+            gamesRunning: number;
+        };
+        LobbyPerson: {
+            id: string;
+            username: string;
+        };
+        /** @description What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name) or playing (with the game's id). */
+        PlayerActivity: {
+            /** @enum {string} */
+            kind: "hosting" | "queued" | "playing";
+            gameId?: string;
+            formatName?: string;
+        };
+        OnlinePlayer: {
+            id: string;
+            username: string;
+            /** @description Absent for a player doing nothing in particular. */
+            activity?: components["schemas"]["PlayerActivity"];
+        };
+        OpenGame: {
+            /** @description Also the game's invite link, /play/join/{id}. */
+            id: string;
+            name: string;
+            host: components["schemas"]["LobbyPerson"];
+            formatId: string;
+            formatName: string;
+            /** @description Shown in the lobby; otherwise only the invite link leads to it. */
+            listed: boolean;
+            /** @description Other players may watch once it runs. */
+            spectators: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        GamePlayer: {
+            id: string;
+            username: string;
+            deckName: string;
+        };
+        RunningGame: {
+            id: string;
+            name: string;
+            formatId: string;
+            formatName: string;
+            host: components["schemas"]["GamePlayer"];
+            guest: components["schemas"]["GamePlayer"];
+            /** @description Other players may watch it. */
+            spectators: boolean;
+            /** @description Paired by quick match. */
+            matchmaking: boolean;
+            /** Format: date-time */
+            startedAt: string;
+        };
+        Lobby: {
+            /** @description The listed open games, the oldest first. */
+            openGames: components["schemas"]["OpenGame"][];
+            /** @description The listed running games, the oldest first. */
+            runningGames: components["schemas"]["RunningGame"][];
+            /** @description The players online, by name. */
+            online: components["schemas"]["OnlinePlayer"][];
+            /** @description An admin has paused new games. */
+            paused: boolean;
+        };
+        OpenGameInput: {
+            /** @description Up to 50 characters; empty or absent picks a name. */
+            name?: string;
+            deckId: string;
+            formatId: string;
+            listed: boolean;
+            spectators: boolean;
+        };
+        JoinGameInput: {
+            deckId: string;
+        };
+        GameStarted: {
+            gameId: string;
+        };
+        QuickMatchInput: {
+            formatId: string;
+            deckId: string;
+        };
+        QueueCount: {
+            formatId: string;
+            players: number;
+        };
+        /** @description A player's place in quick match. */
+        QuickMatchTicket: {
+            formatId: string;
+            formatName: string;
+            deckId: string;
+            /** Format: date-time */
+            since: string;
+        };
+        QuickMatchStatus: {
+            /** @description The formats with players waiting. */
+            waiting: components["schemas"]["QueueCount"][];
+            /** @description Present while this player waits. */
+            ticket?: components["schemas"]["QuickMatchTicket"];
+        };
+        /** @description Either the game, when paired at once, or the player's ticket, while waiting. */
+        QuickMatchEntered: {
+            gameId?: string;
+            ticket?: components["schemas"]["QuickMatchTicket"];
+        };
+        /** @enum {string} */
+        GameRole: "player" | "spectator";
+        LiveGame: {
+            id: string;
+            name: string;
+            formatName: string;
+            host: components["schemas"]["GamePlayer"];
+            guest: components["schemas"]["GamePlayer"];
+            spectators: boolean;
+            matchmaking: boolean;
+            /** @description How this player takes part. */
+            role: components["schemas"]["GameRole"];
+        };
+        /** @description A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. Visitors receive only the chat and the site's numbers. */
+        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"];
+        /** @description How many players are online and games running, for everyone. */
+        RealtimeSiteStats: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "site_stats";
+            stats: components["schemas"]["SiteStats"];
+        };
+        /** @description The lobby as it now is, for players. */
+        RealtimeLobby: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "lobby";
+            lobby: components["schemas"]["Lobby"];
+        };
+        /** @description How many players wait in each format, for players. */
+        RealtimeQuickMatchQueue: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "quick_match_queue";
+            waiting: components["schemas"]["QueueCount"][];
+        };
+        /** @description The player's game has started; go to it. Sent to its two players. */
+        RealtimeGameStarted: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "game_started";
+            gameId: string;
+        };
+        /** @description Nobody joined the player's open game in time, so it closed. Sent to its host. */
+        RealtimeOpenGameExpired: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "open_game_expired";
+            openGame: components["schemas"]["OpenGame"];
+        };
         /** @description Someone posted to the lobby chat. */
         RealtimeChatMessage: {
             /**
@@ -579,6 +904,8 @@ export interface components {
             code: string;
             /** @description A readable explanation of the error. */
             message: string;
+            /** @description Every rule the deck breaks, for "deck_not_legal" errors. */
+            problems?: components["schemas"]["DeckProblem"][];
             /** @description The request field at fault, for "invalid_input" errors. */
             field?: string;
         };
@@ -604,6 +931,42 @@ export interface components {
         };
         /** @description Not logged in, or the session has expired (code "unauthenticated"). */
         Unauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description A field breaks its rules (code "invalid_input", with the field named), or the player's deck does not keep to the format (code "deck_not_legal", with every problem). */
+        InvalidDeckOrInput: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description An admin has paused new games (code "games_paused"). */
+        GamesPaused: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The player is already hosting a game, waiting for a quick match or playing (code "busy"). */
+        Busy: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The game cannot be watched: it is not listed, or does not allow spectators (code "not_watchable"). */
+        NotWatchable: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1046,6 +1409,285 @@ export interface operations {
             400: components["responses"]["InvalidInput"];
             401: components["responses"]["Unauthenticated"];
             429: components["responses"]["TooFast"];
+        };
+    };
+    getSiteStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The numbers. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteStats"];
+                };
+            };
+        };
+    };
+    getLobby: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The lobby. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lobby"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    openGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenGameInput"];
+            };
+        };
+        responses: {
+            /** @description The game is open. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenGame"];
+                };
+            };
+            400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["GamesPaused"];
+            409: components["responses"]["Busy"];
+        };
+    };
+    getOpenGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                openGameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open game. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenGame"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    cancelOpenGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                openGameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The game is closed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description Only the host can cancel the game (code "not_host"). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    joinOpenGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                openGameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinGameInput"];
+            };
+        };
+        responses: {
+            /** @description The game started. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameStarted"];
+                };
+            };
+            400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["GamesPaused"];
+            404: components["responses"]["NotFound"];
+            /** @description The player is busy (code "busy"), this is their own game (code "own_game"), or the host's deck no longer keeps to the format (code "host_deck_not_legal"), which closes the game. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getQuickMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many wait in each format, and whether this player waits. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickMatchStatus"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    enterQuickMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuickMatchInput"];
+            };
+        };
+        responses: {
+            /** @description Paired, with the game, or waiting. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickMatchEntered"];
+                };
+            };
+            400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["GamesPaused"];
+            409: components["responses"]["Busy"];
+        };
+    };
+    leaveQuickMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No longer waiting. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    getLiveGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The game, and how this player takes part. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveGame"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["NotWatchable"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    openGameSocket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Switching to the websocket. */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["NotWatchable"];
+            404: components["responses"]["NotFound"];
         };
     };
     listFormats: {

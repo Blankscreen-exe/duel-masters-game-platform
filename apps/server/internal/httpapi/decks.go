@@ -264,11 +264,7 @@ func (v deckView) deck(deck decks.Deck) api.Deck {
 		found := decks.Check(deck.Cards, v.known, format)
 		problems := make([]api.DeckProblem, 0, len(found))
 		for _, problem := range found {
-			shown := api.DeckProblem{Code: api.DeckProblemCode(problem.Kind), Message: problem.Message()}
-			if problem.CardID != "" {
-				shown.CardId = &problem.CardID
-			}
-			problems = append(problems, shown)
+			problems = append(problems, apiDeckProblem(problem))
 		}
 		legality = append(legality, api.DeckLegality{FormatId: format.ID, Legal: len(found) == 0, Problems: problems})
 	}
@@ -361,6 +357,15 @@ func apiFormat(format formats.Format) api.Format {
 		Sets:        format.Sets,
 		Limits:      limits,
 	}
+}
+
+// apiDeckProblem is a way a deck breaks a format, as the API shows it.
+func apiDeckProblem(problem decks.Problem) api.DeckProblem {
+	shown := api.DeckProblem{Code: api.DeckProblemCode(problem.Kind), Message: problem.Message()}
+	if problem.CardID != "" {
+		shown.CardId = &problem.CardID
+	}
+	return shown
 }
 
 // cardIDs are the ids of the entries' cards.
