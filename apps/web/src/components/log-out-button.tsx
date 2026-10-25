@@ -14,7 +14,7 @@ export function LogOutButton() {
     setPending(true);
     try {
       // The server clears the cookie; logging out without a session is not an error.
-      await api.POST('/auth/logout', { headers: { 'Content-Type': 'application/json' } });
+      await api.POST('/auth/logout');
       router.refresh();
     } finally {
       setPending(false);

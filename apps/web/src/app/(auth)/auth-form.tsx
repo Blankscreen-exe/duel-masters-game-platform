@@ -6,7 +6,7 @@ import { useState, type SubmitEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
 import { TextField } from '@/components/ui/text-field';
-import { api } from '@/lib/api/client';
+import { api, errorMessage, UNREACHABLE } from '@/lib/api/client';
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -67,9 +67,9 @@ export function AuthForm({ mode, next }: AuthFormProps) {
         router.refresh();
         return;
       }
-      setError(failure?.message ?? 'Something went wrong. Please try again.');
+      setError(errorMessage(failure));
     } catch {
-      setError('The server cannot be reached. Please try again in a moment.');
+      setError(UNREACHABLE);
     } finally {
       setPending(false);
     }

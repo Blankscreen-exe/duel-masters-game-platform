@@ -2,6 +2,7 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import createClient from 'openapi-fetch';
 import { goServerUrl } from '../go-server-url';
+import { jsonChanges } from './json-changes';
 import type { paths } from './schema';
 
 /**
@@ -11,10 +12,13 @@ import type { paths } from './schema';
 export async function serverApi() {
   const cookie = (await cookies()).toString();
 
-  return createClient<paths>({
+  const client = createClient<paths>({
     baseUrl: `${goServerUrl()}/api`,
     headers: cookie === '' ? {} : { cookie },
     // Answers depend on the visitor and change over time; nothing is cached between requests.
     cache: 'no-store',
   });
+  client.use(jsonChanges);
+
+  return client;
 }
