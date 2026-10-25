@@ -84,6 +84,18 @@ func TestAGameMovesRatingsThroughTheSite(t *testing.T) {
 	me = decode[api.Account](t, site.call(http.MethodGet, "/api/auth/me", nil, shobu.session))
 	assert.Equal(t, bronze(1016, api.RankDivisionII, "Bronze II"), me.Rank)
 
+	// The lobby shows everyone the new ranks once the game is saved.
+	liveMessageWhere(t, mimi.tab, "lobby", func(message map[string]any) bool {
+		for _, online := range message["lobby"].(map[string]any)["online"].([]any) {
+			player := online.(map[string]any)
+			if player["username"] == "Shobu" {
+				rank, shown := player["rank"].(map[string]any)
+				return shown && rank["rating"] == float64(1016)
+			}
+		}
+		return false
+	})
+
 	// The rankings list only those who have played, with the viewer's own
 	// place.
 	rankings := decode[api.Rankings](t, site.call(http.MethodGet, "/api/rankings", nil, kokujo.session))

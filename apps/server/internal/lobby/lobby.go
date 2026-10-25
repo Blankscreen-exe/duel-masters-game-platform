@@ -483,9 +483,14 @@ func (s *Service) PresenceChanged(userID string) {
 // GameEnded is part of games.Listener; the lobby waits for the game to close.
 func (s *Service) GameEnded(games.Ended) {}
 
-// GameFinished is part of games.Listener; the lobby waits for the game to
-// close.
-func (s *Service) GameFinished(games.Record) {}
+// GameFinished shows everyone the lobby again once a game that moved its
+// players' ratings is saved, so their new ranks show: the game may have
+// closed before it was saved.
+func (s *Service) GameFinished(finished games.Record) {
+	if finished.Rated() {
+		s.broadcast()
+	}
+}
 
 // GameClosed frees the game's players to start something else, unless they
 // have moved on to deciding on a rematch.

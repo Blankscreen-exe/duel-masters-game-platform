@@ -344,3 +344,20 @@ func TestADeckChosenEarlierThatHasGone(t *testing.T) {
 		}
 	})
 }
+
+func TestTheLobbyIsShownAgainOnceARatedGameIsSaved(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db)
+		before := f.heard.Changes()
+
+		f.lobby.GameFinished(games.Record{
+			ID: "rated", Counted: true, WinnerID: f.shobu.ID,
+			Host: games.RecordPlayer{ID: f.shobu.ID}, Guest: games.RecordPlayer{ID: f.kokujo.ID},
+		})
+		assert.Equal(t, before+1, f.heard.Changes(), "its players' ranks have changed")
+
+		f.lobby.GameFinished(games.Record{ID: "short", WinnerID: f.shobu.ID})
+		f.lobby.GameFinished(games.Record{ID: "stopped", Counted: true})
+		assert.Equal(t, before+1, f.heard.Changes(), "a game that moved no rating changes nothing")
+	})
+}

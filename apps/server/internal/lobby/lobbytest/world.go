@@ -62,6 +62,13 @@ func (h *Heard) Latest() lobby.Snapshot {
 }
 
 // Started are the games the players were told to go to.
+// Changes counts the lobbies shown.
+func (h *Heard) Changes() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.snapshots)
+}
+
 func (h *Heard) Started() []games.Game {
 	h.mu.Lock()
 	defer h.mu.Unlock()
