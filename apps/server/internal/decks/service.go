@@ -112,10 +112,12 @@ func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.
 	return &Service{db: db, catalogue: catalogue, settings: siteSettings, logger: logger}
 }
 
-// List returns a player's decks, the most recently changed first.
+// List returns a player's decks, the most recently changed first. Decks
+// changed within the same tick of the clock come the newest first: ids are
+// UUIDv7s, which sort by when they were made.
 func (s *Service) List(ctx context.Context, userID string) ([]Deck, error) {
 	var rows []deckRow
-	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("updated_at DESC, id").Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("updated_at DESC, id DESC").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("listing decks: %w", err)
 	}
 
