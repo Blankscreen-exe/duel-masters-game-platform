@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { AnimatePresence } from "motion/react";
 import { useDuel } from "./useDuel";
 import {
@@ -54,6 +61,8 @@ import { Action } from "./Action";
 import { Chat, type ReceivedChatMessage } from "./Chat";
 import { CardPreview } from "./CardPreview";
 import { MultiCardPreview } from "./MultiCardPreview";
+import { CardPicturesProvider, type CardPictures } from "./cardImage";
+import { CoinToss } from "./CoinToss";
 
 const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar {
@@ -82,9 +91,10 @@ const scrollbarStyles = `
 `;
 
 export interface DuelProps {
-  hostUrl: string;
-  duelId: string;
-  duelToken: string;
+  /** The game's websocket, such as wss://site.example/api/games/abc/socket. */
+  socketUrl: string;
+  /** Where the card pictures come from. */
+  pictures: CardPictures;
   playmat?: string;
   /**
    * Whether the opponent's cards are flipped from their natural orientation
@@ -109,6 +119,12 @@ export interface DuelProps {
   onNewTurn?: (myTurn: boolean) => void;
   onLeaveDuel?: () => void;
   onDuelFinished?: (message: DuelFinishedMessage) => void;
+  /**
+   * What the screen shows once the game has ended, such as the result and the
+   * way back to the lobby. Without it the board counts down, then calls
+   * onDuelFinished; with it, onDuelFinished is called at once.
+   */
+  renderDuelFinished?: (message: DuelFinishedMessage) => ReactNode;
 }
 
 interface DragState {
@@ -247,9 +263,8 @@ function DevToolSection({
 }
 
 export function Duel({
-  duelId,
-  duelToken,
-  hostUrl,
+  socketUrl,
+  pictures,
   playmat,
   flipOpponentCards = false,
   resolveChatUser,
@@ -258,6 +273,7 @@ export function Duel({
   devTools,
   onLeaveDuel,
   onDuelFinished,
+  renderDuelFinished,
   onNewTurn,
 }: DuelProps) {
   const [action, setAction] = useState<ActionMessage | null>(null);
@@ -290,6 +306,9 @@ export function Duel({
     connected,
     error,
     duelFinished,
+    coinToss,
+    sendTossCall,
+    sendTurnChoice,
     send,
     sendJoinMatch,
     sendEndTurn,
@@ -305,9 +324,7 @@ export function Duel({
     opponentDisconnected,
     reconnecting,
   } = useDuel({
-    hostUrl,
-    duelId,
-    duelToken,
+    socketUrl,
     onActionMessage: (nextAction) => {
       setAction(nextAction);
       setActionError(null);
@@ -365,6 +382,13 @@ export function Duel({
     setAction(null);
     setActionError(null);
     setConfirmForfeit(false);
+
+    // The page shows its own result, so it hears of the end at once.
+    if (renderDuelFinished) {
+      onDuelFinished?.(duelFinished);
+      return;
+    }
+
     setDuelFinishedCountdown(5);
     setDuelFinishedRedirectFailed(false);
 
@@ -389,7 +413,7 @@ export function Duel({
     return () => {
       window.clearInterval(interval);
     };
-  }, [duelFinished, onDuelFinished]);
+  }, [duelFinished, onDuelFinished, renderDuelFinished]);
 
   const duelFinishedWinner =
     duelFinished?.winner?.username ?? duelFinished?.winner?.uid ?? "No winner";
@@ -846,7 +870,7 @@ export function Duel({
       : undefined;
 
   return (
-    <>
+    <CardPicturesProvider value={pictures}>
       <style>{scrollbarStyles}</style>
       <BoardMotion
         state={state}
@@ -1435,17 +1459,21 @@ export function Duel({
         closeOnOutsideClick={false}
         showCloseButton={false}
       >
-        <div className="p-6 text-white">
-          <p className="text-lg font-semibold">
-            {duelFinishedWinner} won the duel
-          </p>
-          <p className="mt-3 text-sm text-gray-400">{duelFinishedStatusText}</p>
-          {duelFinishedRedirectFailed && (
-            <p className="mt-3 text-sm text-gray-400">
-              Failed to redirect, please close the page manually
+        {duelFinished && renderDuelFinished ? (
+          renderDuelFinished(duelFinished)
+        ) : (
+          <div className="p-6 text-white">
+            <p className="text-lg font-semibold">
+              {duelFinishedWinner} won the duel
             </p>
-          )}
-        </div>
+            <p className="mt-3 text-sm text-gray-400">{duelFinishedStatusText}</p>
+            {duelFinishedRedirectFailed && (
+              <p className="mt-3 text-sm text-gray-400">
+                Failed to redirect, please close the page manually
+              </p>
+            )}
+          </div>
+        )}
       </Popup>
 
       <Popup
@@ -1635,7 +1663,10 @@ export function Duel({
           }
         ></Action>
       )}
-    </>
+      {coinToss && (
+        <CoinToss toss={coinToss} onCall={sendTossCall} onChooseTurn={sendTurnChoice} />
+      )}
+    </CardPicturesProvider>
   );
 }
 

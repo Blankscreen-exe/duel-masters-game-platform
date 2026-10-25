@@ -13,8 +13,7 @@ import {
 import { MotionConfig, motion } from "motion/react";
 import { diffBoard } from "./boardDiff";
 import {
-  CARD_IMAGE_PLACEHOLDER,
-  cardImageUrl,
+  useCardPictures,
   MUTED_CARD_FILTER,
   PLAIN_CARD_FILTER,
   SHIELD_TINT,
@@ -375,6 +374,7 @@ function FlyingCard({
   onLanded: (key: number) => void;
 }) {
   const { from, to, fade, landsOnCard, muted, key, delay } = flight;
+  const pictures = useCardPictures();
   // Only copies of greyed out cards animate the filter, which is costlier than
   // the transforms every copy uses.
   const greyed = muted.from || muted.to;
@@ -393,7 +393,7 @@ function FlyingCard({
   // browser can do without laying the page out again.
   return (
     <motion.img
-      src={cardImageUrl(flight.imageId)}
+      src={pictures.url(flight.imageId)}
       alt=""
       draggable={false}
       className="absolute shadow-lg"
@@ -404,7 +404,7 @@ function FlyingCard({
         height: to.height,
         borderRadius: "5%",
         // A card just drawn or revealed may not have loaded yet.
-        ...CARD_IMAGE_PLACEHOLDER,
+        ...pictures.placeholder,
       }}
       initial={{
         x: from.x - to.x,
@@ -492,6 +492,7 @@ function ShieldShatter({
   onDone: (key: number) => void;
 }) {
   const { key, virtualId, imageId, box } = shattering;
+  const pictures = useCardPictures();
   const [{ impact, shards }] = useState(() => shatter(virtualId));
 
   // Removed on a timer as well, so the pieces can never linger on screen.
@@ -522,7 +523,7 @@ function ShieldShatter({
           style={{
             clipPath: shard.clipPath,
             transformOrigin: `${shard.centre.x * 100}% ${shard.centre.y * 100}%`,
-            backgroundImage: `${SHIELD_TINT.background}, url(${cardImageUrl(imageId)})`,
+            backgroundImage: `${SHIELD_TINT.background}, url(${pictures.url(imageId)})`,
             backgroundSize: "cover",
             borderRadius: SHIELD_TINT.borderRadius,
           }}
@@ -573,6 +574,7 @@ function CardEcho({
   onDone: (key: number) => void;
 }) {
   const { key, imageId, box, delay } = echo;
+  const pictures = useCardPictures();
 
   // Removed on a timer as well, so the copy can never linger on screen.
   useEffect(() => {
@@ -585,7 +587,7 @@ function CardEcho({
 
   return (
     <motion.img
-      src={cardImageUrl(imageId)}
+      src={pictures.url(imageId)}
       alt=""
       draggable={false}
       className="absolute"
@@ -596,7 +598,7 @@ function CardEcho({
         height: box.height,
         borderRadius: "5%",
         rotate: box.rotation,
-        ...CARD_IMAGE_PLACEHOLDER,
+        ...pictures.placeholder,
       }}
       // Unseen while it waits for the card to land.
       initial={{ opacity: 0, scale: 1 }}

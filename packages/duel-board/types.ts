@@ -195,12 +195,18 @@ export interface DuelFinishedPlayer {
   username?: string;
 }
 
+/** How a game ended: won by the game's rules, by surrender, by a player not
+ * coming back, or stopped without a winner, such as by the server. */
+export type DuelEnding = "play" | "surrender" | "disconnect" | "aborted";
+
 export interface DuelFinishedMessage {
   header: "duel_finished";
   duelId: string;
+  /** Absent when there is none. */
   winner?: DuelFinishedPlayer;
-  matchResultGenerated: boolean;
-  wonByDisconnect: boolean;
+  ending: DuelEnding;
+  /** False for a game too short to count, or stopped. */
+  counted: boolean;
   turns: number;
   durationSeconds: number;
 }

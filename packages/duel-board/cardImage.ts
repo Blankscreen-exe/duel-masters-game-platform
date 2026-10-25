@@ -1,21 +1,49 @@
-/** The scan of a card, or the card back when the card is face down or its
- * image is unknown. */
-export function cardImageUrl(imageId?: string | null): string {
-  return `https://scans.shobu.io/${imageId || "backside"}.jpg`;
+import { createContext, useContext, useMemo, type CSSProperties } from "react";
+
+/** Where card pictures come from, which the site using the board decides. */
+export interface CardPictures {
+  /** The picture of a card, by its engine id. */
+  card(imageId: string): string;
+  /** The back of a card, shown face down and while pictures load. */
+  back: string;
 }
 
-/** Width over height of a card scan, which are 403 by 560 pixels. */
+const CardPicturesContext = createContext<CardPictures | null>(null);
+
+/** Gives the board, and the previews used beside it, their card pictures. */
+export const CardPicturesProvider = CardPicturesContext.Provider;
+
+/** Width over height of a card picture: they are about 0.72, the shape of a
+ * real card. */
 export const CARD_ASPECT_RATIO = 403 / 560;
 
-/** Styles a card image so that, until its scan has loaded, it keeps the shape
- * of a card and shows the card back. Without the shape an image sized by its
- * height alone is zero pixels wide while it loads, so cards would jump sideways
- * as they arrive and could not be measured for animation. */
-export const CARD_IMAGE_PLACEHOLDER = {
-  aspectRatio: `auto ${CARD_ASPECT_RATIO}`,
-  backgroundImage: `url(${cardImageUrl()})`,
-  backgroundSize: "cover",
-} as const;
+/** The card pictures of the board, with the style that keeps a picture the
+ * shape of a card, showing the card back until it has loaded. Without the
+ * shape an image sized by its height alone is zero pixels wide while it
+ * loads, so cards would jump sideways as they arrive and could not be
+ * measured for animation. */
+export function useCardPictures(): {
+  /** A card's picture, or the card back when it is face down or unknown. */
+  url: (imageId?: string | null) => string;
+  placeholder: CSSProperties;
+} {
+  const pictures = useContext(CardPicturesContext);
+  if (!pictures) {
+    throw new Error("The duel board needs a CardPicturesProvider for its card pictures");
+  }
+
+  return useMemo(
+    () => ({
+      url: (imageId?: string | null) => (imageId ? pictures.card(imageId) : pictures.back),
+      placeholder: {
+        aspectRatio: `auto ${CARD_ASPECT_RATIO}`,
+        backgroundImage: `url(${pictures.back})`,
+        backgroundSize: "cover",
+      },
+    }),
+    [pictures],
+  );
+}
 
 /** How a used up card is drawn: without colour and darkened. Written out in
  * full, alongside its plain counterpart, so an animation can blend the two. */

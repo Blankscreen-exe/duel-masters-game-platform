@@ -6,8 +6,7 @@ import { boardStatusBadges, statusBadges } from "./creatureStatus";
 import { StatusBadges } from "./StatusBadges";
 import type { CreaturePower, CreatureStatus } from "./types";
 import {
-  CARD_IMAGE_PLACEHOLDER,
-  cardImageUrl,
+  useCardPictures,
   MUTED_CARD_FILTER,
   SHIELD_TINT,
 } from "./cardImage";
@@ -102,6 +101,7 @@ export function Card({
   summoningSick = false,
   statuses,
 }: CardProps) {
+  const pictures = useCardPictures();
   const badges = boardStatusBadges(statuses);
   // Hovering a card tells everything about it, not only what fits above it.
   const title =
@@ -176,7 +176,7 @@ export function Card({
         {/* Card image */}
         <img
           ref={imgRef}
-          src={cardImageUrl(imageId)}
+          src={pictures.url(imageId)}
           alt={name || "Backside card"}
           draggable={false}
           className={`block h-full w-auto flex-shrink-0 ${
@@ -203,7 +203,7 @@ export function Card({
             // When the browser claims the pan it fires pointercancel, which the
             // board listens for to drop the half-started drag.
             touchAction: draggable ? "pan-x" : "auto",
-            ...CARD_IMAGE_PLACEHOLDER,
+            ...pictures.placeholder,
             borderRadius: "5%",
             marginLeft: rotated ? horizontalMargin : undefined,
             marginRight: rotated ? horizontalMargin : undefined,

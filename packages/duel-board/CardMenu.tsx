@@ -3,7 +3,7 @@ import { motion, type PanInfo } from "motion/react";
 import { useMeasureCard } from "./BoardMotion";
 import { Button } from "./Button";
 import type { CardAction, CardActionId } from "./cardActions";
-import { CARD_IMAGE_PLACEHOLDER, cardImageUrl } from "./cardImage";
+import { useCardPictures } from "./cardImage";
 import {
   liftedBox,
   restingTransform,
@@ -146,6 +146,7 @@ function LiftedCard({
   onDropped: () => void;
   children?: React.ReactNode;
 }) {
+  const pictures = useCardPictures();
   const variants = {
     // Without a known origin the card just fades in and out where it is.
     resting: origin
@@ -178,11 +179,11 @@ function LiftedCard({
       onClick={(event) => event.stopPropagation()}
     >
       <img
-        src={cardImageUrl(imageId)}
+        src={pictures.url(imageId)}
         alt={name || "Card"}
         draggable={false}
         className="block h-full w-full"
-        style={{ ...CARD_IMAGE_PLACEHOLDER, borderRadius: "5%" }}
+        style={{ ...pictures.placeholder, borderRadius: "5%" }}
       />
       {children}
     </motion.div>

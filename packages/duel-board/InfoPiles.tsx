@@ -1,14 +1,18 @@
 import type { ReactNode } from "react";
 import type { BoardSide } from "./boardDiff";
 import { useBoardAnchor, useIsCardHidden, useTrackedCard } from "./BoardMotion";
-import { CARD_IMAGE_PLACEHOLDER, cardImageUrl } from "./cardImage";
+import { useCardPictures } from "./cardImage";
 import { anchorId } from "./flights";
 import type { CardState } from "./types";
 
 const PILE_CLASS_NAME =
   "relative h-[12vh] min-h-[40px] max-h-[70px] min-[1200px]:min-h-[60px] min-[1200px]:max-h-[110px] flex items-center justify-center";
 
-const CARD_STYLE = { ...CARD_IMAGE_PLACEHOLDER, borderRadius: "5%" };
+/** A pile's card, the shape of a card with rounded corners. */
+function usePileCard() {
+  const pictures = useCardPictures();
+  return { url: pictures.url, style: { ...pictures.placeholder, borderRadius: "5%" } };
+}
 
 function PileLabel({ children }: { children: ReactNode }) {
   return (
@@ -32,16 +36,17 @@ export function HandCount({ side, count }: { side: BoardSide; count: number }) {
 
 export function DeckPile({ side, count }: { side: BoardSide; count: number }) {
   const ref = useBoardAnchor<HTMLDivElement>(anchorId(side, "deck"));
+  const pile = usePileCard();
 
   return (
     <div>
       <PileLabel>Deck [{count}]</PileLabel>
       <div ref={ref} className={PILE_CLASS_NAME}>
         <img
-          src={cardImageUrl()}
+          src={pile.url()}
           alt="Deck back"
           className="h-full"
-          style={CARD_STYLE}
+          style={pile.style}
         />
       </div>
     </div>
@@ -66,6 +71,7 @@ export function GraveyardPile({
     0,
   );
   const topCardHidden = useIsCardHidden(topCard?.virtualId);
+  const pile = usePileCard();
 
   return (
     <div>
@@ -74,11 +80,11 @@ export function GraveyardPile({
         {topCard ? (
           <img
             ref={topCardRef}
-            src={cardImageUrl(topCard.uid)}
+            src={pile.url(topCard.uid)}
             alt="Top graveyard card"
             className="h-full cursor-pointer hover:scale-105 transition-transform"
             style={{
-              ...CARD_STYLE,
+              ...pile.style,
               visibility: topCardHidden ? "hidden" : undefined,
             }}
             onClick={onOpen}
@@ -89,10 +95,10 @@ export function GraveyardPile({
           />
         ) : (
           <img
-            src={cardImageUrl()}
+            src={pile.url()}
             alt="Empty graveyard"
             className="h-full opacity-30"
-            style={CARD_STYLE}
+            style={pile.style}
           />
         )}
       </div>

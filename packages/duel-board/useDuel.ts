@@ -10,11 +10,18 @@ import {
   WaitMessage,
   WarningMessage,
 } from "./types";
+import {
+  callMessage,
+  isCoinTossMessage,
+  nextCoinToss,
+  turnMessage,
+  type CoinSide,
+  type CoinTossState,
+} from "./coinTossState";
 
 interface UseDuelOptions {
-  duelId: string;
-  duelToken: string;
-  hostUrl: string;
+  /** The game's websocket, such as wss://site.example/api/games/abc/socket. */
+  socketUrl: string;
   onActionMessage?: (message: ActionMessage) => void;
   onActionError?: (message: ActionWarningMessage) => void;
   onActionClose?: () => void;
@@ -27,9 +34,7 @@ interface UseDuelOptions {
 }
 
 export function useDuel({
-  duelId,
-  duelToken,
-  hostUrl,
+  socketUrl,
   onActionMessage,
   onActionError,
   onActionClose,
@@ -46,6 +51,8 @@ export function useDuel({
     null,
   );
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
+  /** The coin toss before the game begins; null once it has. */
+  const [coinToss, setCoinToss] = useState<CoinTossState | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -66,8 +73,7 @@ export function useDuel({
         reconnectTimeoutRef.current = null;
       }
 
-      const wsUrl = `${hostUrl}/ws/${duelId}?duelToken=${duelToken}`;
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(socketUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -140,8 +146,15 @@ export function useDuel({
         try {
           const data = JSON.parse(event.data);
 
+          if (isCoinTossMessage(data)) {
+            setCoinToss((current) => nextCoinToss(current, data));
+            return;
+          }
+
           switch (data.header) {
             case "state_update":
+              // The game has begun, so the coin toss is over.
+              setCoinToss(null);
               setState(data.state);
               break;
             case "action":
@@ -243,7 +256,7 @@ export function useDuel({
       window.removeEventListener("pageshow", handlePageShow);
       disconnect();
     };
-  }, [duelId, duelToken, hostUrl]);
+  }, [socketUrl]);
 
   const send = useCallback((data: any) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -281,6 +294,14 @@ export function useDuel({
     send({ header: "tap_ability", virtualId });
   };
 
+  const sendTossCall = (side: CoinSide) => {
+    send(callMessage(side));
+  };
+
+  const sendTurnChoice = (playFirst: boolean) => {
+    send(turnMessage(playFirst));
+  };
+
   const sendResign = () => {
     send({ header: "resign" });
   };
@@ -304,6 +325,9 @@ export function useDuel({
     duelFinished,
     opponentDisconnected,
     reconnecting,
+    coinToss,
+    sendTossCall,
+    sendTurnChoice,
     send,
     sendJoinMatch,
     sendEndTurn,
