@@ -123,12 +123,8 @@ func settleTurn(t *testing.T, scn *scenario.TestScenario) {
 
 // answerInTurn answers one prompt and waits until the answer has been dealt
 // with: the event loop is idle, a new prompt is open, or the answer was
-// refused. Nothing the test sends next can then be lost.
-//
-// An action sent too early is lost: the event that was waiting on the prompt
-// goes on running after the answer, and an action sent meanwhile is dropped by
-// the busy event loop. A real client cannot do this, because it only ever shows
-// one prompt at a time and waits for the board to settle.
+// refused. The test then reads settled state, and answers the next prompt only
+// once it is open, as a real client that shows one prompt at a time does.
 func answerInTurn(t *testing.T, scn *scenario.TestScenario, player *match.PlayerReference, cardIDs ...string) {
 	t.Helper()
 

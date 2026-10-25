@@ -16,22 +16,35 @@ const (
 	ParallelEvent
 )
 
+// queueLimit is how many sequential events may wait for the loop at once. A
+// player sends a handful at most, one per click; past the limit, events are
+// dropped, so a flood of messages cannot grow the queue without end.
+const queueLimit = 64
+
+// EventLoop runs a match's sequential events one at a time, in the order they
+// were scheduled, on its own goroutine. Parallel events run at once, beside
+// it.
 type EventLoop struct {
 	stopped sync.Once
 	running atomic.Bool
-	events  chan func()
 	exit    chan struct{}
 
-	// pending counts the sequential events scheduled and not yet over: on their
-	// way into the queue, queued, or running. An event the loop drops instead
-	// of running stops counting when it is dropped.
+	// queue holds the sequential events waiting to run, oldest first, and mu
+	// guards it. wake tells the loop the queue has something; it holds one
+	// wake-up, so scheduling never blocks.
+	mu    sync.Mutex
+	queue []func()
+	wake  chan struct{}
+
+	// pending counts the sequential events scheduled and not yet over: queued
+	// or running. An event that is dropped is never counted.
 	pending atomic.Int64
 }
 
 func NewEventLoop() *EventLoop {
 	el := &EventLoop{
-		events: make(chan func(), 1),
-		exit:   make(chan struct{}),
+		exit: make(chan struct{}),
+		wake: make(chan struct{}, 1),
 	}
 
 	// Set here rather than in start so that the loop does not look stopped in
@@ -61,21 +74,38 @@ func (el *EventLoop) start() {
 	for {
 		select {
 		case <-el.exit:
-			// events is deliberately left open. Senders schedule onto it from
-			// their own goroutines, so closing it here would turn a scheduled
-			// event into a send on a closed channel.
 			return
-		case event := <-el.events:
-			el.process(event)
+		case <-el.wake:
+		}
 
-			// drain the channel
-			for len(el.events) > 0 {
-				<-el.events
-				// The dropped event never runs, so it stops counting here.
-				el.pending.Add(-1)
+		for event := el.next(); event != nil; event = el.next() {
+			el.process(event)
+			el.pending.Add(-1)
+
+			// Stopping leaves the rest of the queue unrun.
+			select {
+			case <-el.exit:
+				return
+			default:
 			}
 		}
 	}
+}
+
+// next takes the oldest queued event, or returns nil when there is none.
+func (el *EventLoop) next() func() {
+	el.mu.Lock()
+	defer el.mu.Unlock()
+
+	if len(el.queue) == 0 {
+		return nil
+	}
+
+	event := el.queue[0]
+	el.queue[0] = nil
+	el.queue = el.queue[1:]
+
+	return event
 }
 
 func (el *EventLoop) stop() {
@@ -92,43 +122,43 @@ func (el *EventLoop) stop() {
 
 }
 
+// schedule runs an event. A sequential event is queued behind the ones
+// scheduled before it, and runs once they have, however long they take: while
+// an event waits for a player to answer a prompt, the events scheduled after
+// it wait too. Scheduling never blocks.
 func (el *EventLoop) schedule(event func(), strategy EventExecutionStrategy) {
 
-	// Counted before the goroutine starts, so that by the time schedule
-	// returns, the event shows as pending until it has run or been dropped.
-	if strategy == SequentialEvent {
-		el.pending.Add(1)
+	if strategy == ParallelEvent {
+		go func() {
+			// A parallel event should never open a prompt, but it runs on its
+			// own goroutine, so an abort raised by one has no other boundary
+			// to reach.
+			defer recoverEvent()
+
+			event()
+		}()
+		return
 	}
 
-	go func() {
-		// A parallel event should never open a prompt, but it runs on its own
-		// goroutine, so an abort raised by one has no other boundary to reach.
-		defer recoverEvent()
+	el.mu.Lock()
+	if len(el.queue) >= queueLimit {
+		el.mu.Unlock()
+		logrus.Warn("Dropped an incoming event: too many are waiting")
+		return
+	}
+	el.queue = append(el.queue, event)
+	// Counted before schedule returns, so that from then on the event shows
+	// as pending until it has run.
+	el.pending.Add(1)
+	el.mu.Unlock()
 
-		switch strategy {
-		case ParallelEvent:
-			event()
-			return
-
-		case SequentialEvent:
-			queued := func() {
-				// Deferred, so that an event ending in a panic, such as one
-				// abandoned when the match is disposed, also stops counting.
-				defer el.pending.Add(-1)
-
-				event()
-			}
-
-			select {
-			case el.events <- queued:
-			default:
-				el.pending.Add(-1)
-				logrus.Debug("Skipped an incoming event")
-			}
-		}
-	}()
+	select {
+	case el.wake <- struct{}{}:
+	default:
+	}
 
 }
+
 func (el *EventLoop) process(event func()) {
 
 	defer recoverEvent()

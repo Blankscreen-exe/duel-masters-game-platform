@@ -52,9 +52,9 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 ### [x] 6. Reconnect can end the match (Reported)
 - **Status:** Fixed. The new socket takes the seat before the old one is closed, and closing a socket that is no longer a player's changes nothing. Test: `TestComingBackWhileTheOpponentIsAwayKeepsTheMatch`.
 
-### [ ] 7. Stale action answers get delivered to the next prompt (Verified)
+### [x] 7. Stale action answers get delivered to the next prompt (Verified)
 - **Status (answers):** Fixed. Every question a player is asked is numbered (`Match.ask`), every answer names the question it answers, and only an answer to the open question is kept (`game/match/prompt.go`). An answer sent while nothing is open, a late answer to a closed question and a second click are dropped. Giving an answer never blocks, so no sender is left waiting when the match is disposed, and an answer that arrives before the engine waits for it is kept. A player coming back is asked the open question again under its number. The board answers with the number of the question on screen (`packages/duel-board/answers.ts`). Tests: `game/match/prompt_test.go`, `tests/prompt_test.go`.
-- **Left:** the dropped events described under "Also".
+- **Status (dropped events):** Fixed. The event loop queues sequential events and runs them one at a time in the order they arrive (`game/match/eventloop.go`), so a move sent while it is busy, such as a turn choice made while the toss result is still being sent, waits its turn instead of being dropped. A queue past 64 events drops the rest, so a flood cannot grow it without end; item 21 throttles each connection before that. The server's tests send the toss call and the turn choice once. Tests: `game/match/eventloop_test.go`, `tests/event_queue_test.go`.
 - **Where:** `game/match/match.go:1779-1833`
 - **Problem:** An `action` message sent while no prompt is open blocks forever on the unbuffered `p.Player.Action <- msg`. The next prompt, even an unrelated one, receives it, and a stale `Cancel: true` cancels it. When the match is disposed, that blocked send panics "send on closed channel", which `recoverEvent` logs as a real fault.
 - **Fix idea:** Only deliver an action when the player has an open, unresolved prompt (`ActionState`). Otherwise reject it with a warning and do not block. Make sure the disposal path does not log a stack trace.
@@ -71,7 +71,7 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
   - The event loop counts the sequential events scheduled and not yet over (queued, running, or waiting on a prompt), and stops counting an event when it is dropped; `Match.HasPendingEvents` reports it. Checking takes no place in the queue.
   - `waitForIdleLoop` waits on that count instead of probing.
   - `answerInTurn` and `cancelInTurn` use the new `TestScenario.Mark` and `WaitForAnswerToSettle`: they return once the loop is idle, any player has been sent a new prompt (`action`, `show_cards_non_dismissible`) or told to wait on one, or the answer was refused.
-  - The engine still drops real players' actions that arrive while it is busy; whether it should is part of item 7.
+  - The engine no longer drops real players' actions that arrive while it is busy (item 7).
 - **Measured under `-race`:** `TestSpinalParasite` failed 8 times in 200 runs before, 0 in 200 after. `TestBodaciousGiant`, `TestForcedFrenzy`, `TestQuillspikeRumbler`, `TestCometEyeTheSpectralSpud`, `TestEmergencyTyphoon`, `TestLuckyBall` and `TestWilyCarpenter`: 0 failures in 100 runs each. The whole server suite: 5 runs without a failure or race.
 
 ---

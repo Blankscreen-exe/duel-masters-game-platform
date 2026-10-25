@@ -113,8 +113,7 @@ func (s playServer) openGameSocket(t *testing.T, session *http.Cookie, gameID st
 }
 
 // gameConn is a game socket a test plays over, as the duel board does. Its
-// messages are read as they arrive, so a test can wait for one while
-// repeating an answer (see sayUntil).
+// messages are read as they arrive, so a test can wait for one.
 type gameConn struct {
 	conn     *websocket.Conn
 	messages chan map[string]any
@@ -182,23 +181,6 @@ func gameMessage(t *testing.T, game *gameConn, headers ...string) map[string]any
 	return message
 }
 
-// sayUntil sends a message to the game until one with the header arrives on
-// listener, as gamestest.Pipe.SayUntil does, and for the same reason: the
-// engine drops an answer sent while it is still busy.
-func sayUntil(t *testing.T, speaker *gameConn, message map[string]any, listener *gameConn, header string) map[string]any {
-	t.Helper()
-
-	deadline := time.Now().Add(gamestest.Timeout)
-	for time.Now().Before(deadline) {
-		require.NoError(t, speaker.WriteJSON(message))
-		if reply := listener.next(t, time.After(gamestest.ResendEvery), header); reply != nil {
-			return reply
-		}
-	}
-	require.Failf(t, "no reply", "waiting for %q", header)
-	return nil
-}
-
 // play connects a game's two players over game sockets, as the duel board
 // does, and takes the game through its coin toss: the caller calls heads and
 // the winner plays first. It returns their sockets once play has begun.
@@ -219,13 +201,15 @@ func (s playServer) play(t *testing.T, hostPlayer, guestPlayer player, gameID st
 	if gameMessage(t, host, "choose_toss", "toss_being_chosen")["header"] == "toss_being_chosen" {
 		caller, other = guest, host
 	}
-	result := sayUntil(t, caller, map[string]any{"header": "toss_chosen", "prediction": 1}, other, "toss_result")
+	require.NoError(t, caller.WriteJSON(map[string]any{"header": "toss_chosen", "prediction": 1}))
+	result := gameMessage(t, other, "toss_result")
 	chooser := host
 	if result["winner"].(map[string]any)["username"] == guestPlayer.name {
 		chooser = guest
 	}
 	gameMessage(t, chooser, "choose_turn")
-	sayUntil(t, chooser, map[string]any{"header": "turn_chosen", "player": 1}, host, "state_update")
+	require.NoError(t, chooser.WriteJSON(map[string]any{"header": "turn_chosen", "player": 1}))
+	gameMessage(t, host, "state_update")
 
 	return host, guest
 }

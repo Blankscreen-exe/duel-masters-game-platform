@@ -146,8 +146,7 @@ func (m *Match) EventLoopStopped() bool {
 // prompt. Code acting on the match from outside its event loop, such as a test
 // driving it, waits for this to report false before reading what an event
 // changes. Unlike sending the match an event to see when it is answered,
-// checking takes no place in the event loop's queue, so it never pushes out
-// another event.
+// checking adds nothing to the event loop's queue.
 func (m *Match) HasPendingEvents() bool {
 	return m != nil && m.eventloop.hasPending()
 }

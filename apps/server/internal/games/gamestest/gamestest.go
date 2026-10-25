@@ -25,10 +25,6 @@ import (
 // Timeout bounds every wait for something a game does on its own.
 const Timeout = 5 * time.Second
 
-// ResendEvery is how often a test repeats an answer the engine may have
-// dropped (see SayUntil).
-const ResendEvery = 50 * time.Millisecond
-
 // RealCards copies into db a card database of ten real engine cards from
 // DM-01, enough for a legal deck that the engine really plays, and returns
 // its catalogue and the cards' ids.
@@ -222,49 +218,18 @@ func Play(t *testing.T, service *games.Service, game games.Game) (host, guest *P
 
 	// Whoever is asked to call does so.
 	caller := callerOf(t, host, guest)
-	result := caller.SayUntil(t, map[string]any{"header": "toss_chosen", "prediction": 1}, host, "toss_result")
+	caller.Say(map[string]any{"header": "toss_chosen", "prediction": 1})
+	result := host.WaitFor(t, "toss_result")
 
 	winner := host
 	if result["winner"].(map[string]any)["uid"] == game.Guest.ID {
 		winner = guest
 	}
 	winner.WaitFor(t, "choose_turn")
-	winner.SayUntil(t, map[string]any{"header": "turn_chosen", "player": 1}, host, "state_update")
+	winner.Say(map[string]any{"header": "turn_chosen", "player": 1})
+	host.WaitFor(t, "state_update")
 
 	return host, guest
-}
-
-// SayUntil sends a message to the game until one with the header arrives on
-// listener, and returns that. The engine drops an action a player sends while
-// it is still busy with the one before (docs/engine-fixes.md, item 7), as an
-// answer sent the moment its question arrives can be: the engine may still be
-// telling the other player. Use it only for messages the engine takes once
-// and ignores after, such as calling the coin toss and choosing who plays
-// first.
-func (p *Pipe) SayUntil(t *testing.T, message map[string]any, listener *Pipe, header string) map[string]any {
-	t.Helper()
-
-	deadline := time.After(Timeout)
-	for {
-		p.Say(message)
-
-		resend := time.After(ResendEvery)
-		for waiting := true; waiting; {
-			reply, arrived := listener.find(header)
-			if reply != nil {
-				return reply
-			}
-
-			select {
-			case <-arrived:
-			case <-resend:
-				waiting = false
-			case <-deadline:
-				t.Fatalf("expected a %q message", header)
-				return nil
-			}
-		}
-	}
 }
 
 // callerOf waits until one of the players is asked to call the coin toss,

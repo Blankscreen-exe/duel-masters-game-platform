@@ -293,8 +293,7 @@ func (s *TestScenario) ActionEndTurn(player *match.PlayerReference) error {
 }
 
 // WaitForEventLoop blocks until the match event loop has finished whatever it
-// was processing: every sequential event scheduled so far has run, or been
-// dropped by the busy loop. Events write their messages synchronously, so they
+// was processing: every sequential event scheduled so far has run. Events write their messages synchronously, so they
 // have reached the players' connections too.
 //
 // Call this before reading or mutating match state directly after a scenario
@@ -310,8 +309,8 @@ func (s *TestScenario) WaitForEventLoop() error {
 // loop until it is answered, so the caller is left to answer it instead.
 //
 // An action's last state broadcast does not mean it has finished: the loop can
-// still be working through what follows it, and an action sent meanwhile is
-// dropped.
+// still be working through what follows it, and state read meanwhile is
+// mid-change.
 func (s *TestScenario) settleUnlessPrompted(player *match.PlayerReference, since int) error {
 	conn, err := s.connectionFor(player)
 	if err != nil {
@@ -336,8 +335,7 @@ func (s *TestScenario) settleUnlessPrompted(player *match.PlayerReference, since
 
 // waitForIdleLoop waits until the match has no sequential events pending, or
 // until stop reports that there is no point waiting any longer. It only reads
-// the match's pending count, so, unlike a probe event, waiting never takes the
-// event loop's single queue slot from the actions it waits for.
+// the match's pending count, so waiting never adds an event of its own.
 func (s *TestScenario) waitForIdleLoop(stop func() bool) error {
 	deadline := time.Now().Add(actionTimeout)
 	for time.Now().Before(deadline) {
@@ -394,8 +392,7 @@ func (s *TestScenario) ActionAttackCreature(player *match.PlayerReference, attac
 	if !defenderOffered {
 		// Attack target selection is cancellable. Answer the outstanding prompt
 		// and let the cancelled attack unwind before returning, so a caller that
-		// expects this error can immediately issue another action instead of
-		// having it dropped by the still busy event loop.
+		// expects this error finds the match settled.
 		_ = s.CancelAction(player)
 		_ = s.WaitForEventLoop()
 		return fmt.Errorf("creature %s was not offered as an attack target", defenderID)
@@ -676,8 +673,7 @@ func (s *TestScenario) Mark() MessageMark {
 //     open.
 //
 // A state update is not a sign that the answer has been dealt with: the event
-// waiting on the prompt goes on running after it, and an action sent meanwhile
-// is dropped by the busy event loop.
+// waiting on the prompt goes on running after it.
 func (s *TestScenario) WaitForAnswerToSettle(player *match.PlayerReference, mark MessageMark) error {
 	return s.waitForIdleLoop(func() bool {
 		for other, since := range mark {

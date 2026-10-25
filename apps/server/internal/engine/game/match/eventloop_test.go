@@ -1,6 +1,8 @@
 package match
 
 import (
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -71,7 +73,7 @@ func TestEventLoopCountsAnEventFromSchedulingUntilItHasRun(t *testing.T) {
 	}, SequentialEvent)
 
 	if !el.hasPending() {
-		t.Fatal("an event is pending as soon as schedule returns, before its goroutine runs")
+		t.Fatal("an event is pending as soon as schedule returns, before it runs")
 	}
 
 	close(release)
@@ -82,26 +84,59 @@ func TestEventLoopCountsAnEventFromSchedulingUntilItHasRun(t *testing.T) {
 	}
 }
 
-func TestEventLoopStopsCountingDroppedEvents(t *testing.T) {
+func TestEventLoopRunsEventsScheduledWhileBusyInOrder(t *testing.T) {
 	el := startTestEventLoop(t)
 	release := blockLoop(t, el)
 
-	// While the loop is busy, one of these takes the single queue slot and the
-	// other is dropped at once; the queued one is dropped when the loop drains
-	// the queue after the blocking event.
+	// While the loop is busy, as when it waits for a player to answer, more
+	// events arrive. They wait their turn rather than being dropped.
+	var mu sync.Mutex
+	var ran []int
+	for i := range 5 {
+		el.schedule(func() {
+			mu.Lock()
+			defer mu.Unlock()
+			ran = append(ran, i)
+		}, SequentialEvent)
+	}
+
+	if got := el.pending.Load(); got != 6 {
+		t.Fatalf("the busy event and the five waiting are pending, got %d", got)
+	}
+
+	close(release)
+	eventually(t, func() bool { return !el.hasPending() }, "every event ran")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.Equal(ran, []int{0, 1, 2, 3, 4}) {
+		t.Fatalf("events run in the order they were scheduled, got %v", ran)
+	}
+}
+
+func TestEventLoopDropsEventsPastTheQueueLimit(t *testing.T) {
+	el := startTestEventLoop(t)
+	release := blockLoop(t, el)
+
 	var ran atomic.Int32
-	for range 2 {
+	for range queueLimit + 10 {
 		el.schedule(func() { ran.Add(1) }, SequentialEvent)
 	}
 
-	eventually(t, func() bool { return el.pending.Load() == 2 }, "the event that could not be queued stopped counting")
+	if got := el.pending.Load(); got != queueLimit+1 {
+		t.Fatalf("the busy event and a full queue are pending, got %d", got)
+	}
 
 	close(release)
-	eventually(t, func() bool { return !el.hasPending() }, "the drained event stopped counting")
+	eventually(t, func() bool { return !el.hasPending() }, "the queued events ran")
 
-	if ran.Load() != 0 {
-		t.Fatalf("events scheduled while the loop was busy are dropped, but %d ran", ran.Load())
+	if ran.Load() != queueLimit {
+		t.Fatalf("the events that fit in the queue run and the rest are dropped, but %d ran", ran.Load())
 	}
+
+	// With room again, events are taken as before.
+	el.schedule(func() { ran.Add(1) }, SequentialEvent)
+	eventually(t, func() bool { return ran.Load() == queueLimit+1 }, "an event scheduled later runs")
 }
 
 func TestEventLoopStopsCountingAnEventThatPanics(t *testing.T) {
