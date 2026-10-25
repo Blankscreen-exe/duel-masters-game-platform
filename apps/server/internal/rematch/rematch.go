@@ -293,7 +293,7 @@ func (s *Service) ChooseDeck(ctx context.Context, player users.User, gameID, dec
 // both are told to go to it; Ready then returns it, and otherwise the
 // rematch, waiting for the opponent. It returns ErrNotFound as Get does,
 // lobby.ErrPaused while new games are paused, the errors
-// lobby.Service.PrepareDeck returns for the player's own deck, and
+// lobby.Service.PrepareChosenDeck returns for the player's own deck, and
 // ErrOpponentDeckIllegal when the opponent's no longer keeps to the format.
 func (s *Service) Ready(ctx context.Context, player users.User, gameID string) (*games.Game, Rematch, error) {
 	if s.lobby.Paused() {
@@ -335,7 +335,7 @@ func (s *Service) agree(ctx context.Context, player users.User, gameID string) (
 		}
 		checked, _ := current.Seats(player.ID)
 		// The player's deck may have changed, or gone, since it was chosen.
-		if _, err := s.prepare(ctx, player, current.FormatID, checked.Deck.ID); err != nil {
+		if _, _, err := s.lobby.PrepareChosenDeck(ctx, player, current.FormatID, checked.Deck.ID); err != nil {
 			return Rematch{}, false, err
 		}
 
@@ -405,11 +405,7 @@ func (s *Service) start(ctx context.Context, rematch Rematch) (games.Game, error
 // A deck deleted since it was chosen counts as one that cannot be played.
 func (s *Service) entrant(ctx context.Context, rematch Rematch, seat Seat) (users.User, decks.Deck, formats.Format, error) {
 	player := users.User{ID: seat.UserID, Username: seat.Username}
-	format, deck, err := s.lobby.PrepareDeck(ctx, player, rematch.FormatID, seat.Deck.ID)
-	var illegal *games.IllegalDeckError
-	if err != nil && !errors.As(err, &illegal) {
-		err = &games.IllegalDeckError{Username: seat.Username}
-	}
+	format, deck, err := s.lobby.PrepareChosenDeck(ctx, player, rematch.FormatID, seat.Deck.ID)
 	return player, deck, format, err
 }
 

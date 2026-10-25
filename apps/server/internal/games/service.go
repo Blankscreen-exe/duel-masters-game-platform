@@ -60,13 +60,17 @@ var (
 	ErrClosed = errors.New("the server is stopping")
 )
 
-// IllegalDeckError is returned when a player's deck breaks the format.
+// IllegalDeckError is returned when a player's deck breaks the format, or,
+// without problems, when a deck chosen earlier has gone since.
 type IllegalDeckError struct {
 	Username string
 	Problems []decks.Problem
 }
 
 func (e *IllegalDeckError) Error() string {
+	if len(e.Problems) == 0 {
+		return fmt.Sprintf("%s's deck can no longer be played in this format", e.Username)
+	}
 	return fmt.Sprintf("%s's deck is not legal in this format: %s", e.Username, e.Problems[0].Message())
 }
 

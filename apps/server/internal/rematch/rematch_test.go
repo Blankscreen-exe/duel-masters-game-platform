@@ -500,3 +500,24 @@ func TestAQuickMatchRematchIsAQuickMatch(t *testing.T) {
 		assert.Equal(t, "Quick match", started.Name)
 	})
 }
+
+func TestADeckDeletedSinceItWasChosen(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db, true)
+		ctx := context.Background()
+		last := f.playAndSurrender(t)
+
+		_, _, err := f.rematches.Ready(ctx, f.Kokujo, last.ID)
+		require.NoError(t, err)
+		require.NoError(t, f.Decks.Delete(ctx, f.Kokujo.ID, f.Legal[f.Kokujo.ID].ID))
+
+		_, _, err = f.rematches.Ready(ctx, f.Shobu, last.ID)
+		require.ErrorIs(t, err, rematch.ErrOpponentDeckIllegal, "a deleted deck cannot be played")
+
+		_, _, err = f.rematches.Ready(ctx, f.Kokujo, last.ID)
+		var illegal *games.IllegalDeckError
+		require.ErrorAs(t, err, &illegal, "Kokujo is told his deck can no longer be played")
+		assert.Empty(t, illegal.Problems)
+		assert.Empty(t, f.heard.startedGames())
+	})
+}

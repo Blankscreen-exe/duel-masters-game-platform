@@ -517,6 +517,18 @@ func (s *Service) PrepareDeck(ctx context.Context, player users.User, formatID, 
 	return format, deck, nil
 }
 
+// PrepareChosenDeck is PrepareDeck for a deck the player chose earlier, such
+// as while waiting for a quick match or deciding on a rematch: a deck or
+// format gone since counts as a deck that can no longer be played, a
+// *games.IllegalDeckError without problems.
+func (s *Service) PrepareChosenDeck(ctx context.Context, player users.User, formatID, deckID string) (formats.Format, decks.Deck, error) {
+	format, deck, err := s.PrepareDeck(ctx, player, formatID, deckID)
+	if _, gone := validation.As(err); gone {
+		return formats.Format{}, decks.Deck{}, &games.IllegalDeckError{Username: player.Username}
+	}
+	return format, deck, err
+}
+
 // formatAndDeck finds the format and one of the player's decks, as
 // validation errors naming the field for ones that do not exist.
 func (s *Service) formatAndDeck(ctx context.Context, userID, formatID, deckID string) (formats.Format, decks.Deck, error) {

@@ -182,16 +182,11 @@ func (s *Service) start(ctx context.Context, host, guest Ticket) (games.Game, er
 	hostUser := users.User{ID: host.UserID, Username: host.Username}
 	guestUser := users.User{ID: guest.UserID, Username: guest.Username}
 
-	format, hostDeck, err := s.lobby.PrepareDeck(ctx, hostUser, host.FormatID, host.DeckID)
+	format, hostDeck, err := s.lobby.PrepareChosenDeck(ctx, hostUser, host.FormatID, host.DeckID)
 	if err != nil {
-		var illegal *games.IllegalDeckError
-		if !errors.As(err, &illegal) {
-			// The deck was deleted or the format removed while they waited.
-			err = &games.IllegalDeckError{Username: host.Username}
-		}
 		return games.Game{}, err
 	}
-	_, guestDeck, err := s.lobby.PrepareDeck(ctx, guestUser, guest.FormatID, guest.DeckID)
+	_, guestDeck, err := s.lobby.PrepareChosenDeck(ctx, guestUser, guest.FormatID, guest.DeckID)
 	if err != nil {
 		return games.Game{}, err
 	}

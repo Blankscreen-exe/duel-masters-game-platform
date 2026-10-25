@@ -319,3 +319,28 @@ func TestPausedNewGames(t *testing.T) {
 		assert.True(t, f.lobby.Paused())
 	})
 }
+
+func TestADeckChosenEarlierThatHasGone(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		deck := f.decks[f.shobu.ID]
+
+		_, prepared, err := f.lobby.PrepareChosenDeck(ctx, f.shobu, f.open.ID, deck.ID)
+		require.NoError(t, err)
+		assert.Equal(t, deck.ID, prepared.ID)
+
+		_, _, err = f.lobby.PrepareChosenDeck(ctx, f.shobu, f.open.ID, f.short[f.shobu.ID].ID)
+		var illegal *games.IllegalDeckError
+		require.ErrorAs(t, err, &illegal)
+		assert.Equal(t, decks.ProblemSize, illegal.Problems[0].Kind, "a deck breaking the format says how")
+
+		require.NoError(t, f.world.Decks.Delete(ctx, f.shobu.ID, deck.ID))
+		for name, formatID := range map[string]string{"a deleted deck": f.open.ID, "a removed format": "removed"} {
+			_, _, err = f.lobby.PrepareChosenDeck(ctx, f.shobu, formatID, deck.ID)
+			require.ErrorAs(t, err, &illegal, name)
+			assert.Empty(t, illegal.Problems, name)
+			assert.Equal(t, "Shobu's deck can no longer be played in this format", err.Error(), name)
+		}
+	})
+}

@@ -220,7 +220,11 @@ func deckOrInputRefusal(err error) (api.InvalidDeckOrInputJSONResponse, bool) {
 		reasons = append(reasons, problem.Message())
 	}
 
-	answer := apiError(codeDeckNotLegal, "Your deck cannot be played in this format: "+strings.Join(reasons, " "))
+	message := "Your deck can no longer be played in this format."
+	if len(reasons) > 0 {
+		message = "Your deck cannot be played in this format: " + strings.Join(reasons, " ")
+	}
+	answer := apiError(codeDeckNotLegal, message)
 	answer.Problems = &problems
 	return api.InvalidDeckOrInputJSONResponse(answer), true
 }
