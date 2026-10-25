@@ -774,8 +774,19 @@ export function Duel({
     }
   }, [connected]);
 
+  // The coin toss comes before the first state, so it shows over the waiting
+  // screen as well as over the board.
+  const coinTossOverlay = coinToss && (
+    <CoinToss toss={coinToss} onCall={sendTossCall} onChooseTurn={sendTurnChoice} />
+  );
+
   if (!state) {
-    return <div>Waiting for both players to join...</div>;
+    return (
+      <div className="flex h-dvh items-center justify-center bg-[linear-gradient(45deg,rgb(29,33,42),rgb(20,16,21))] text-gray-300">
+        <p role="status">Waiting for both players to join...</p>
+        {coinTossOverlay}
+      </div>
+    );
   }
 
   const isSpectating = state.spectator;
@@ -1663,9 +1674,7 @@ export function Duel({
           }
         ></Action>
       )}
-      {coinToss && (
-        <CoinToss toss={coinToss} onCall={sendTossCall} onChooseTurn={sendTurnChoice} />
-      )}
+      {coinTossOverlay}
     </CardPicturesProvider>
   );
 }
