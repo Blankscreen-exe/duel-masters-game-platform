@@ -59,10 +59,10 @@ func (h *heard) startedGames() []games.Game {
 func newQuickMatch(t *testing.T, db *gorm.DB) (*lobbytest.World, *matchmaking.Service, *heard) {
 	t.Helper()
 
-	w := lobbytest.NewWorld(t, db)
+	w := lobbytest.NewWorld(t, db, matchmaking.Settings()...)
 	listener := &heard{}
 	service := matchmaking.NewService(matchmaking.Dependencies{
-		Lobby: w.Lobby, Games: w.Games, Directory: w.Directory, Listener: listener,
+		Lobby: w.Lobby, Games: w.Games, Ratings: w.Ratings, Directory: w.Directory, Settings: w.Settings, Listener: listener,
 		Logger: storetest.Logger(), Now: w.Clock.Now, SweepEvery: 10 * time.Millisecond,
 	})
 	return w, service, listener
@@ -235,6 +235,137 @@ func TestAWaitingPlayerWhoseDeckBrokeIsSkipped(t *testing.T) {
 		assert.Equal(t, map[string]int{w.Open.ID: 1}, quick.Waiting())
 		assert.Empty(t, w.Doing(w.Shobu), "Shobu left the queue")
 		assert.Equal(t, lobby.Queued, w.Doing(w.Kokujo))
+		assert.Empty(t, listener.startedGames())
+	})
+}
+
+// rate gives a player a rating, as if they had played for it.
+func rate(t *testing.T, w *lobbytest.World, player users.User, rating int) {
+	t.Helper()
+	require.NoError(t, w.DB.Table("users").Where("id = ?", player.ID).Update("rating", rating).Error)
+}
+
+// run runs quick match's sweeps until the test ends.
+func run(t *testing.T, quick *matchmaking.Service) {
+	t.Helper()
+
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		quick.Run(ctx)
+	}()
+	t.Cleanup(func() {
+		stop()
+		<-done
+	})
+}
+
+func TestTheClosestRatingIsPairedFirst(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		w, quick, _ := newQuickMatch(t, db)
+		rate(t, w, w.Kokujo, 1090)
+		rate(t, w, w.Mimi, 920)
+
+		for _, player := range []users.User{w.Kokujo, w.Mimi} {
+			entered, err := quick.Enter(ctx, player, w.Open.ID, w.Legal[player.ID].ID)
+			require.NoError(t, err)
+			require.Nil(t, entered.Game, "170 points apart, they wait")
+		}
+		ticket, _ := quick.Ticket(w.Kokujo.ID)
+		assert.Equal(t, 1090, ticket.Rating)
+
+		entered, err := quick.Enter(ctx, w.Shobu, w.Open.ID, w.Legal[w.Shobu.ID].ID)
+		require.NoError(t, err)
+		require.NotNil(t, entered.Game)
+		assert.Equal(t, w.Mimi.ID, entered.Game.Host.ID, "Mimi, 80 points away, rather than Kokujo, 90 away, who waited longer")
+		assert.Equal(t, map[string]int{w.Open.ID: 1}, quick.Waiting())
+	})
+}
+
+func TestPlayersFarApartArePairedOnceTheyHaveWaited(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		w, quick, listener := newQuickMatch(t, db)
+		rate(t, w, w.Kokujo, 1150)
+		run(t, quick)
+
+		_, err := quick.Enter(ctx, w.Kokujo, w.Open.ID, w.Legal[w.Kokujo.ID].ID)
+		require.NoError(t, err)
+		w.Clock.Advance(14 * time.Second)
+		entered, err := quick.Enter(ctx, w.Shobu, w.Open.ID, w.Legal[w.Shobu.ID].ID)
+		require.NoError(t, err)
+		require.Nil(t, entered.Game, "150 points is beyond Kokujo's range for his first 15 seconds")
+		assert.Never(t, func() bool { return len(listener.startedGames()) > 0 }, 100*time.Millisecond, 10*time.Millisecond)
+
+		w.Clock.Advance(time.Second)
+		require.Eventually(t, func() bool { return len(listener.startedGames()) == 1 }, gamestest.Timeout, 5*time.Millisecond,
+			"his range has grown to 200")
+		game := listener.startedGames()[0]
+		assert.Equal(t, w.Kokujo.ID, game.Host.ID, "the player who waited longer hosts")
+		assert.Equal(t, w.Shobu.ID, game.Guest.ID)
+		assert.Empty(t, quick.Waiting())
+		assert.Equal(t, lobby.Playing, w.Doing(w.Shobu))
+		assert.Equal(t, lobby.Playing, w.Doing(w.Kokujo))
+	})
+}
+
+func TestAfterAMinuteAnyoneIsPaired(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		w, quick, listener := newQuickMatch(t, db)
+		rate(t, w, w.Kokujo, 2400)
+		run(t, quick)
+
+		_, err := quick.Enter(ctx, w.Kokujo, w.Open.ID, w.Legal[w.Kokujo.ID].ID)
+		require.NoError(t, err)
+		_, err = quick.Enter(ctx, w.Shobu, w.Open.ID, w.Legal[w.Shobu.ID].ID)
+		require.NoError(t, err)
+
+		w.Clock.Advance(time.Minute)
+		require.Eventually(t, func() bool { return len(listener.startedGames()) == 1 }, gamestest.Timeout, 5*time.Millisecond)
+	})
+}
+
+func TestTheRatingRangeSetting(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		w, quick, _ := newQuickMatch(t, db)
+		_, err := w.Settings.Set(ctx, matchmaking.RatingRange.Key, "0")
+		require.NoError(t, err)
+		rate(t, w, w.Mimi, 1001)
+
+		_, err = quick.Enter(ctx, w.Mimi, w.Open.ID, w.Legal[w.Mimi.ID].ID)
+		require.NoError(t, err)
+		_, err = quick.Enter(ctx, w.Shobu, w.Open.ID, w.Legal[w.Shobu.ID].ID)
+		require.NoError(t, err)
+		entered, err := quick.Enter(ctx, w.Kokujo, w.Open.ID, w.Legal[w.Kokujo.ID].ID)
+		require.NoError(t, err)
+
+		require.NotNil(t, entered.Game)
+		assert.Equal(t, w.Shobu.ID, entered.Game.Host.ID, "only an equal rating suits a newcomer")
+	})
+}
+
+func TestAWaitingPlayerWhoseDeckBrokeIsLeftOutWhenTheirRangeWidens(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		w, quick, listener := newQuickMatch(t, db)
+		rate(t, w, w.Kokujo, 1150)
+		run(t, quick)
+
+		_, err := quick.Enter(ctx, w.Kokujo, w.Open.ID, w.Legal[w.Kokujo.ID].ID)
+		require.NoError(t, err)
+		_, err = quick.Enter(ctx, w.Shobu, w.Open.ID, w.Legal[w.Shobu.ID].ID)
+		require.NoError(t, err)
+		require.NoError(t, w.Decks.Delete(ctx, w.Kokujo.ID, w.Legal[w.Kokujo.ID].ID))
+
+		w.Clock.Advance(15 * time.Second)
+		require.Eventually(t, func() bool { return w.Doing(w.Kokujo) == "" }, gamestest.Timeout, 5*time.Millisecond,
+			"Kokujo's deck has gone, so he leaves the queue")
+		assert.Equal(t, map[string]int{w.Open.ID: 1}, quick.Waiting(), "Shobu waits on")
+		assert.Equal(t, lobby.Queued, w.Doing(w.Shobu))
 		assert.Empty(t, listener.startedGames())
 	})
 }

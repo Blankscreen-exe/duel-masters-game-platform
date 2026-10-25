@@ -82,7 +82,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), ratings.Settings(), rematch.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), matchmaking.Settings(), ratings.Settings(), rematch.Settings())...)
 	require.NoError(t, err)
 
 	clock := clocktest.New(time.Now())
@@ -104,7 +104,8 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 		Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
 	})
 	quickMatch := matchmaking.NewService(matchmaking.Dependencies{
-		Lobby: lobbyService, Games: gameService, Directory: live, Listener: live, Logger: logger, Now: clock.Now,
+		Lobby: lobbyService, Games: gameService, Ratings: ratingService, Directory: live, Settings: siteSettings,
+		Listener: live, Logger: logger, Now: clock.Now,
 	})
 	rematches := rematch.NewService(rematch.Dependencies{
 		Lobby: lobbyService, Games: gameService, Directory: live, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,

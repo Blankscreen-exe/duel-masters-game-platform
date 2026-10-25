@@ -95,7 +95,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		return nil, err
 	}
 
-	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), ratings.Settings(), rematch.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), matchmaking.Settings(), ratings.Settings(), rematch.Settings())...)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,9 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	quickMatch := matchmaking.NewService(matchmaking.Dependencies{
 		Lobby:     lobbyService,
 		Games:     gameService,
+		Ratings:   ratingService,
 		Directory: live,
+		Settings:  siteSettings,
 		Listener:  live,
 		Logger:    logger.With("component", "matchmaking"),
 		Now:       time.Now,

@@ -1,7 +1,8 @@
 // Package matchmaking runs quick match: a player picks a format and a deck
-// and waits, and is paired with the next player waiting in the same format.
-// It shares the lobby's register of what players are doing, so a player
-// waits here or hosts or plays, one at a time.
+// and waits, and is paired with the player waiting in the same format whose
+// rating is closest to theirs, within a range that widens the longer they
+// wait. It shares the lobby's register of what players are doing, so a
+// player waits here or hosts or plays, one at a time.
 package matchmaking
 
 import (
@@ -14,15 +15,17 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
 
 // gameName names every game quick match pairs.
 const gameName = "Quick match"
 
-// defaultSweepInterval is how often the queue is checked for players who
-// have left.
-const defaultSweepInterval = 5 * time.Second
+// defaultSweepInterval is how often the waiting players are paired, as their
+// rating ranges widen, and checked for having left.
+const defaultSweepInterval = time.Second
 
 // Ticket is a player waiting for a quick match.
 type Ticket struct {
@@ -31,7 +34,10 @@ type Ticket struct {
 	FormatID   string
 	FormatName string
 	DeckID     string
-	Since      time.Time
+	// Rating is the player's rating as they started waiting, which cannot
+	// change while they wait.
+	Rating int
+	Since  time.Time
 }
 
 // Entered is how entering quick match went: paired with a waiting player at
@@ -56,13 +62,15 @@ type Listener interface {
 type Dependencies struct {
 	Lobby     *lobby.Service
 	Games     *games.Service
+	Ratings   *ratings.Service
 	Directory lobby.Directory
+	Settings  *settings.Service
 	Listener  Listener
 	Logger    *slog.Logger
 	// Now is the clock; time.Now outside tests.
 	Now func() time.Time
-	// SweepEvery is how often the queue is checked for players who have
-	// left; 0 is every 5 seconds.
+	// SweepEvery is how often the waiting players are paired and checked
+	// for having left; 0 is every second.
 	SweepEvery time.Duration
 }
 
@@ -70,7 +78,9 @@ type Dependencies struct {
 type Service struct {
 	lobby      *lobby.Service
 	games      *games.Service
+	ratings    *ratings.Service
 	directory  lobby.Directory
+	settings   *settings.Service
 	listener   Listener
 	logger     *slog.Logger
 	now        func() time.Time
@@ -87,7 +97,9 @@ func NewService(deps Dependencies) *Service {
 	s := &Service{
 		lobby:      deps.Lobby,
 		games:      deps.Games,
+		ratings:    deps.Ratings,
 		directory:  deps.Directory,
+		settings:   deps.Settings,
 		listener:   deps.Listener,
 		logger:     deps.Logger,
 		now:        deps.Now,
@@ -102,11 +114,12 @@ func NewService(deps Dependencies) *Service {
 }
 
 // Enter puts a player in quick match with one of their decks, legal in the
-// format. If someone is already waiting in the format, the two are paired
-// and the game starts, the player who waited longer hosting; otherwise the
-// player waits. It returns the errors lobby.Service.PrepareDeck returns, a
-// *lobby.BusyError for a player already doing something, and
-// lobby.ErrPaused while new games are paused.
+// format. If someone suitable is already waiting in the format, the two are
+// paired and the game starts, the player who waited longer hosting;
+// otherwise the player waits, to be paired as soon as someone suits them. It
+// returns the errors lobby.Service.PrepareDeck returns, a *lobby.BusyError
+// for a player already doing something, and lobby.ErrPaused while new games
+// are paused.
 func (s *Service) Enter(ctx context.Context, player users.User, formatID, deckID string) (Entered, error) {
 	if s.lobby.Paused() {
 		return Entered{}, lobby.ErrPaused
@@ -116,8 +129,15 @@ func (s *Service) Enter(ctx context.Context, player users.User, formatID, deckID
 	if err != nil {
 		return Entered{}, err
 	}
+	standing, err := s.ratings.Standing(ctx, player.ID)
+	if err != nil {
+		return Entered{}, err
+	}
 
-	ticket := Ticket{UserID: player.ID, Username: player.Username, FormatID: format.ID, FormatName: format.Name, DeckID: deck.ID, Since: s.now()}
+	ticket := Ticket{
+		UserID: player.ID, Username: player.Username, FormatID: format.ID, FormatName: format.Name, DeckID: deck.ID,
+		Rating: standing.Rank.Rating, Since: s.now(),
+	}
 	activities := s.lobby.Activities()
 	if err := activities.Claim(player.ID, lobby.Activity{Kind: lobby.Queued, FormatName: format.Name}); err != nil {
 		return Entered{}, err
@@ -149,31 +169,103 @@ func (s *Service) Enter(ctx context.Context, player users.User, formatID, deckID
 	}
 }
 
-// pairOrWait takes the longest waiting other player still online out of the
-// ticket's format queue, or else adds the ticket to it, in one step, so two
+// pairOrWait takes the waiting player online who suits the ticket best out
+// of its format's queue, or else adds the ticket to it, in one step, so two
 // players arriving at once are always paired rather than both left waiting.
 func (s *Service) pairOrWait(ticket Ticket) (Ticket, bool) {
+	rules := s.pairing()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	waiting := s.queue[ticket.FormatID]
-	for i, candidate := range waiting {
-		if candidate.UserID != ticket.UserID && s.directory.IsOnline(candidate.UserID) {
-			s.queue[ticket.FormatID] = slices.Delete(slices.Clone(waiting), i, i+1)
-			return candidate, true
-		}
+	if i := rules.best(ticket, waiting, s.directory.IsOnline); i >= 0 {
+		s.queue[ticket.FormatID] = slices.Delete(slices.Clone(waiting), i, i+1)
+		return waiting[i], true
 	}
 
 	s.queue[ticket.FormatID] = append(waiting, ticket)
 	return Ticket{}, false
 }
 
-// putBack returns a waiting player to the front of their queue, where they
-// were.
+// takePair takes the next two waiting players to pair out of the queue: the
+// longest waiting player online whom anyone suits, and the one who suits
+// them best. The first hosts.
+func (s *Service) takePair() (host, guest Ticket, ok bool) {
+	rules := s.pairing()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for formatID, waiting := range s.queue {
+		for i, ticket := range waiting {
+			if !s.directory.IsOnline(ticket.UserID) {
+				continue
+			}
+			// Those waiting longer suit nobody here, so suit not this one.
+			later := waiting[i+1:]
+			j := rules.best(ticket, later, s.directory.IsOnline)
+			if j < 0 {
+				continue
+			}
+
+			host, guest = ticket, later[j]
+			kept := slices.Delete(slices.Clone(waiting), i+1+j, i+2+j)
+			s.queue[formatID] = slices.Delete(kept, i, i+1)
+			return host, guest, true
+		}
+	}
+	return Ticket{}, Ticket{}, false
+}
+
+// pairWaiting pairs waiting players who have come to suit each other as
+// their ranges widened, and starts their games. A player whose deck can no
+// longer be played leaves the queue, and the other waits on.
+func (s *Service) pairWaiting(ctx context.Context) {
+	for {
+		host, guest, ok := s.takePair()
+		if !ok {
+			return
+		}
+
+		_, err := s.start(ctx, host, guest)
+		if err == nil {
+			continue
+		}
+
+		var illegal *games.IllegalDeckError
+		broken := errors.As(err, &illegal)
+		for _, ticket := range []Ticket{host, guest} {
+			if broken && illegal.Username == ticket.Username {
+				s.lobby.Activities().Release(ticket.UserID, lobby.Queued, "")
+			} else {
+				s.putBack(ticket)
+			}
+		}
+		s.queueChanged()
+		if !broken {
+			// Something else went wrong, such as the server stopping: they
+			// wait on, to be tried again at the next sweep.
+			s.logger.ErrorContext(ctx, "pairing a quick match failed", "error", err, "host", host.Username, "guest", guest.Username)
+			return
+		}
+	}
+}
+
+// pairing is who suits whom now.
+func (s *Service) pairing() pairing {
+	return pairing{start: int(s.settings.Number(RatingRange)), now: s.now()}
+}
+
+// putBack returns a waiting player to their queue, where they were: the
+// queue is in the order the players started waiting.
 func (s *Service) putBack(ticket Ticket) {
 	s.mu.Lock()
-	s.queue[ticket.FormatID] = slices.Insert(s.queue[ticket.FormatID], 0, ticket)
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+
+	waiting := s.queue[ticket.FormatID]
+	at, _ := slices.BinarySearchFunc(waiting, ticket.Since, func(waiting Ticket, since time.Time) int {
+		return waiting.Since.Compare(since)
+	})
+	s.queue[ticket.FormatID] = slices.Insert(slices.Clone(waiting), at, ticket)
 }
 
 // start starts the game of two paired players, the one who waited longer
@@ -271,8 +363,9 @@ func (s *Service) PresenceChanged(userID string) {
 	}
 }
 
-// Run takes players who have left out of the queue, until ctx ends: a
-// backstop for presence changes, which can arrive in any order.
+// Run pairs waiting players as their ranges widen, and takes players who
+// have left out of the queue, a backstop for presence changes, which can
+// arrive in any order, until ctx ends.
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.sweepEvery)
 	defer ticker.Stop()
@@ -285,6 +378,7 @@ func (s *Service) Run(ctx context.Context) {
 			for _, userID := range s.waitingPlayers() {
 				s.PresenceChanged(userID)
 			}
+			s.pairWaiting(ctx)
 		}
 	}
 }
