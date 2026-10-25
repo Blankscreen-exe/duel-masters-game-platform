@@ -25,6 +25,15 @@ tags:
     description: >-
       The card catalogue: every card in the card database, with its printings and pictures, and
       whether the rules engine can play it. Reprints are one card with several printings.
+  - name: formats
+    description: >-
+      The formats games are played in: the sets each allows and the cards it bans or limits, on
+      top of the game's own rules (exactly 40 cards, at most 4 copies of a card).
+  - name: decks
+    description: >-
+      The logged-in player's decks. They are private: another player's deck is answered as not
+      found. A deck may be saved unfinished, and says for every format whether it is legal and why
+      not.
 paths:
   /health:
     get:
@@ -337,6 +346,187 @@ paths:
           description: The browser's copy is still current.
         "404":
           $ref: "#/components/responses/NotFound"
+  /formats:
+    get:
+      operationId: listFormats
+      summary: Every format, in the order admins set
+      tags: [formats]
+      responses:
+        "200":
+          description: The formats.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Format"
+  /decks:
+    get:
+      operationId: listDecks
+      summary: The player's decks, the most recently changed first
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The decks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeckSummary"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+    post:
+      operationId: createDeck
+      summary: Create a deck
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckInput"
+      responses:
+        "201":
+          description: The deck was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "409":
+          description: >-
+            The player already has as many decks as allowed (code "too_many_decks"); the
+            decks.max_per_player setting.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /decks/text:
+    post:
+      operationId: readDeckList
+      summary: Read a deck list written as text
+      description: >-
+        Finds the cards of a list written one card per line, as "4 Bolshack Dragon" (a line without
+        a count is one copy; lines starting with # or // are skipped). Names match ignoring case,
+        accents and punctuation. Saves nothing: the cards found are for a deck to be created or
+        changed. Cards that cannot be played, and copies beyond 4, are left out and reported.
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckListText"
+      responses:
+        "200":
+          description: The cards found, and the lines that could not be used.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeckListReading"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /decks/{deckId}:
+    parameters:
+      - name: deckId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getDeck
+      summary: One of the player's decks, with its cards and legality
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The deck.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateDeck
+      summary: Replace a deck
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckInput"
+      responses:
+        "200":
+          description: The deck as saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDeck
+      summary: Delete a deck
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: The deck was deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /decks/{deckId}/text:
+    get:
+      operationId: getDeckText
+      summary: A deck written as text
+      description: >-
+        One card per line as "4 Bolshack Dragon", by cost and then name; the format readDeckList
+        reads.
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: deckId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The deck list.
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
     sessionCookie:
@@ -577,6 +767,220 @@ components:
           type: string
         iconUrl:
           description: Absent when the set has no icon.
+          type: string
+    Format:
+      type: object
+      required: [id, name, description, allSets, sets, limits]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        allSets:
+          description: Cards from every set are allowed, including sets added later.
+          type: boolean
+        sets:
+          description: The allowed sets when allSets is false; empty otherwise.
+          type: array
+          items:
+            type: string
+        limits:
+          description: The banned and limited cards.
+          type: array
+          items:
+            $ref: "#/components/schemas/FormatCardLimit"
+    FormatCardLimit:
+      type: object
+      required: [cardId, maxCopies]
+      properties:
+        cardId:
+          type: string
+        maxCopies:
+          description: 0 for a banned card, 1 or 2 for a limited one.
+          type: integer
+          minimum: 0
+          maximum: 2
+    DeckInput:
+      description: >-
+        A deck as the player saves it. It may be unfinished, but never has more than 40 cards, more
+        than 4 copies of a card, or a card the game cannot play.
+      type: object
+      required: [name, cards]
+      properties:
+        name:
+          description: 1 to 40 characters, after surrounding spaces are trimmed.
+          type: string
+          minLength: 1
+          maxLength: 40
+        coverCardId:
+          description: The card shown for the deck; one of its cards. Without it, the site picks one.
+          type: string
+        cards:
+          description: Each card once, with how many copies.
+          type: array
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/DeckEntry"
+    DeckEntry:
+      type: object
+      required: [cardId, count]
+      properties:
+        cardId:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+          maximum: 4
+    DeckCard:
+      type: object
+      required: [cardId, count]
+      properties:
+        cardId:
+          type: string
+        count:
+          type: integer
+        card:
+          description: The card; absent for a card that has left the card database.
+          $ref: "#/components/schemas/Card"
+    DeckCover:
+      description: The card shown for a deck.
+      type: object
+      required: [cardId]
+      properties:
+        cardId:
+          type: string
+        imageUrl:
+          type: string
+    DeckSummary:
+      type: object
+      required: [id, name, cardCount, civilizations, legalFormatIds, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        cardCount:
+          type: integer
+        civilizations:
+          description: The civilizations of the deck's cards, in the game's order.
+          type: array
+          items:
+            type: string
+        cover:
+          description: The chosen cover card, or else the most expensive card; absent for an empty deck.
+          $ref: "#/components/schemas/DeckCover"
+        legalFormatIds:
+          description: The formats the deck can be played in.
+          type: array
+          items:
+            type: string
+        updatedAt:
+          type: string
+          format: date-time
+    Deck:
+      type: object
+      required: [id, name, cards, cardCount, civilizations, legality, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        coverCardId:
+          description: The cover card the player chose; absent when the site picks one.
+          type: string
+        cover:
+          description: The chosen cover card, or else the most expensive card; absent for an empty deck.
+          $ref: "#/components/schemas/DeckCover"
+        cards:
+          description: By cost, then name.
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckCard"
+        cardCount:
+          type: integer
+        civilizations:
+          description: The civilizations of the deck's cards, in the game's order.
+          type: array
+          items:
+            type: string
+        legality:
+          description: For every format, in the formats' order, whether the deck can be played in it.
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckLegality"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DeckLegality:
+      type: object
+      required: [formatId, legal, problems]
+      properties:
+        formatId:
+          type: string
+        legal:
+          type: boolean
+        problems:
+          description: Every rule the deck breaks in the format; empty for a legal deck.
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckProblem"
+    DeckProblem:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          $ref: "#/components/schemas/DeckProblemCode"
+        message:
+          description: The problem explained to the player.
+          type: string
+        cardId:
+          description: The card at fault; absent for the deck's size.
+          type: string
+    DeckProblemCode:
+      description: >-
+        deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left
+        the card database. not_in_format: none of its printings is from an allowed set. banned: the
+        format bans it. over_limit: more copies than the format allows. too_many_copies: more than
+        4 copies.
+      type: string
+      enum: [deck_size, not_playable, not_in_format, banned, over_limit, too_many_copies]
+    DeckListText:
+      type: object
+      required: [text]
+      properties:
+        text:
+          description: At most 10,000 characters and 200 lines.
+          type: string
+          maxLength: 10000
+    DeckListReading:
+      type: object
+      required: [cards, problems]
+      properties:
+        cards:
+          description: The cards found, in the list's order, each once.
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckCard"
+        problems:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckListProblem"
+    DeckListProblem:
+      description: A line that could not be used, or not fully.
+      type: object
+      required: [line, text, message]
+      properties:
+        line:
+          description: The line's number, counting from 1.
+          type: integer
+        text:
+          type: string
+        message:
           type: string
     Error:
       description: Returned with every error status.

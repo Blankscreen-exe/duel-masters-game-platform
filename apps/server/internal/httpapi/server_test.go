@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
@@ -32,28 +35,38 @@ type testServer struct {
 func newTestServer(t *testing.T, secureCookies bool) testServer {
 	t.Helper()
 
+	return newTestServerWith(t, secureCookies, testCardDatabase(t), []games.PlayableCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon", Set: "dm-01"}})
+}
+
+// newTestServerWith is newTestServer with another card database and engine
+// cards.
+func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, playable []games.PlayableCard) testServer {
+	t.Helper()
+
 	db := storetest.Open(t, config.SQLite)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	siteSettings, err := settings.NewService(ctx, db, logger, auth.Settings()...)
+	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings())...)
 	require.NoError(t, err)
 
 	authService := auth.NewService(db, users.NewService(db, logger), siteSettings, auth.NewPasswordHasher(4), time.Now, logger)
 
-	cardDatabase := testCardDatabase(t)
 	source, err := cards.ReadSource(cardDatabase)
 	require.NoError(t, err)
-	_, err = cards.Sync(ctx, db, source, []games.PlayableCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon", Set: "dm-01"}}, logger)
+	_, err = cards.Sync(ctx, db, source, playable, logger)
 	require.NoError(t, err)
+	catalogue := cards.NewCatalogue(db, cardDatabase)
 
 	return testServer{
 		handler: NewHandler(Dependencies{
 			DB:            sqlDB,
 			Auth:          authService,
-			Catalogue:     cards.NewCatalogue(db, cardDatabase),
+			Catalogue:     catalogue,
+			Formats:       formats.NewService(db),
+			Decks:         decks.NewService(db, catalogue, siteSettings, logger),
 			Logger:        logger,
 			SecureCookies: secureCookies,
 		}),

@@ -206,6 +206,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/formats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every format, in the order admins set */
+        get: operations["listFormats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/decks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The player's decks, the most recently changed first */
+        get: operations["listDecks"];
+        put?: never;
+        /** Create a deck */
+        post: operations["createDeck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/decks/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a deck list written as text
+         * @description Finds the cards of a list written one card per line, as "4 Bolshack Dragon" (a line without a count is one copy; lines starting with # or // are skipped). Names match ignoring case, accents and punctuation. Saves nothing: the cards found are for a deck to be created or changed. Cards that cannot be played, and copies beyond 4, are left out and reported.
+         */
+        post: operations["readDeckList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/decks/{deckId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deckId: string;
+            };
+            cookie?: never;
+        };
+        /** One of the player's decks, with its cards and legality */
+        get: operations["getDeck"];
+        /** Replace a deck */
+        put: operations["updateDeck"];
+        post?: never;
+        /** Delete a deck */
+        delete: operations["deleteDeck"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/decks/{deckId}/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A deck written as text
+         * @description One card per line as "4 Bolshack Dragon", by cost and then name; the format readDeckList reads.
+         */
+        get: operations["getDeckText"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -303,6 +399,112 @@ export interface components {
             code: string;
             /** @description Absent when the set has no icon. */
             iconUrl?: string;
+        };
+        Format: {
+            id: string;
+            name: string;
+            description: string;
+            /** @description Cards from every set are allowed, including sets added later. */
+            allSets: boolean;
+            /** @description The allowed sets when allSets is false; empty otherwise. */
+            sets: string[];
+            /** @description The banned and limited cards. */
+            limits: components["schemas"]["FormatCardLimit"][];
+        };
+        FormatCardLimit: {
+            cardId: string;
+            /** @description 0 for a banned card, 1 or 2 for a limited one. */
+            maxCopies: number;
+        };
+        /** @description A deck as the player saves it. It may be unfinished, but never has more than 40 cards, more than 4 copies of a card, or a card the game cannot play. */
+        DeckInput: {
+            /** @description 1 to 40 characters, after surrounding spaces are trimmed. */
+            name: string;
+            /** @description The card shown for the deck; one of its cards. Without it, the site picks one. */
+            coverCardId?: string;
+            /** @description Each card once, with how many copies. */
+            cards: components["schemas"]["DeckEntry"][];
+        };
+        DeckEntry: {
+            cardId: string;
+            count: number;
+        };
+        DeckCard: {
+            cardId: string;
+            count: number;
+            /** @description The card; absent for a card that has left the card database. */
+            card?: components["schemas"]["Card"];
+        };
+        /** @description The card shown for a deck. */
+        DeckCover: {
+            cardId: string;
+            imageUrl?: string;
+        };
+        DeckSummary: {
+            id: string;
+            name: string;
+            cardCount: number;
+            /** @description The civilizations of the deck's cards, in the game's order. */
+            civilizations: string[];
+            /** @description The chosen cover card, or else the most expensive card; absent for an empty deck. */
+            cover?: components["schemas"]["DeckCover"];
+            /** @description The formats the deck can be played in. */
+            legalFormatIds: string[];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        Deck: {
+            id: string;
+            name: string;
+            /** @description The cover card the player chose; absent when the site picks one. */
+            coverCardId?: string;
+            /** @description The chosen cover card, or else the most expensive card; absent for an empty deck. */
+            cover?: components["schemas"]["DeckCover"];
+            /** @description By cost, then name. */
+            cards: components["schemas"]["DeckCard"][];
+            cardCount: number;
+            /** @description The civilizations of the deck's cards, in the game's order. */
+            civilizations: string[];
+            /** @description For every format, in the formats' order, whether the deck can be played in it. */
+            legality: components["schemas"]["DeckLegality"][];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        DeckLegality: {
+            formatId: string;
+            legal: boolean;
+            /** @description Every rule the deck breaks in the format; empty for a legal deck. */
+            problems: components["schemas"]["DeckProblem"][];
+        };
+        DeckProblem: {
+            code: components["schemas"]["DeckProblemCode"];
+            /** @description The problem explained to the player. */
+            message: string;
+            /** @description The card at fault; absent for the deck's size. */
+            cardId?: string;
+        };
+        /**
+         * @description deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies.
+         * @enum {string}
+         */
+        DeckProblemCode: "deck_size" | "not_playable" | "not_in_format" | "banned" | "over_limit" | "too_many_copies";
+        DeckListText: {
+            /** @description At most 10,000 characters and 200 lines. */
+            text: string;
+        };
+        DeckListReading: {
+            /** @description The cards found, in the list's order, each once. */
+            cards: components["schemas"]["DeckCard"][];
+            problems: components["schemas"]["DeckListProblem"][];
+        };
+        /** @description A line that could not be used, or not fully. */
+        DeckListProblem: {
+            /** @description The line's number, counting from 1. */
+            line: number;
+            text: string;
+            message: string;
         };
         /** @description Returned with every error status. */
         Error: {
@@ -687,6 +889,207 @@ export interface operations {
                 };
                 content?: never;
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listFormats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The formats. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Format"][];
+                };
+            };
+        };
+    };
+    listDecks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The decks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeckSummary"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    createDeck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeckInput"];
+            };
+        };
+        responses: {
+            /** @description The deck was created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deck"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description The player already has as many decks as allowed (code "too_many_decks"); the decks.max_per_player setting. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    readDeckList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeckListText"];
+            };
+        };
+        responses: {
+            /** @description The cards found, and the lines that could not be used. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeckListReading"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    getDeck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deckId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deck. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deck"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateDeck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deckId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeckInput"];
+            };
+        };
+        responses: {
+            /** @description The deck as saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deck"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteDeck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deckId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deck was deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getDeckText: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deckId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deck list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
             404: components["responses"]["NotFound"];
         };
     };

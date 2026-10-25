@@ -18,6 +18,36 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for DeckProblemCode.
+const (
+	DeckProblemCodeBanned        DeckProblemCode = "banned"
+	DeckProblemCodeDeckSize      DeckProblemCode = "deck_size"
+	DeckProblemCodeNotInFormat   DeckProblemCode = "not_in_format"
+	DeckProblemCodeNotPlayable   DeckProblemCode = "not_playable"
+	DeckProblemCodeOverLimit     DeckProblemCode = "over_limit"
+	DeckProblemCodeTooManyCopies DeckProblemCode = "too_many_copies"
+)
+
+// Valid indicates whether the value is a known member of the DeckProblemCode enum.
+func (e DeckProblemCode) Valid() bool {
+	switch e {
+	case DeckProblemCodeBanned:
+		return true
+	case DeckProblemCodeDeckSize:
+		return true
+	case DeckProblemCodeNotInFormat:
+		return true
+	case DeckProblemCodeNotPlayable:
+		return true
+	case DeckProblemCodeOverLimit:
+		return true
+	case DeckProblemCodeTooManyCopies:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthStatus.
 const (
 	HealthStatusOk          HealthStatus = "ok"
@@ -153,6 +183,123 @@ type Credentials struct {
 	Username string `json:"username"`
 }
 
+// Deck defines model for Deck.
+type Deck struct {
+	CardCount int `json:"cardCount"`
+
+	// Cards By cost, then name.
+	Cards []DeckCard `json:"cards"`
+
+	// Civilizations The civilizations of the deck's cards, in the game's order.
+	Civilizations []string `json:"civilizations"`
+
+	// Cover The card shown for a deck.
+	Cover *DeckCover `json:"cover,omitempty"`
+
+	// CoverCardId The cover card the player chose; absent when the site picks one.
+	CoverCardId *string   `json:"coverCardId,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Id          string    `json:"id"`
+
+	// Legality For every format, in the formats' order, whether the deck can be played in it.
+	Legality  []DeckLegality `json:"legality"`
+	Name      string         `json:"name"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+}
+
+// DeckCard defines model for DeckCard.
+type DeckCard struct {
+	Card   *Card  `json:"card,omitempty"`
+	CardId string `json:"cardId"`
+	Count  int    `json:"count"`
+}
+
+// DeckCover The card shown for a deck.
+type DeckCover struct {
+	CardId   string  `json:"cardId"`
+	ImageUrl *string `json:"imageUrl,omitempty"`
+}
+
+// DeckEntry defines model for DeckEntry.
+type DeckEntry struct {
+	CardId string `json:"cardId"`
+	Count  int    `json:"count"`
+}
+
+// DeckInput A deck as the player saves it. It may be unfinished, but never has more than 40 cards, more than 4 copies of a card, or a card the game cannot play.
+type DeckInput struct {
+	// Cards Each card once, with how many copies.
+	Cards []DeckEntry `json:"cards"`
+
+	// CoverCardId The card shown for the deck; one of its cards. Without it, the site picks one.
+	CoverCardId *string `json:"coverCardId,omitempty"`
+
+	// Name 1 to 40 characters, after surrounding spaces are trimmed.
+	Name string `json:"name"`
+}
+
+// DeckLegality defines model for DeckLegality.
+type DeckLegality struct {
+	FormatId string `json:"formatId"`
+	Legal    bool   `json:"legal"`
+
+	// Problems Every rule the deck breaks in the format; empty for a legal deck.
+	Problems []DeckProblem `json:"problems"`
+}
+
+// DeckListProblem A line that could not be used, or not fully.
+type DeckListProblem struct {
+	// Line The line's number, counting from 1.
+	Line    int    `json:"line"`
+	Message string `json:"message"`
+	Text    string `json:"text"`
+}
+
+// DeckListReading defines model for DeckListReading.
+type DeckListReading struct {
+	// Cards The cards found, in the list's order, each once.
+	Cards    []DeckCard        `json:"cards"`
+	Problems []DeckListProblem `json:"problems"`
+}
+
+// DeckListText defines model for DeckListText.
+type DeckListText struct {
+	// Text At most 10,000 characters and 200 lines.
+	Text string `json:"text"`
+}
+
+// DeckProblem defines model for DeckProblem.
+type DeckProblem struct {
+	// CardId The card at fault; absent for the deck's size.
+	CardId *string `json:"cardId,omitempty"`
+
+	// Code deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies.
+	Code DeckProblemCode `json:"code"`
+
+	// Message The problem explained to the player.
+	Message string `json:"message"`
+}
+
+// DeckProblemCode deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies.
+type DeckProblemCode string
+
+// DeckSummary defines model for DeckSummary.
+type DeckSummary struct {
+	CardCount int `json:"cardCount"`
+
+	// Civilizations The civilizations of the deck's cards, in the game's order.
+	Civilizations []string `json:"civilizations"`
+
+	// Cover The card shown for a deck.
+	Cover *DeckCover `json:"cover,omitempty"`
+	Id    string     `json:"id"`
+
+	// LegalFormatIds The formats the deck can be played in.
+	LegalFormatIds []string  `json:"legalFormatIds"`
+	Name           string    `json:"name"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
 // Error Returned with every error status.
 type Error struct {
 	// Code A stable, machine-readable error code, such as "not_found".
@@ -163,6 +310,29 @@ type Error struct {
 
 	// Message A readable explanation of the error.
 	Message string `json:"message"`
+}
+
+// Format defines model for Format.
+type Format struct {
+	// AllSets Cards from every set are allowed, including sets added later.
+	AllSets     bool   `json:"allSets"`
+	Description string `json:"description"`
+	Id          string `json:"id"`
+
+	// Limits The banned and limited cards.
+	Limits []FormatCardLimit `json:"limits"`
+	Name   string            `json:"name"`
+
+	// Sets The allowed sets when allSets is false; empty otherwise.
+	Sets []string `json:"sets"`
+}
+
+// FormatCardLimit defines model for FormatCardLimit.
+type FormatCardLimit struct {
+	CardId string `json:"cardId"`
+
+	// MaxCopies 0 for a banned card, 1 or 2 for a limited one.
+	MaxCopies int `json:"maxCopies"`
 }
 
 // Health defines model for Health.
@@ -226,6 +396,15 @@ type ChangePasswordJSONRequestBody = PasswordChange
 // SignUpJSONRequestBody defines body for SignUp for application/json ContentType.
 type SignUpJSONRequestBody = Credentials
 
+// CreateDeckJSONRequestBody defines body for CreateDeck for application/json ContentType.
+type CreateDeckJSONRequestBody = DeckInput
+
+// ReadDeckListJSONRequestBody defines body for ReadDeckList for application/json ContentType.
+type ReadDeckListJSONRequestBody = DeckListText
+
+// UpdateDeckJSONRequestBody defines body for UpdateDeck for application/json ContentType.
+type UpdateDeckJSONRequestBody = DeckInput
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// LogIn Log in
@@ -258,6 +437,30 @@ type ServerInterface interface {
 	// GetCard One card, with every printing
 	// (GET /cards/{cardId})
 	GetCard(w http.ResponseWriter, r *http.Request, cardId string)
+	// ListDecks The player's decks, the most recently changed first
+	// (GET /decks)
+	ListDecks(w http.ResponseWriter, r *http.Request)
+	// CreateDeck Create a deck
+	// (POST /decks)
+	CreateDeck(w http.ResponseWriter, r *http.Request)
+	// ReadDeckList Read a deck list written as text
+	// (POST /decks/text)
+	ReadDeckList(w http.ResponseWriter, r *http.Request)
+	// DeleteDeck Delete a deck
+	// (DELETE /decks/{deckId})
+	DeleteDeck(w http.ResponseWriter, r *http.Request, deckId string)
+	// GetDeck One of the player's decks, with its cards and legality
+	// (GET /decks/{deckId})
+	GetDeck(w http.ResponseWriter, r *http.Request, deckId string)
+	// UpdateDeck Replace a deck
+	// (PUT /decks/{deckId})
+	UpdateDeck(w http.ResponseWriter, r *http.Request, deckId string)
+	// GetDeckText A deck written as text
+	// (GET /decks/{deckId}/text)
+	GetDeckText(w http.ResponseWriter, r *http.Request, deckId string)
+	// ListFormats Every format, in the order admins set
+	// (GET /formats)
+	ListFormats(w http.ResponseWriter, r *http.Request)
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -597,6 +800,166 @@ func (siw *ServerInterfaceWrapper) GetCard(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// ListDecks operation middleware
+func (siw *ServerInterfaceWrapper) ListDecks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDecks(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDeck operation middleware
+func (siw *ServerInterfaceWrapper) CreateDeck(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDeck(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReadDeckList operation middleware
+func (siw *ServerInterfaceWrapper) ReadDeckList(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReadDeckList(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDeck operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDeck(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "deckId" -------------
+	var deckId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "deckId", r.PathValue("deckId"), &deckId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "deckId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDeck(w, r, deckId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDeck operation middleware
+func (siw *ServerInterfaceWrapper) GetDeck(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "deckId" -------------
+	var deckId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "deckId", r.PathValue("deckId"), &deckId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "deckId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDeck(w, r, deckId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateDeck operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDeck(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "deckId" -------------
+	var deckId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "deckId", r.PathValue("deckId"), &deckId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "deckId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateDeck(w, r, deckId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDeckText operation middleware
+func (siw *ServerInterfaceWrapper) GetDeckText(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "deckId" -------------
+	var deckId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "deckId", r.PathValue("deckId"), &deckId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "deckId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDeckText(w, r, deckId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFormats operation middleware
+func (siw *ServerInterfaceWrapper) ListFormats(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFormats(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
 
@@ -742,6 +1105,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/{cardId}", wrapper.GetCard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/images/{key}", wrapper.GetCardImage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/sets/{setCode}/icon", wrapper.GetCardSetIcon)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/formats", wrapper.ListFormats)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks", wrapper.ListDecks)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/decks", wrapper.CreateDeck)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/decks/text", wrapper.ReadDeckList)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/decks/{deckId}", wrapper.DeleteDeck)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks/{deckId}", wrapper.GetDeck)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/decks/{deckId}", wrapper.UpdateDeck)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks/{deckId}/text", wrapper.GetDeckText)
 
 	return m
 }
@@ -1238,6 +1609,382 @@ func (response GetCard404JSONResponse) VisitGetCardResponse(w http.ResponseWrite
 	return err
 }
 
+type ListDecksRequestObject struct {
+}
+
+type ListDecksResponseObject interface {
+	VisitListDecksResponse(w http.ResponseWriter) error
+}
+
+type ListDecks200JSONResponse []DeckSummary
+
+func (response ListDecks200JSONResponse) VisitListDecksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDecks401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ListDecks401JSONResponse) VisitListDecksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeckRequestObject struct {
+	Body *CreateDeckJSONRequestBody
+}
+
+type CreateDeckResponseObject interface {
+	VisitCreateDeckResponse(w http.ResponseWriter) error
+}
+
+type CreateDeck201JSONResponse Deck
+
+func (response CreateDeck201JSONResponse) VisitCreateDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeck400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response CreateDeck400JSONResponse) VisitCreateDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeck401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response CreateDeck401JSONResponse) VisitCreateDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeck409JSONResponse Error
+
+func (response CreateDeck409JSONResponse) VisitCreateDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadDeckListRequestObject struct {
+	Body *ReadDeckListJSONRequestBody
+}
+
+type ReadDeckListResponseObject interface {
+	VisitReadDeckListResponse(w http.ResponseWriter) error
+}
+
+type ReadDeckList200JSONResponse DeckListReading
+
+func (response ReadDeckList200JSONResponse) VisitReadDeckListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadDeckList400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response ReadDeckList400JSONResponse) VisitReadDeckListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadDeckList401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ReadDeckList401JSONResponse) VisitReadDeckListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDeckRequestObject struct {
+	DeckId string `json:"deckId"`
+}
+
+type DeleteDeckResponseObject interface {
+	VisitDeleteDeckResponse(w http.ResponseWriter) error
+}
+
+type DeleteDeck204Response struct {
+}
+
+func (response DeleteDeck204Response) VisitDeleteDeckResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteDeck401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response DeleteDeck401JSONResponse) VisitDeleteDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDeck404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteDeck404JSONResponse) VisitDeleteDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeckRequestObject struct {
+	DeckId string `json:"deckId"`
+}
+
+type GetDeckResponseObject interface {
+	VisitGetDeckResponse(w http.ResponseWriter) error
+}
+
+type GetDeck200JSONResponse Deck
+
+func (response GetDeck200JSONResponse) VisitGetDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeck401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetDeck401JSONResponse) VisitGetDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeck404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetDeck404JSONResponse) VisitGetDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDeckRequestObject struct {
+	DeckId string `json:"deckId"`
+	Body   *UpdateDeckJSONRequestBody
+}
+
+type UpdateDeckResponseObject interface {
+	VisitUpdateDeckResponse(w http.ResponseWriter) error
+}
+
+type UpdateDeck200JSONResponse Deck
+
+func (response UpdateDeck200JSONResponse) VisitUpdateDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDeck400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response UpdateDeck400JSONResponse) VisitUpdateDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDeck401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response UpdateDeck401JSONResponse) VisitUpdateDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDeck404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateDeck404JSONResponse) VisitUpdateDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeckTextRequestObject struct {
+	DeckId string `json:"deckId"`
+}
+
+type GetDeckTextResponseObject interface {
+	VisitGetDeckTextResponse(w http.ResponseWriter) error
+}
+
+type GetDeckText200TextResponse string
+
+func (response GetDeckText200TextResponse) VisitGetDeckTextResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(200)
+
+	_, err := w.Write([]byte(fmt.Sprint(response)))
+	return err
+}
+
+type GetDeckText401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetDeckText401JSONResponse) VisitGetDeckTextResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeckText404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetDeckText404JSONResponse) VisitGetDeckTextResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFormatsRequestObject struct {
+}
+
+type ListFormatsResponseObject interface {
+	VisitListFormatsResponse(w http.ResponseWriter) error
+}
+
+type ListFormats200JSONResponse []Format
+
+func (response ListFormats200JSONResponse) VisitListFormatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthRequestObject struct {
 }
 
@@ -1305,6 +2052,30 @@ type StrictServerInterface interface {
 	// GetCard One card, with every printing
 	// (GET /cards/{cardId})
 	GetCard(ctx context.Context, request GetCardRequestObject) (GetCardResponseObject, error)
+	// ListDecks The player's decks, the most recently changed first
+	// (GET /decks)
+	ListDecks(ctx context.Context, request ListDecksRequestObject) (ListDecksResponseObject, error)
+	// CreateDeck Create a deck
+	// (POST /decks)
+	CreateDeck(ctx context.Context, request CreateDeckRequestObject) (CreateDeckResponseObject, error)
+	// ReadDeckList Read a deck list written as text
+	// (POST /decks/text)
+	ReadDeckList(ctx context.Context, request ReadDeckListRequestObject) (ReadDeckListResponseObject, error)
+	// DeleteDeck Delete a deck
+	// (DELETE /decks/{deckId})
+	DeleteDeck(ctx context.Context, request DeleteDeckRequestObject) (DeleteDeckResponseObject, error)
+	// GetDeck One of the player's decks, with its cards and legality
+	// (GET /decks/{deckId})
+	GetDeck(ctx context.Context, request GetDeckRequestObject) (GetDeckResponseObject, error)
+	// UpdateDeck Replace a deck
+	// (PUT /decks/{deckId})
+	UpdateDeck(ctx context.Context, request UpdateDeckRequestObject) (UpdateDeckResponseObject, error)
+	// GetDeckText A deck written as text
+	// (GET /decks/{deckId}/text)
+	GetDeckText(ctx context.Context, request GetDeckTextRequestObject) (GetDeckTextResponseObject, error)
+	// ListFormats Every format, in the order admins set
+	// (GET /formats)
+	ListFormats(ctx context.Context, request ListFormatsRequestObject) (ListFormatsResponseObject, error)
 	// GetHealth Check that the server and its database are working
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -1611,6 +2382,227 @@ func (sh *strictHandler) GetCard(w http.ResponseWriter, r *http.Request, cardId 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCardResponseObject); ok {
 		if err := validResponse.VisitGetCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListDecks operation middleware
+func (sh *strictHandler) ListDecks(w http.ResponseWriter, r *http.Request) {
+	var request ListDecksRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListDecks(ctx, request.(ListDecksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListDecks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListDecksResponseObject); ok {
+		if err := validResponse.VisitListDecksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateDeck operation middleware
+func (sh *strictHandler) CreateDeck(w http.ResponseWriter, r *http.Request) {
+	var request CreateDeckRequestObject
+
+	var body CreateDeckJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateDeck(ctx, request.(CreateDeckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateDeck")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateDeckResponseObject); ok {
+		if err := validResponse.VisitCreateDeckResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReadDeckList operation middleware
+func (sh *strictHandler) ReadDeckList(w http.ResponseWriter, r *http.Request) {
+	var request ReadDeckListRequestObject
+
+	var body ReadDeckListJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReadDeckList(ctx, request.(ReadDeckListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReadDeckList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReadDeckListResponseObject); ok {
+		if err := validResponse.VisitReadDeckListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteDeck operation middleware
+func (sh *strictHandler) DeleteDeck(w http.ResponseWriter, r *http.Request, deckId string) {
+	var request DeleteDeckRequestObject
+
+	request.DeckId = deckId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteDeck(ctx, request.(DeleteDeckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteDeck")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteDeckResponseObject); ok {
+		if err := validResponse.VisitDeleteDeckResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDeck operation middleware
+func (sh *strictHandler) GetDeck(w http.ResponseWriter, r *http.Request, deckId string) {
+	var request GetDeckRequestObject
+
+	request.DeckId = deckId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDeck(ctx, request.(GetDeckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDeck")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDeckResponseObject); ok {
+		if err := validResponse.VisitGetDeckResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateDeck operation middleware
+func (sh *strictHandler) UpdateDeck(w http.ResponseWriter, r *http.Request, deckId string) {
+	var request UpdateDeckRequestObject
+
+	request.DeckId = deckId
+
+	var body UpdateDeckJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateDeck(ctx, request.(UpdateDeckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateDeck")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateDeckResponseObject); ok {
+		if err := validResponse.VisitUpdateDeckResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDeckText operation middleware
+func (sh *strictHandler) GetDeckText(w http.ResponseWriter, r *http.Request, deckId string) {
+	var request GetDeckTextRequestObject
+
+	request.DeckId = deckId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDeckText(ctx, request.(GetDeckTextRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDeckText")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDeckTextResponseObject); ok {
+		if err := validResponse.VisitGetDeckTextResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListFormats operation middleware
+func (sh *strictHandler) ListFormats(w http.ResponseWriter, r *http.Request) {
+	var request ListFormatsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFormats(ctx, request.(ListFormatsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFormats")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFormatsResponseObject); ok {
+		if err := validResponse.VisitListFormatsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

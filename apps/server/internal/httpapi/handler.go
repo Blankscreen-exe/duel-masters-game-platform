@@ -11,6 +11,8 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 )
 
@@ -30,6 +32,8 @@ type Dependencies struct {
 	DB        Pinger
 	Auth      *auth.Service
 	Catalogue *cards.Catalogue
+	Formats   *formats.Service
+	Decks     *decks.Service
 	Logger    *slog.Logger
 	// SecureCookies makes the session cookie HTTPS-only.
 	SecureCookies bool
@@ -40,6 +44,8 @@ type handlers struct {
 	db            Pinger
 	auth          *auth.Service
 	catalogue     *cards.Catalogue
+	formats       *formats.Service
+	decks         *decks.Service
 	secureCookies bool
 }
 
@@ -52,7 +58,14 @@ var _ api.StrictServerInterface = (*handlers)(nil)
 func NewHandler(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
-	strict := api.NewStrictHandlerWithOptions(&handlers{db: deps.DB, auth: deps.Auth, catalogue: deps.Catalogue, secureCookies: deps.SecureCookies}, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(&handlers{
+		db:            deps.DB,
+		auth:          deps.Auth,
+		catalogue:     deps.Catalogue,
+		formats:       deps.Formats,
+		decks:         deps.Decks,
+		secureCookies: deps.SecureCookies,
+	}, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: badRequest,
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			deps.Logger.ErrorContext(r.Context(), "handling a request failed", "method", r.Method, "path", r.URL.Path, "error", err)

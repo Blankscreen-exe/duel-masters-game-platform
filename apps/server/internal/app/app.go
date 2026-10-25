@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"slices"
 	"time"
 
 	"gorm.io/gorm"
@@ -17,6 +18,8 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
@@ -76,7 +79,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		return nil, err
 	}
 
-	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), auth.Settings()...)
+	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), decks.Settings())...)
 	if err != nil {
 		return nil, err
 	}
@@ -98,6 +101,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		return nil, err
 	}
 	catalogue := cards.NewCatalogue(db, cfg.CardDatabaseDir)
+	deckService := decks.NewService(db, catalogue, siteSettings, logger.With("component", "decks"))
 
 	httpLogger := logger.With("component", "http")
 
@@ -110,6 +114,8 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 				DB:            sqlDB,
 				Auth:          authService,
 				Catalogue:     catalogue,
+				Formats:       formats.NewService(db),
+				Decks:         deckService,
 				Logger:        httpLogger,
 				SecureCookies: cfg.SecureCookies,
 			}),

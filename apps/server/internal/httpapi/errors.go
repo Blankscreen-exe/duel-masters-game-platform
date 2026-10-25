@@ -22,6 +22,8 @@ const (
 	codeSignupsClosed      = "signups_closed"
 	codeUsernameTaken      = "username_taken"
 	codeWrongPassword      = "wrong_password"
+
+	codeTooManyDecks = "too_many_decks"
 )
 
 // apiError is the contract's Error body.
