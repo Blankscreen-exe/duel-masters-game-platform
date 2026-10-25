@@ -40,12 +40,17 @@ func (h *handlers) GetLiveGame(ctx context.Context, request api.GetLiveGameReque
 		return api.GetLiveGame404JSONResponse{NotFoundJSONResponse: notFound(gameGone)}, nil
 	}
 
+	shownRanks, err := ranksOf(ctx, h.ratings, []string{game.Host.ID, game.Guest.ID})
+	if err != nil {
+		return nil, err
+	}
+
 	return api.GetLiveGame200JSONResponse{
 		Id:          game.ID,
 		Name:        game.Name,
 		FormatName:  game.FormatName,
-		Host:        apiGamePlayer(game.Host),
-		Guest:       apiGamePlayer(game.Guest),
+		Host:        apiGamePlayer(game.Host, shownRanks),
+		Guest:       apiGamePlayer(game.Guest, shownRanks),
 		Spectators:  game.Watchable(),
 		Matchmaking: game.Matchmaking,
 		Role:        api.GameRole(role),

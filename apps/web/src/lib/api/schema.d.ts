@@ -485,6 +485,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rankings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The rankings
+         * @description The players who have finished a game that counted, the best rated first. Players level on rating share a place and are listed by name. A search keeps each player's place in the full rankings.
+         */
+        get: operations["getRankings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/players/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The player's name, in any case. */
+                username: string;
+            };
+            cookie?: never;
+        };
+        /** A player's profile */
+        get: operations["getPlayer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/players/{username}/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The player's name, in any case. */
+                username: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * A player's match history
+         * @description Every game the player finished, counted or not, the latest first.
+         */
+        get: operations["getPlayerMatches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/matches/{gameId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A finished game
+         * @description A game from the match history. A game is in it a moment after it ends, once saved; its two players are told then (match_recorded).
+         */
+        get: operations["getMatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/formats": {
         parameters: {
             query?: never;
@@ -617,6 +700,7 @@ export interface components {
             role: components["schemas"]["Role"];
             /** Format: date-time */
             createdAt: string;
+            rank: components["schemas"]["Rank"];
         };
         /** @enum {string} */
         Role: "player" | "admin";
@@ -804,6 +888,8 @@ export interface components {
         LobbyPerson: {
             id: string;
             username: string;
+            /** @description The player's rank, where the lobby and games show it; absent elsewhere, and if it could not be read for a live update. */
+            rank?: components["schemas"]["Rank"];
         };
         /** @description What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name), playing (with the game's id) or deciding on a rematch (with the id of the game that ended). */
         PlayerActivity: {
@@ -815,6 +901,8 @@ export interface components {
         OnlinePlayer: {
             id: string;
             username: string;
+            /** @description The player's rank, where the lobby and games show it; absent elsewhere, and if it could not be read for a live update. */
+            rank?: components["schemas"]["Rank"];
             /** @description Absent for a player doing nothing in particular. */
             activity?: components["schemas"]["PlayerActivity"];
         };
@@ -836,6 +924,8 @@ export interface components {
             id: string;
             username: string;
             deckName: string;
+            /** @description The player's rank, where the lobby and games show it; absent elsewhere, and if it could not be read for a live update. */
+            rank?: components["schemas"]["Rank"];
         };
         RunningGame: {
             id: string;
@@ -916,7 +1006,7 @@ export interface components {
             role: components["schemas"]["GameRole"];
         };
         /** @description A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. Visitors receive only the chat and the site's numbers. */
-        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"] | components["schemas"]["RealtimeRematch"] | components["schemas"]["RealtimeRematchEnded"];
+        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"] | components["schemas"]["RealtimeRematch"] | components["schemas"]["RealtimeRematchEnded"] | components["schemas"]["RealtimeMatchRecorded"];
         /** @description How many players are online and games running, for everyone. */
         RealtimeSiteStats: {
             /**
@@ -1027,6 +1117,113 @@ export interface components {
              */
             type: "chat_message";
             message: components["schemas"]["ChatMessage"];
+        };
+        /** @enum {string} */
+        Tier: "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond";
+        /** @description A rating with its tier and, below Diamond, its division. */
+        Rank: {
+            rating: number;
+            tier: components["schemas"]["Tier"];
+            /**
+             * @description Absent for Diamond, which has no divisions.
+             * @enum {string}
+             */
+            division?: "III" | "II" | "I";
+            /** @description The rank in words, such as "Gold II" or "Diamond". */
+            label: string;
+        };
+        RankedPlayer: {
+            id: string;
+            username: string;
+            /** @description The player's place in the full rankings, shared with any level on rating. */
+            place: number;
+            rank: components["schemas"]["Rank"];
+            wins: number;
+            losses: number;
+            streak: components["schemas"]["Streak"];
+        };
+        /** @description The current run of wins, above zero, or of losses, below. */
+        Streak: number;
+        Rankings: {
+            players: components["schemas"]["RankedPlayer"][];
+            /** @description How many players match, on every page. */
+            total: number;
+            page: number;
+            pageSize: number;
+            /** @description The logged-in player, wherever they are in the rankings; absent until ranked. */
+            you?: components["schemas"]["RankedPlayer"];
+        };
+        /** @description How many of a player's latest games they played a civilization in. */
+        CivilizationPlayed: {
+            civilization: string;
+            games: number;
+        };
+        PlayerProfile: {
+            id: string;
+            username: string;
+            /** Format: date-time */
+            joinedAt: string;
+            rank: components["schemas"]["Rank"];
+            /** @description The player's place in the rankings; absent until they finish a game that counts. */
+            place?: number;
+            wins: number;
+            losses: number;
+            streak: components["schemas"]["Streak"];
+            /** @description The civilizations of the player's decks over their latest 50 games, the most played first. */
+            favouriteCivilizations: components["schemas"]["CivilizationPlayed"][];
+            /** @description The player's latest 5 matches, the latest first. */
+            recentMatches: components["schemas"]["Match"][];
+        };
+        /**
+         * @description How a game ended: won by the rules of the game, by the other player surrendering or not coming back after losing their connection, or stopped by the server without a winner.
+         * @enum {string}
+         */
+        MatchEnding: "play" | "surrender" | "disconnect" | "aborted";
+        MatchPlayer: {
+            id: string;
+            username: string;
+            deckName: string;
+            /** @description The civilizations of the deck as played; empty for the oldest games. */
+            civilizations: string[];
+            /** @description The points the game won, above zero, or lost, below; absent if it did not count. */
+            ratingChange?: number;
+            /** @description The player's rating after the game; absent if it did not count. */
+            rating?: number;
+        };
+        Match: {
+            id: string;
+            name: string;
+            /** @description The format's name as it was when the game was played. */
+            formatName: string;
+            ending: components["schemas"]["MatchEnding"];
+            /** @description Whether the game counted for ratings: one stopped by the server, or shorter than the minimum length, did not. */
+            counted: boolean;
+            turns: number;
+            durationSeconds: number;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string;
+            /** @description Absent for a game without a winner. */
+            winnerId?: string;
+            host: components["schemas"]["MatchPlayer"];
+            guest: components["schemas"]["MatchPlayer"];
+        };
+        MatchPage: {
+            matches: components["schemas"]["Match"][];
+            /** @description How many matches the player has, on every page. */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        /** @description The player's game has been saved to the match history, with what it did to both players' ratings. Sent to its two players. */
+        RealtimeMatchRecorded: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "match_recorded";
+            match: components["schemas"]["Match"];
         };
         /** @description Returned with every error status. */
         Error: {
@@ -1940,6 +2137,111 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["NotWatchable"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getRankings: {
+        parameters: {
+            query?: {
+                /** @description Keeps the players whose name contains it, ignoring case. */
+                search?: string;
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the rankings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rankings"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    getPlayer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The player's name, in any case. */
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The player's rank, record and latest matches. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerProfile"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPlayerMatches: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The player's name, in any case. */
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the player's matches. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The game as it finished. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Match"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
             404: components["responses"]["NotFound"];
         };
     };

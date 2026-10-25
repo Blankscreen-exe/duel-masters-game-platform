@@ -17,8 +17,12 @@ func (h *handlers) SignUp(ctx context.Context, request api.SignUpRequestObject) 
 	user, session, err := h.auth.SignUp(ctx, request.Body.Username, request.Body.Password)
 	switch {
 	case err == nil:
+		shown, err := h.account(ctx, user)
+		if err != nil {
+			return nil, err
+		}
 		cookie := h.sessionCookie(session)
-		return api.SignUp201JSONResponse{Body: account(user), Headers: api.SignUp201ResponseHeaders{SetCookie: &cookie}}, nil
+		return api.SignUp201JSONResponse{Body: shown, Headers: api.SignUp201ResponseHeaders{SetCookie: &cookie}}, nil
 	case errors.Is(err, auth.ErrSignupsClosed):
 		return api.SignUp403JSONResponse(apiError(codeSignupsClosed, "Sign-ups are closed at the moment.")), nil
 	case errors.Is(err, users.ErrUsernameTaken):
@@ -35,8 +39,12 @@ func (h *handlers) SignUp(ctx context.Context, request api.SignUpRequestObject) 
 func (h *handlers) LogIn(ctx context.Context, request api.LogInRequestObject) (api.LogInResponseObject, error) {
 	user, session, err := h.auth.LogIn(ctx, request.Body.Username, request.Body.Password)
 	if err == nil {
+		shown, err := h.account(ctx, user)
+		if err != nil {
+			return nil, err
+		}
 		cookie := h.sessionCookie(session)
-		return api.LogIn200JSONResponse{Body: account(user), Headers: api.LogIn200ResponseHeaders{SetCookie: &cookie}}, nil
+		return api.LogIn200JSONResponse{Body: shown, Headers: api.LogIn200ResponseHeaders{SetCookie: &cookie}}, nil
 	}
 
 	if errors.Is(err, auth.ErrInvalidCredentials) {
@@ -70,7 +78,11 @@ func (h *handlers) GetCurrentAccount(ctx context.Context, _ api.GetCurrentAccoun
 		return nil, err
 	}
 
-	return api.GetCurrentAccount200JSONResponse(account(user)), nil
+	shown, err := h.account(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetCurrentAccount200JSONResponse(shown), nil
 }
 
 func (h *handlers) ChangePassword(ctx context.Context, request api.ChangePasswordRequestObject) (api.ChangePasswordResponseObject, error) {
@@ -101,11 +113,6 @@ func (h *handlers) ChangePassword(ctx context.Context, request api.ChangePasswor
 	}
 
 	return nil, err
-}
-
-// account is a user as the API shows it.
-func account(user users.User) api.Account {
-	return api.Account{Id: user.ID, Username: user.Username, Role: api.Role(user.Role), CreatedAt: user.CreatedAt.UTC()}
 }
 
 func unauthenticated() api.UnauthenticatedJSONResponse {

@@ -20,8 +20,10 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
 
 // basePath is where the API is served, matching the contract's server URL.
@@ -39,6 +41,8 @@ type Pinger interface {
 type Dependencies struct {
 	DB        Pinger
 	Auth      *auth.Service
+	Users     *users.Service
+	Ratings   *ratings.Service
 	Catalogue *cards.Catalogue
 	Formats   *formats.Service
 	Decks     *decks.Service
@@ -62,6 +66,8 @@ type Dependencies struct {
 type handlers struct {
 	db            Pinger
 	auth          *auth.Service
+	users         *users.Service
+	ratings       *ratings.Service
 	catalogue     *cards.Catalogue
 	formats       *formats.Service
 	decks         *decks.Service
@@ -87,6 +93,8 @@ func NewHandler(deps Dependencies) http.Handler {
 	strict := api.NewStrictHandlerWithOptions(&handlers{
 		db:            deps.DB,
 		auth:          deps.Auth,
+		users:         deps.Users,
+		ratings:       deps.Ratings,
 		catalogue:     deps.Catalogue,
 		formats:       deps.Formats,
 		decks:         deps.Decks,

@@ -1,10 +1,15 @@
 package httpapi
 
 import (
+	"context"
+	"log/slog"
+	"time"
+
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
 )
@@ -14,16 +19,24 @@ import (
 // features who is online. The features know nothing of the contract or of
 // websockets; they only tell their listener what happened.
 type LiveUpdates struct {
-	hub *realtime.Hub
+	hub     *realtime.Hub
+	ratings *ratings.Service
+	logger  *slog.Logger
 }
 
-// NewLiveUpdates sends the updates over hub.
-func NewLiveUpdates(hub *realtime.Hub) *LiveUpdates {
-	return &LiveUpdates{hub: hub}
+// rankTimeout bounds reading the ranks a live update shows, so a slow
+// database delays an update only so long.
+const rankTimeout = 5 * time.Second
+
+// NewLiveUpdates sends the updates over hub, showing players' ranks from
+// ratingService.
+func NewLiveUpdates(hub *realtime.Hub, ratingService *ratings.Service, logger *slog.Logger) *LiveUpdates {
+	return &LiveUpdates{hub: hub, ratings: ratingService, logger: logger}
 }
 
 var (
 	_ chat.Listener    = (*LiveUpdates)(nil)
+	_ games.Listener   = (*LiveUpdates)(nil)
 	_ lobby.Listener   = (*LiveUpdates)(nil)
 	_ lobby.Directory  = (*LiveUpdates)(nil)
 	_ rematch.Listener = (*LiveUpdates)(nil)
@@ -35,9 +48,17 @@ func (l *LiveUpdates) MessagePosted(message chat.Message) {
 }
 
 // LobbyChanged shows players the lobby as it now is, and everyone the site's
-// numbers.
+// numbers. Should the players' ranks not be read, the lobby is shown without
+// them rather than not at all.
 func (l *LiveUpdates) LobbyChanged(snapshot lobby.Snapshot) {
-	l.hub.BroadcastPlayers(api.RealtimeLobby{Type: api.RealtimeLobbyTypeLobby, Lobby: apiLobby(snapshot)})
+	ctx, cancel := context.WithTimeout(context.Background(), rankTimeout)
+	defer cancel()
+	shownRanks, err := ranksOf(ctx, l.ratings, lobbyPlayers(snapshot))
+	if err != nil {
+		l.logger.Error("reading the ranks the lobby shows failed", "error", err)
+	}
+
+	l.hub.BroadcastPlayers(api.RealtimeLobby{Type: api.RealtimeLobbyTypeLobby, Lobby: apiLobby(snapshot, shownRanks)})
 	l.hub.Broadcast(api.RealtimeSiteStats{Type: api.RealtimeSiteStatsTypeSiteStats, Stats: apiSiteStats(snapshot)})
 }
 
@@ -51,8 +72,23 @@ func (l *LiveUpdates) GameStarted(game games.Game) {
 
 // OpenGameExpired tells a host nobody joined their game in time.
 func (l *LiveUpdates) OpenGameExpired(open lobby.OpenGame) {
-	l.hub.SendTo(open.Host.ID, api.RealtimeOpenGameExpired{Type: api.RealtimeOpenGameExpiredTypeOpenGameExpired, OpenGame: apiOpenGame(open)})
+	l.hub.SendTo(open.Host.ID, api.RealtimeOpenGameExpired{Type: api.RealtimeOpenGameExpiredTypeOpenGameExpired, OpenGame: apiOpenGame(open, nil)})
 }
+
+// GameEnded is part of games.Listener; the players hear the game end from
+// the game itself.
+func (l *LiveUpdates) GameEnded(games.Ended) {}
+
+// GameFinished tells a game's two players it is in the match history, with
+// what it did to their ratings.
+func (l *LiveUpdates) GameFinished(finished games.Record) {
+	recorded := api.RealtimeMatchRecorded{Type: api.RealtimeMatchRecordedTypeMatchRecorded, Match: apiMatch(finished)}
+	l.hub.SendTo(finished.Host.ID, recorded)
+	l.hub.SendTo(finished.Guest.ID, recorded)
+}
+
+// GameClosed is part of games.Listener.
+func (l *LiveUpdates) GameClosed(games.Game) {}
 
 // QueueChanged shows players how many wait in each format for a quick match.
 func (l *LiveUpdates) QueueChanged(waiting map[string]int) {

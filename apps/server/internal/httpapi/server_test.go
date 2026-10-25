@@ -86,7 +86,8 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 	require.NoError(t, err)
 
 	clock := clocktest.New(time.Now())
-	authService := auth.NewService(db, users.NewService(db, logger), siteSettings, auth.NewPasswordHasher(4), clock.Now, logger)
+	accounts := users.NewService(db, logger)
+	authService := auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(4), clock.Now, logger)
 
 	catalogue, cardDatabase := makeCatalogue(t, db)
 	deckService := decks.NewService(db, catalogue, siteSettings, logger)
@@ -94,10 +95,11 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 
 	hub := realtime.NewHub(realtime.Options{OfflineAfter: time.Minute, Logger: logger})
 	t.Cleanup(func() { require.NoError(t, hub.Close(context.Background())) })
-	live := NewLiveUpdates(hub)
-
 	ratingService := ratings.NewService(db, siteSettings)
+	live := NewLiveUpdates(hub, ratingService, logger)
+
 	gameService := games.NewService(db, catalogue, siteSettings, ratingService, logger)
+	gameService.Listen(live)
 	gamestest.Run(t, gameService)
 	lobbyService := lobby.NewService(lobby.Dependencies{
 		Decks: deckService, Formats: formatService, Games: gameService, Directory: live,
@@ -115,6 +117,8 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 		handler: NewHandler(Dependencies{
 			DB:            sqlDB,
 			Auth:          authService,
+			Users:         accounts,
+			Ratings:       ratingService,
 			Catalogue:     catalogue,
 			Formats:       formatService,
 			Decks:         deckService,

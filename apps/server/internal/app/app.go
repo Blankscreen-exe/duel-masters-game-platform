@@ -122,10 +122,11 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 
 	httpLogger := logger.With("component", "http")
 	hub := realtime.NewHub(realtime.Options{OfflineAfter: offlineAfter, Logger: logger.With("component", "realtime")})
-	live := httpapi.NewLiveUpdates(hub)
-
 	ratingService := ratings.NewService(db, siteSettings)
+	live := httpapi.NewLiveUpdates(hub, ratingService, logger.With("component", "live"))
+
 	gameService := games.NewService(db, catalogue, siteSettings, ratingService, logger.With("component", "games"))
+	gameService.Listen(live)
 	lobbyService := lobby.NewService(lobby.Dependencies{
 		Decks:     deckService,
 		Formats:   formatService,
@@ -170,6 +171,8 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 			Handler: httpapi.NewHandler(httpapi.Dependencies{
 				DB:            sqlDB,
 				Auth:          authService,
+				Users:         accounts,
+				Ratings:       ratingService,
 				Catalogue:     catalogue,
 				Formats:       formatService,
 				Decks:         deckService,

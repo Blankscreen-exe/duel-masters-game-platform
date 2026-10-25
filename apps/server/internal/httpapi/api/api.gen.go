@@ -84,6 +84,30 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for MatchEnding.
+const (
+	MatchEndingAborted    MatchEnding = "aborted"
+	MatchEndingDisconnect MatchEnding = "disconnect"
+	MatchEndingPlay       MatchEnding = "play"
+	MatchEndingSurrender  MatchEnding = "surrender"
+)
+
+// Valid indicates whether the value is a known member of the MatchEnding enum.
+func (e MatchEnding) Valid() bool {
+	switch e {
+	case MatchEndingAborted:
+		return true
+	case MatchEndingDisconnect:
+		return true
+	case MatchEndingPlay:
+		return true
+	case MatchEndingSurrender:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PlayerActivityKind.
 const (
 	PlayerActivityKindHosting PlayerActivityKind = "hosting"
@@ -102,6 +126,27 @@ func (e PlayerActivityKind) Valid() bool {
 	case PlayerActivityKindQueued:
 		return true
 	case PlayerActivityKindRematch:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RankDivision.
+const (
+	RankDivisionI   RankDivision = "I"
+	RankDivisionII  RankDivision = "II"
+	RankDivisionIII RankDivision = "III"
+)
+
+// Valid indicates whether the value is a known member of the RankDivision enum.
+func (e RankDivision) Valid() bool {
+	switch e {
+	case RankDivisionI:
+		return true
+	case RankDivisionII:
+		return true
+	case RankDivisionIII:
 		return true
 	default:
 		return false
@@ -147,6 +192,21 @@ const (
 func (e RealtimeLobbyType) Valid() bool {
 	switch e {
 	case RealtimeLobbyTypeLobby:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeMatchRecordedType.
+const (
+	RealtimeMatchRecordedTypeMatchRecorded RealtimeMatchRecordedType = "match_recorded"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeMatchRecordedType enum.
+func (e RealtimeMatchRecordedType) Valid() bool {
+	switch e {
+	case RealtimeMatchRecordedTypeMatchRecorded:
 		return true
 	default:
 		return false
@@ -267,12 +327,42 @@ func (e Role) Valid() bool {
 	}
 }
 
+// Defines values for Tier.
+const (
+	TierBronze   Tier = "Bronze"
+	TierDiamond  Tier = "Diamond"
+	TierGold     Tier = "Gold"
+	TierPlatinum Tier = "Platinum"
+	TierSilver   Tier = "Silver"
+)
+
+// Valid indicates whether the value is a known member of the Tier enum.
+func (e Tier) Valid() bool {
+	switch e {
+	case TierBronze:
+		return true
+	case TierDiamond:
+		return true
+	case TierGold:
+		return true
+	case TierPlatinum:
+		return true
+	case TierSilver:
+		return true
+	default:
+		return false
+	}
+}
+
 // Account defines model for Account.
 type Account struct {
 	CreatedAt time.Time `json:"createdAt"`
 	Id        string    `json:"id"`
-	Role      Role      `json:"role"`
-	Username  string    `json:"username"`
+
+	// Rank A rating with its tier and, below Diamond, its division.
+	Rank     Rank   `json:"rank"`
+	Role     Role   `json:"role"`
+	Username string `json:"username"`
 }
 
 // Card defines model for Card.
@@ -371,6 +461,12 @@ type ChatMessage struct {
 type ChatPost struct {
 	// Text 1 to 300 characters, after surrounding spaces are trimmed.
 	Text string `json:"text"`
+}
+
+// CivilizationPlayed How many of a player's latest games they played a civilization in.
+type CivilizationPlayed struct {
+	Civilization string `json:"civilization"`
+	Games        int    `json:"games"`
 }
 
 // Credentials defines model for Credentials.
@@ -541,6 +637,9 @@ type FormatCardLimit struct {
 type GamePlayer struct {
 	DeckName string `json:"deckName"`
 	Id       string `json:"id"`
+
+	// Rank A rating with its tier and, below Diamond, its division.
+	Rank     *Rank  `json:"rank,omitempty"`
 	Username string `json:"username"`
 }
 
@@ -595,8 +694,62 @@ type Lobby struct {
 
 // LobbyPerson defines model for LobbyPerson.
 type LobbyPerson struct {
-	Id       string `json:"id"`
+	Id string `json:"id"`
+
+	// Rank A rating with its tier and, below Diamond, its division.
+	Rank     *Rank  `json:"rank,omitempty"`
 	Username string `json:"username"`
+}
+
+// Match defines model for Match.
+type Match struct {
+	// Counted Whether the game counted for ratings: one stopped by the server, or shorter than the minimum length, did not.
+	Counted         bool      `json:"counted"`
+	DurationSeconds int       `json:"durationSeconds"`
+	EndedAt         time.Time `json:"endedAt"`
+
+	// Ending How a game ended: won by the rules of the game, by the other player surrendering or not coming back after losing their connection, or stopped by the server without a winner.
+	Ending MatchEnding `json:"ending"`
+
+	// FormatName The format's name as it was when the game was played.
+	FormatName string      `json:"formatName"`
+	Guest      MatchPlayer `json:"guest"`
+	Host       MatchPlayer `json:"host"`
+	Id         string      `json:"id"`
+	Name       string      `json:"name"`
+	StartedAt  time.Time   `json:"startedAt"`
+	Turns      int         `json:"turns"`
+
+	// WinnerId Absent for a game without a winner.
+	WinnerId *string `json:"winnerId,omitempty"`
+}
+
+// MatchEnding How a game ended: won by the rules of the game, by the other player surrendering or not coming back after losing their connection, or stopped by the server without a winner.
+type MatchEnding string
+
+// MatchPage defines model for MatchPage.
+type MatchPage struct {
+	Matches  []Match `json:"matches"`
+	Page     int     `json:"page"`
+	PageSize int     `json:"pageSize"`
+
+	// Total How many matches the player has, on every page.
+	Total int `json:"total"`
+}
+
+// MatchPlayer defines model for MatchPlayer.
+type MatchPlayer struct {
+	// Civilizations The civilizations of the deck as played; empty for the oldest games.
+	Civilizations []string `json:"civilizations"`
+	DeckName      string   `json:"deckName"`
+	Id            string   `json:"id"`
+
+	// Rating The player's rating after the game; absent if it did not count.
+	Rating *int `json:"rating,omitempty"`
+
+	// RatingChange The points the game won, above zero, or lost, below; absent if it did not count.
+	RatingChange *int   `json:"ratingChange,omitempty"`
+	Username     string `json:"username"`
 }
 
 // OnlinePlayer defines model for OnlinePlayer.
@@ -604,7 +757,10 @@ type OnlinePlayer struct {
 	// Activity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name), playing (with the game's id) or deciding on a rematch (with the id of the game that ended).
 	Activity *PlayerActivity `json:"activity,omitempty"`
 	Id       string          `json:"id"`
-	Username string          `json:"username"`
+
+	// Rank A rating with its tier and, below Diamond, its division.
+	Rank     *Rank  `json:"rank,omitempty"`
+	Username string `json:"username"`
 }
 
 // OpenGame defines model for OpenGame.
@@ -654,6 +810,29 @@ type PlayerActivity struct {
 // PlayerActivityKind defines model for PlayerActivity.Kind.
 type PlayerActivityKind string
 
+// PlayerProfile defines model for PlayerProfile.
+type PlayerProfile struct {
+	// FavouriteCivilizations The civilizations of the player's decks over their latest 50 games, the most played first.
+	FavouriteCivilizations []CivilizationPlayed `json:"favouriteCivilizations"`
+	Id                     string               `json:"id"`
+	JoinedAt               time.Time            `json:"joinedAt"`
+	Losses                 int                  `json:"losses"`
+
+	// Place The player's place in the rankings; absent until they finish a game that counts.
+	Place *int `json:"place,omitempty"`
+
+	// Rank A rating with its tier and, below Diamond, its division.
+	Rank Rank `json:"rank"`
+
+	// RecentMatches The player's latest 5 matches, the latest first.
+	RecentMatches []Match `json:"recentMatches"`
+
+	// Streak The current run of wins, above zero, or of losses, below.
+	Streak   Streak `json:"streak"`
+	Username string `json:"username"`
+	Wins     int    `json:"wins"`
+}
+
 // QueueCount defines model for QueueCount.
 type QueueCount struct {
 	FormatId string `json:"formatId"`
@@ -691,6 +870,48 @@ type QuickMatchTicket struct {
 	Since      time.Time `json:"since"`
 }
 
+// Rank A rating with its tier and, below Diamond, its division.
+type Rank struct {
+	// Division Absent for Diamond, which has no divisions.
+	Division *RankDivision `json:"division,omitempty"`
+
+	// Label The rank in words, such as "Gold II" or "Diamond".
+	Label  string `json:"label"`
+	Rating int    `json:"rating"`
+	Tier   Tier   `json:"tier"`
+}
+
+// RankDivision Absent for Diamond, which has no divisions.
+type RankDivision string
+
+// RankedPlayer defines model for RankedPlayer.
+type RankedPlayer struct {
+	Id     string `json:"id"`
+	Losses int    `json:"losses"`
+
+	// Place The player's place in the full rankings, shared with any level on rating.
+	Place int `json:"place"`
+
+	// Rank A rating with its tier and, below Diamond, its division.
+	Rank Rank `json:"rank"`
+
+	// Streak The current run of wins, above zero, or of losses, below.
+	Streak   Streak `json:"streak"`
+	Username string `json:"username"`
+	Wins     int    `json:"wins"`
+}
+
+// Rankings defines model for Rankings.
+type Rankings struct {
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Players  []RankedPlayer `json:"players"`
+
+	// Total How many players match, on every page.
+	Total int           `json:"total"`
+	You   *RankedPlayer `json:"you,omitempty"`
+}
+
 // RealtimeChatMessage Someone posted to the lobby chat.
 type RealtimeChatMessage struct {
 	Message ChatMessage             `json:"message"`
@@ -717,6 +938,15 @@ type RealtimeLobby struct {
 
 // RealtimeLobbyType defines model for RealtimeLobby.Type.
 type RealtimeLobbyType string
+
+// RealtimeMatchRecorded The player's game has been saved to the match history, with what it did to both players' ratings. Sent to its two players.
+type RealtimeMatchRecorded struct {
+	Match Match                     `json:"match"`
+	Type  RealtimeMatchRecordedType `json:"type"`
+}
+
+// RealtimeMatchRecordedType defines model for RealtimeMatchRecorded.Type.
+type RealtimeMatchRecordedType string
 
 // RealtimeMessage A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. Visitors receive only the chat and the site's numbers.
 type RealtimeMessage struct {
@@ -845,6 +1075,12 @@ type SiteStats struct {
 	PlayersOnline int `json:"playersOnline"`
 }
 
+// Streak The current run of wins, above zero, or of losses, below.
+type Streak = int
+
+// Tier defines model for Tier.
+type Tier string
+
 // Busy Returned with every error status.
 type Busy = Error
 
@@ -890,6 +1126,20 @@ type SearchCardsParams struct {
 	Playable *bool `form:"playable,omitempty" json:"playable,omitempty"`
 	Page     *int  `form:"page,omitempty" json:"page,omitempty"`
 	PageSize *int  `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// GetPlayerMatchesParams defines parameters for GetPlayerMatches.
+type GetPlayerMatchesParams struct {
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// GetRankingsParams defines parameters for GetRankings.
+type GetRankingsParams struct {
+	// Search Keeps the players whose name contains it, ignoring case.
+	Search   *string `form:"search,omitempty" json:"search,omitempty"`
+	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // LogInJSONRequestBody defines body for LogIn for application/json ContentType.
@@ -1197,6 +1447,40 @@ func (t *RealtimeMessage) MergeRealtimeRematchEnded(v RealtimeRematchEnded) erro
 	return err
 }
 
+// AsRealtimeMatchRecorded returns the union data inside the RealtimeMessage as a RealtimeMatchRecorded
+func (t RealtimeMessage) AsRealtimeMatchRecorded() (RealtimeMatchRecorded, error) {
+	var body RealtimeMatchRecorded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeMatchRecorded overwrites any union data inside the RealtimeMessage as the provided RealtimeMatchRecorded
+func (t *RealtimeMessage) FromRealtimeMatchRecorded(v RealtimeMatchRecorded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"match_recorded"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeMatchRecorded performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeMatchRecorded
+func (t *RealtimeMessage) MergeRealtimeMatchRecorded(v RealtimeMatchRecorded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"match_recorded"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t RealtimeMessage) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -1217,6 +1501,8 @@ func (t RealtimeMessage) ValueByDiscriminator() (interface{}, error) {
 		return t.AsRealtimeGameStarted()
 	case "lobby":
 		return t.AsRealtimeLobby()
+	case "match_recorded":
+		return t.AsRealtimeMatchRecorded()
 	case "open_game_expired":
 		return t.AsRealtimeOpenGameExpired()
 	case "quick_match_queue":
@@ -1328,6 +1614,15 @@ type ServerInterface interface {
 	// JoinOpenGame Join an open game, which starts it
 	// (POST /lobby/games/{openGameId}/join)
 	JoinOpenGame(w http.ResponseWriter, r *http.Request, openGameId string)
+	// GetMatch A finished game
+	// (GET /matches/{gameId})
+	GetMatch(w http.ResponseWriter, r *http.Request, gameId string)
+	// GetPlayer A player's profile
+	// (GET /players/{username})
+	GetPlayer(w http.ResponseWriter, r *http.Request, username string)
+	// GetPlayerMatches A player's match history
+	// (GET /players/{username}/matches)
+	GetPlayerMatches(w http.ResponseWriter, r *http.Request, username string, params GetPlayerMatchesParams)
 	// LeaveQuickMatch Stop waiting for a quick match
 	// (DELETE /quick-match)
 	LeaveQuickMatch(w http.ResponseWriter, r *http.Request)
@@ -1337,6 +1632,9 @@ type ServerInterface interface {
 	// EnterQuickMatch Wait for a quick match
 	// (POST /quick-match)
 	EnterQuickMatch(w http.ResponseWriter, r *http.Request)
+	// GetRankings The rankings
+	// (GET /rankings)
+	GetRankings(w http.ResponseWriter, r *http.Request, params GetRankingsParams)
 	// OpenRealtime Open the live connection
 	// (GET /realtime)
 	OpenRealtime(w http.ResponseWriter, r *http.Request)
@@ -2051,6 +2349,113 @@ func (siw *ServerInterfaceWrapper) JoinOpenGame(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetMatch operation middleware
+func (siw *ServerInterfaceWrapper) GetMatch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "gameId" -------------
+	var gameId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "gameId", r.PathValue("gameId"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gameId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMatch(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPlayer operation middleware
+func (siw *ServerInterfaceWrapper) GetPlayer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "username" -------------
+	var username string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "username", r.PathValue("username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPlayer(w, r, username)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPlayerMatches operation middleware
+func (siw *ServerInterfaceWrapper) GetPlayerMatches(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "username" -------------
+	var username string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "username", r.PathValue("username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetPlayerMatchesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPlayerMatches(w, r, username, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // LeaveQuickMatch operation middleware
 func (siw *ServerInterfaceWrapper) LeaveQuickMatch(w http.ResponseWriter, r *http.Request) {
 
@@ -2084,6 +2489,65 @@ func (siw *ServerInterfaceWrapper) EnterQuickMatch(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.EnterQuickMatch(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRankings operation middleware
+func (siw *ServerInterfaceWrapper) GetRankings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetRankingsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRankings(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2374,6 +2838,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rematches/{gameId}/ready", wrapper.AgreeToRematch)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/games/{gameId}", wrapper.GetLiveGame)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/games/{gameId}/socket", wrapper.OpenGameSocket)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rankings", wrapper.GetRankings)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/players/{username}", wrapper.GetPlayer)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/players/{username}/matches", wrapper.GetPlayerMatches)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/matches/{gameId}", wrapper.GetMatch)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/formats", wrapper.ListFormats)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks", wrapper.ListDecks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/decks", wrapper.CreateDeck)
@@ -3830,6 +4298,171 @@ func (response JoinOpenGame409JSONResponse) VisitJoinOpenGameResponse(w http.Res
 	return err
 }
 
+type GetMatchRequestObject struct {
+	GameId string `json:"gameId"`
+}
+
+type GetMatchResponseObject interface {
+	VisitGetMatchResponse(w http.ResponseWriter) error
+}
+
+type GetMatch200JSONResponse Match
+
+func (response GetMatch200JSONResponse) VisitGetMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMatch401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetMatch401JSONResponse) VisitGetMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMatch404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetMatch404JSONResponse) VisitGetMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlayerRequestObject struct {
+	Username string `json:"username"`
+}
+
+type GetPlayerResponseObject interface {
+	VisitGetPlayerResponse(w http.ResponseWriter) error
+}
+
+type GetPlayer200JSONResponse PlayerProfile
+
+func (response GetPlayer200JSONResponse) VisitGetPlayerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlayer401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetPlayer401JSONResponse) VisitGetPlayerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlayer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPlayer404JSONResponse) VisitGetPlayerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlayerMatchesRequestObject struct {
+	Username string `json:"username"`
+	Params   GetPlayerMatchesParams
+}
+
+type GetPlayerMatchesResponseObject interface {
+	VisitGetPlayerMatchesResponse(w http.ResponseWriter) error
+}
+
+type GetPlayerMatches200JSONResponse MatchPage
+
+func (response GetPlayerMatches200JSONResponse) VisitGetPlayerMatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlayerMatches400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response GetPlayerMatches400JSONResponse) VisitGetPlayerMatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlayerMatches401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetPlayerMatches401JSONResponse) VisitGetPlayerMatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlayerMatches404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPlayerMatches404JSONResponse) VisitGetPlayerMatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LeaveQuickMatchRequestObject struct {
 }
 
@@ -3968,6 +4601,56 @@ func (response EnterQuickMatch409JSONResponse) VisitEnterQuickMatchResponse(w ht
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRankingsRequestObject struct {
+	Params GetRankingsParams
+}
+
+type GetRankingsResponseObject interface {
+	VisitGetRankingsResponse(w http.ResponseWriter) error
+}
+
+type GetRankings200JSONResponse Rankings
+
+func (response GetRankings200JSONResponse) VisitGetRankingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRankings400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response GetRankings400JSONResponse) VisitGetRankingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRankings401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetRankings401JSONResponse) VisitGetRankingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4375,6 +5058,15 @@ type StrictServerInterface interface {
 	// JoinOpenGame Join an open game, which starts it
 	// (POST /lobby/games/{openGameId}/join)
 	JoinOpenGame(ctx context.Context, request JoinOpenGameRequestObject) (JoinOpenGameResponseObject, error)
+	// GetMatch A finished game
+	// (GET /matches/{gameId})
+	GetMatch(ctx context.Context, request GetMatchRequestObject) (GetMatchResponseObject, error)
+	// GetPlayer A player's profile
+	// (GET /players/{username})
+	GetPlayer(ctx context.Context, request GetPlayerRequestObject) (GetPlayerResponseObject, error)
+	// GetPlayerMatches A player's match history
+	// (GET /players/{username}/matches)
+	GetPlayerMatches(ctx context.Context, request GetPlayerMatchesRequestObject) (GetPlayerMatchesResponseObject, error)
 	// LeaveQuickMatch Stop waiting for a quick match
 	// (DELETE /quick-match)
 	LeaveQuickMatch(ctx context.Context, request LeaveQuickMatchRequestObject) (LeaveQuickMatchResponseObject, error)
@@ -4384,6 +5076,9 @@ type StrictServerInterface interface {
 	// EnterQuickMatch Wait for a quick match
 	// (POST /quick-match)
 	EnterQuickMatch(ctx context.Context, request EnterQuickMatchRequestObject) (EnterQuickMatchResponseObject, error)
+	// GetRankings The rankings
+	// (GET /rankings)
+	GetRankings(ctx context.Context, request GetRankingsRequestObject) (GetRankingsResponseObject, error)
 	// OpenRealtime Open the live connection
 	// (GET /realtime)
 	OpenRealtime(ctx context.Context, request OpenRealtimeRequestObject) (OpenRealtimeResponseObject, error)
@@ -5204,6 +5899,85 @@ func (sh *strictHandler) JoinOpenGame(w http.ResponseWriter, r *http.Request, op
 	}
 }
 
+// GetMatch operation middleware
+func (sh *strictHandler) GetMatch(w http.ResponseWriter, r *http.Request, gameId string) {
+	var request GetMatchRequestObject
+
+	request.GameId = gameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMatch(ctx, request.(GetMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMatchResponseObject); ok {
+		if err := validResponse.VisitGetMatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPlayer operation middleware
+func (sh *strictHandler) GetPlayer(w http.ResponseWriter, r *http.Request, username string) {
+	var request GetPlayerRequestObject
+
+	request.Username = username
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPlayer(ctx, request.(GetPlayerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPlayer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPlayerResponseObject); ok {
+		if err := validResponse.VisitGetPlayerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPlayerMatches operation middleware
+func (sh *strictHandler) GetPlayerMatches(w http.ResponseWriter, r *http.Request, username string, params GetPlayerMatchesParams) {
+	var request GetPlayerMatchesRequestObject
+
+	request.Username = username
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPlayerMatches(ctx, request.(GetPlayerMatchesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPlayerMatches")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPlayerMatchesResponseObject); ok {
+		if err := validResponse.VisitGetPlayerMatchesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // LeaveQuickMatch operation middleware
 func (sh *strictHandler) LeaveQuickMatch(w http.ResponseWriter, r *http.Request) {
 	var request LeaveQuickMatchRequestObject
@@ -5276,6 +6050,32 @@ func (sh *strictHandler) EnterQuickMatch(w http.ResponseWriter, r *http.Request)
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(EnterQuickMatchResponseObject); ok {
 		if err := validResponse.VisitEnterQuickMatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRankings operation middleware
+func (sh *strictHandler) GetRankings(w http.ResponseWriter, r *http.Request, params GetRankingsParams) {
+	var request GetRankingsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRankings(ctx, request.(GetRankingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRankings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRankingsResponseObject); ok {
+		if err := validResponse.VisitGetRankingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

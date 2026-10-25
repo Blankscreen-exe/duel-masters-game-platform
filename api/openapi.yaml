@@ -35,6 +35,10 @@ tags:
     description: >-
       Running games: their players play, and other players watch listed games that allow it, over
       a websocket the duel board opens.
+  - name: players
+    description: >-
+      Ratings, rankings, profiles and match history, for players. Each player has an Elo rating,
+      starting at 1000, shown as a rank; a won game that counts moves both players' ratings.
   - name: formats
     description: >-
       The formats games are played in: the sets each allows and the cards it bans or limits, on
@@ -800,6 +804,142 @@ paths:
           $ref: "#/components/responses/NotWatchable"
         "404":
           $ref: "#/components/responses/NotFound"
+  /rankings:
+    get:
+      operationId: getRankings
+      summary: The rankings
+      description: >-
+        The players who have finished a game that counted, the best rated first. Players level on
+        rating share a place and are listed by name. A search keeps each player's place in the full
+        rankings.
+      tags: [players]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: search
+          in: query
+          description: Keeps the players whose name contains it, ignoring case.
+          schema:
+            type: string
+            maxLength: 20
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: One page of the rankings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rankings"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /players/{username}:
+    parameters:
+      - name: username
+        in: path
+        required: true
+        description: The player's name, in any case.
+        schema:
+          type: string
+    get:
+      operationId: getPlayer
+      summary: A player's profile
+      tags: [players]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The player's rank, record and latest matches.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerProfile"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /players/{username}/matches:
+    parameters:
+      - name: username
+        in: path
+        required: true
+        description: The player's name, in any case.
+        schema:
+          type: string
+    get:
+      operationId: getPlayerMatches
+      summary: A player's match history
+      description: Every game the player finished, counted or not, the latest first.
+      tags: [players]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: One page of the player's matches.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchPage"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /matches/{gameId}:
+    get:
+      operationId: getMatch
+      summary: A finished game
+      description: >-
+        A game from the match history. A game is in it a moment after it ends, once saved; its two
+        players are told then (match_recorded).
+      tags: [players]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The game as it finished.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /formats:
     get:
       operationId: listFormats
@@ -1117,7 +1257,7 @@ components:
           maxLength: 128
     Account:
       type: object
-      required: [id, username, role, createdAt]
+      required: [id, username, role, createdAt, rank]
       properties:
         id:
           type: string
@@ -1128,6 +1268,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        rank:
+          $ref: "#/components/schemas/Rank"
     Role:
       type: string
       enum: [player, admin]
@@ -1513,6 +1655,11 @@ components:
           type: string
         username:
           type: string
+        rank:
+          description: >-
+            The player's rank, where the lobby and games show it; absent elsewhere, and if it could
+            not be read for a live update.
+          $ref: "#/components/schemas/Rank"
     PlayerActivity:
       description: >-
         What a player is doing: hosting an open game (with its id), waiting for a quick match (with
@@ -1536,6 +1683,11 @@ components:
           type: string
         username:
           type: string
+        rank:
+          description: >-
+            The player's rank, where the lobby and games show it; absent elsewhere, and if it could
+            not be read for a live update.
+          $ref: "#/components/schemas/Rank"
         activity:
           description: Absent for a player doing nothing in particular.
           $ref: "#/components/schemas/PlayerActivity"
@@ -1573,6 +1725,11 @@ components:
           type: string
         deckName:
           type: string
+        rank:
+          description: >-
+            The player's rank, where the lobby and games show it; absent elsewhere, and if it could
+            not be read for a live update.
+          $ref: "#/components/schemas/Rank"
     RunningGame:
       type: object
       required: [id, name, formatId, formatName, host, guest, spectators, matchmaking, startedAt]
@@ -1736,6 +1893,7 @@ components:
         - $ref: "#/components/schemas/RealtimeOpenGameExpired"
         - $ref: "#/components/schemas/RealtimeRematch"
         - $ref: "#/components/schemas/RealtimeRematchEnded"
+        - $ref: "#/components/schemas/RealtimeMatchRecorded"
       discriminator:
         propertyName: type
         mapping:
@@ -1747,6 +1905,7 @@ components:
           open_game_expired: "#/components/schemas/RealtimeOpenGameExpired"
           rematch: "#/components/schemas/RealtimeRematch"
           rematch_ended: "#/components/schemas/RealtimeRematchEnded"
+          match_recorded: "#/components/schemas/RealtimeMatchRecorded"
     RealtimeSiteStats:
       description: How many players are online and games running, for everyone.
       type: object
@@ -1898,6 +2057,197 @@ components:
           enum: [chat_message]
         message:
           $ref: "#/components/schemas/ChatMessage"
+    Tier:
+      type: string
+      enum: [Bronze, Silver, Gold, Platinum, Diamond]
+    Rank:
+      description: A rating with its tier and, below Diamond, its division.
+      type: object
+      required: [rating, tier, label]
+      properties:
+        rating:
+          type: integer
+        tier:
+          $ref: "#/components/schemas/Tier"
+        division:
+          description: Absent for Diamond, which has no divisions.
+          type: string
+          enum: [III, II, I]
+        label:
+          description: The rank in words, such as "Gold II" or "Diamond".
+          type: string
+    RankedPlayer:
+      type: object
+      required: [id, username, place, rank, wins, losses, streak]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        place:
+          description: The player's place in the full rankings, shared with any level on rating.
+          type: integer
+        rank:
+          $ref: "#/components/schemas/Rank"
+        wins:
+          type: integer
+        losses:
+          type: integer
+        streak:
+          $ref: "#/components/schemas/Streak"
+    Streak:
+      description: The current run of wins, above zero, or of losses, below.
+      type: integer
+    Rankings:
+      type: object
+      required: [players, total, page, pageSize]
+      properties:
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankedPlayer"
+        total:
+          description: How many players match, on every page.
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        you:
+          description: The logged-in player, wherever they are in the rankings; absent until ranked.
+          $ref: "#/components/schemas/RankedPlayer"
+    CivilizationPlayed:
+      description: How many of a player's latest games they played a civilization in.
+      type: object
+      required: [civilization, games]
+      properties:
+        civilization:
+          type: string
+        games:
+          type: integer
+    PlayerProfile:
+      type: object
+      required: [id, username, joinedAt, rank, wins, losses, streak, favouriteCivilizations, recentMatches]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        joinedAt:
+          type: string
+          format: date-time
+        rank:
+          $ref: "#/components/schemas/Rank"
+        place:
+          description: The player's place in the rankings; absent until they finish a game that counts.
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        streak:
+          $ref: "#/components/schemas/Streak"
+        favouriteCivilizations:
+          description: >-
+            The civilizations of the player's decks over their latest 50 games, the most played
+            first.
+          type: array
+          items:
+            $ref: "#/components/schemas/CivilizationPlayed"
+        recentMatches:
+          description: The player's latest 5 matches, the latest first.
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+    MatchEnding:
+      description: >-
+        How a game ended: won by the rules of the game, by the other player surrendering or not
+        coming back after losing their connection, or stopped by the server without a winner.
+      type: string
+      enum: [play, surrender, disconnect, aborted]
+    MatchPlayer:
+      type: object
+      required: [id, username, deckName, civilizations]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        deckName:
+          type: string
+        civilizations:
+          description: The civilizations of the deck as played; empty for the oldest games.
+          type: array
+          items:
+            type: string
+        ratingChange:
+          description: The points the game won, above zero, or lost, below; absent if it did not count.
+          type: integer
+        rating:
+          description: The player's rating after the game; absent if it did not count.
+          type: integer
+    Match:
+      type: object
+      required: [id, name, formatName, ending, counted, turns, durationSeconds, startedAt, endedAt, host, guest]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        formatName:
+          description: The format's name as it was when the game was played.
+          type: string
+        ending:
+          $ref: "#/components/schemas/MatchEnding"
+        counted:
+          description: >-
+            Whether the game counted for ratings: one stopped by the server, or shorter than the
+            minimum length, did not.
+          type: boolean
+        turns:
+          type: integer
+        durationSeconds:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        winnerId:
+          description: Absent for a game without a winner.
+          type: string
+        host:
+          $ref: "#/components/schemas/MatchPlayer"
+        guest:
+          $ref: "#/components/schemas/MatchPlayer"
+    MatchPage:
+      type: object
+      required: [matches, total, page, pageSize]
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        total:
+          description: How many matches the player has, on every page.
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+    RealtimeMatchRecorded:
+      description: >-
+        The player's game has been saved to the match history, with what it did to both players'
+        ratings. Sent to its two players.
+      type: object
+      required: [type, match]
+      properties:
+        type:
+          type: string
+          enum: [match_recorded]
+        match:
+          $ref: "#/components/schemas/Match"
     Error:
       description: Returned with every error status.
       type: object

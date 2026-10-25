@@ -25,7 +25,12 @@ func (h *handlers) GetLobby(ctx context.Context, _ api.GetLobbyRequestObject) (a
 		return nil, err
 	}
 
-	return api.GetLobby200JSONResponse(apiLobby(h.lobby.Snapshot())), nil
+	snapshot := h.lobby.Snapshot()
+	shownRanks, err := ranksOf(ctx, h.ratings, lobbyPlayers(snapshot))
+	if err != nil {
+		return nil, err
+	}
+	return api.GetLobby200JSONResponse(apiLobby(snapshot, shownRanks)), nil
 }
 
 func (h *handlers) OpenGame(ctx context.Context, request api.OpenGameRequestObject) (api.OpenGameResponseObject, error) {
@@ -57,7 +62,11 @@ func (h *handlers) OpenGame(ctx context.Context, request api.OpenGameRequestObje
 		return nil, err
 	}
 
-	return api.OpenGame201JSONResponse(apiOpenGame(open)), nil
+	hostRank, err := ranksOf(ctx, h.ratings, []string{open.Host.ID})
+	if err != nil {
+		return nil, err
+	}
+	return api.OpenGame201JSONResponse(apiOpenGame(open, hostRank)), nil
 }
 
 func (h *handlers) GetOpenGame(ctx context.Context, request api.GetOpenGameRequestObject) (api.GetOpenGameResponseObject, error) {
@@ -75,7 +84,11 @@ func (h *handlers) GetOpenGame(ctx context.Context, request api.GetOpenGameReque
 		return nil, err
 	}
 
-	return api.GetOpenGame200JSONResponse(apiOpenGame(open)), nil
+	hostRank, err := ranksOf(ctx, h.ratings, []string{open.Host.ID})
+	if err != nil {
+		return nil, err
+	}
+	return api.GetOpenGame200JSONResponse(apiOpenGame(open, hostRank)), nil
 }
 
 func (h *handlers) CancelOpenGame(ctx context.Context, request api.CancelOpenGameRequestObject) (api.CancelOpenGameResponseObject, error) {
@@ -253,10 +266,11 @@ func apiSiteStats(snapshot lobby.Snapshot) api.SiteStats {
 	return api.SiteStats{PlayersOnline: len(snapshot.Online), GamesRunning: snapshot.GamesRunning}
 }
 
-func apiLobby(snapshot lobby.Snapshot) api.Lobby {
+// apiLobby is the lobby as the API shows it, with the players' ranks known.
+func apiLobby(snapshot lobby.Snapshot, shownRanks ranks) api.Lobby {
 	open := make([]api.OpenGame, 0, len(snapshot.OpenGames))
 	for _, game := range snapshot.OpenGames {
-		open = append(open, apiOpenGame(game))
+		open = append(open, apiOpenGame(game, shownRanks))
 	}
 
 	running := make([]api.RunningGame, 0, len(snapshot.Running))
@@ -266,8 +280,8 @@ func apiLobby(snapshot lobby.Snapshot) api.Lobby {
 			Name:        game.Name,
 			FormatId:    game.FormatID,
 			FormatName:  game.FormatName,
-			Host:        apiGamePlayer(game.Host),
-			Guest:       apiGamePlayer(game.Guest),
+			Host:        apiGamePlayer(game.Host, shownRanks),
+			Guest:       apiGamePlayer(game.Guest, shownRanks),
 			Spectators:  game.Watchable(),
 			Matchmaking: game.Matchmaking,
 			StartedAt:   game.StartedAt.UTC(),
@@ -276,7 +290,7 @@ func apiLobby(snapshot lobby.Snapshot) api.Lobby {
 
 	online := make([]api.OnlinePlayer, 0, len(snapshot.Online))
 	for _, player := range snapshot.Online {
-		shown := api.OnlinePlayer{Id: player.ID, Username: player.Username}
+		shown := api.OnlinePlayer{Id: player.ID, Username: player.Username, Rank: shownRanks.of(player.ID)}
 		if activity := player.Activity; activity != nil {
 			shown.Activity = &api.PlayerActivity{Kind: api.PlayerActivityKind(activity.Kind)}
 			if activity.GameID != "" {
@@ -292,11 +306,13 @@ func apiLobby(snapshot lobby.Snapshot) api.Lobby {
 	return api.Lobby{OpenGames: open, RunningGames: running, Online: online, Paused: snapshot.Paused}
 }
 
-func apiOpenGame(open lobby.OpenGame) api.OpenGame {
+// apiOpenGame is an open game as the API shows it, with the host's rank if
+// known.
+func apiOpenGame(open lobby.OpenGame, shownRanks ranks) api.OpenGame {
 	return api.OpenGame{
 		Id:         open.ID,
 		Name:       open.Name,
-		Host:       api.LobbyPerson{Id: open.Host.ID, Username: open.Host.Username},
+		Host:       api.LobbyPerson{Id: open.Host.ID, Username: open.Host.Username, Rank: shownRanks.of(open.Host.ID)},
 		FormatId:   open.FormatID,
 		FormatName: open.FormatName,
 		Listed:     open.Visible,
@@ -305,8 +321,23 @@ func apiOpenGame(open lobby.OpenGame) api.OpenGame {
 	}
 }
 
-func apiGamePlayer(player games.Player) api.GamePlayer {
-	return api.GamePlayer{Id: player.ID, Username: player.Username, DeckName: player.DeckName}
+func apiGamePlayer(player games.Player, shownRanks ranks) api.GamePlayer {
+	return api.GamePlayer{Id: player.ID, Username: player.Username, DeckName: player.DeckName, Rank: shownRanks.of(player.ID)}
+}
+
+// lobbyPlayers are the ids of every player a lobby snapshot shows.
+func lobbyPlayers(snapshot lobby.Snapshot) []string {
+	ids := make([]string, 0, len(snapshot.Online)+len(snapshot.OpenGames)+2*len(snapshot.Running))
+	for _, player := range snapshot.Online {
+		ids = append(ids, player.ID)
+	}
+	for _, open := range snapshot.OpenGames {
+		ids = append(ids, open.Host.ID)
+	}
+	for _, game := range snapshot.Running {
+		ids = append(ids, game.Host.ID, game.Guest.ID)
+	}
+	return ids
 }
 
 func apiTicket(ticket matchmaking.Ticket) api.QuickMatchTicket {
