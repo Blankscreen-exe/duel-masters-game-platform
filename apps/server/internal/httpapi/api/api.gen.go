@@ -18,6 +18,69 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for AdminLogAction.
+const (
+	AdminLogActionChatMessageDeleted AdminLogAction = "chat_message_deleted"
+	AdminLogActionGameStopped        AdminLogAction = "game_stopped"
+	AdminLogActionPasswordReset      AdminLogAction = "password_reset"
+	AdminLogActionRoleChanged        AdminLogAction = "role_changed"
+	AdminLogActionSettingChanged     AdminLogAction = "setting_changed"
+	AdminLogActionSettingReset       AdminLogAction = "setting_reset"
+	AdminLogActionUserBanned         AdminLogAction = "user_banned"
+	AdminLogActionUserMuted          AdminLogAction = "user_muted"
+	AdminLogActionUserUnbanned       AdminLogAction = "user_unbanned"
+	AdminLogActionUserUnmuted        AdminLogAction = "user_unmuted"
+)
+
+// Valid indicates whether the value is a known member of the AdminLogAction enum.
+func (e AdminLogAction) Valid() bool {
+	switch e {
+	case AdminLogActionChatMessageDeleted:
+		return true
+	case AdminLogActionGameStopped:
+		return true
+	case AdminLogActionPasswordReset:
+		return true
+	case AdminLogActionRoleChanged:
+		return true
+	case AdminLogActionSettingChanged:
+		return true
+	case AdminLogActionSettingReset:
+		return true
+	case AdminLogActionUserBanned:
+		return true
+	case AdminLogActionUserMuted:
+		return true
+	case AdminLogActionUserUnbanned:
+		return true
+	case AdminLogActionUserUnmuted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminUserStatus.
+const (
+	AdminUserStatusAdmin  AdminUserStatus = "admin"
+	AdminUserStatusBanned AdminUserStatus = "banned"
+	AdminUserStatusMuted  AdminUserStatus = "muted"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserStatus enum.
+func (e AdminUserStatus) Valid() bool {
+	switch e {
+	case AdminUserStatusAdmin:
+		return true
+	case AdminUserStatusBanned:
+		return true
+	case AdminUserStatusMuted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeckProblemCode.
 const (
 	DeckProblemCodeBanned        DeckProblemCode = "banned"
@@ -147,6 +210,21 @@ func (e RankDivision) Valid() bool {
 	case RankDivisionII:
 		return true
 	case RankDivisionIII:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeAccountChangedType.
+const (
+	RealtimeAccountChangedTypeAccountChanged RealtimeAccountChangedType = "account_changed"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeAccountChangedType enum.
+func (e RealtimeAccountChangedType) Valid() bool {
+	switch e {
+	case RealtimeAccountChangedTypeAccountChanged:
 		return true
 	default:
 		return false
@@ -359,10 +437,95 @@ type Account struct {
 	CreatedAt time.Time `json:"createdAt"`
 	Id        string    `json:"id"`
 
+	// Mute A ban or a mute.
+	Mute *Penalty `json:"mute,omitempty"`
+
 	// Rank A rating with its tier and, below Diamond, its division.
 	Rank     Rank   `json:"rank"`
 	Role     Role   `json:"role"`
 	Username string `json:"username"`
+}
+
+// AdminLogAction defines model for AdminLogAction.
+type AdminLogAction string
+
+// AdminLogEntry defines model for AdminLogEntry.
+type AdminLogEntry struct {
+	Action AdminLogAction `json:"action"`
+
+	// AdminId The admin who acted; absent once their account is gone.
+	AdminId *string `json:"adminId,omitempty"`
+
+	// AdminName The admin's name as it was.
+	AdminName string    `json:"adminName"`
+	At        time.Time `json:"at"`
+
+	// Details How, such as a ban's length and reason; empty when there is nothing to add.
+	Details string `json:"details"`
+	Id      string `json:"id"`
+
+	// Subject What the action was done to, such as a player's name.
+	Subject string `json:"subject"`
+}
+
+// AdminLogPage defines model for AdminLogPage.
+type AdminLogPage struct {
+	Entries  []AdminLogEntry `json:"entries"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"pageSize"`
+	Total    int             `json:"total"`
+}
+
+// AdminUser An account as the admin panel shows it.
+type AdminUser struct {
+	Ban      *Ban      `json:"ban,omitempty"`
+	Id       string    `json:"id"`
+	JoinedAt time.Time `json:"joinedAt"`
+	Losses   int       `json:"losses"`
+
+	// Mute A ban or a mute.
+	Mute *Penalty `json:"mute,omitempty"`
+
+	// Online Whether the player has the site open.
+	Online bool `json:"online"`
+
+	// Rank A rating with its tier and, below Diamond, its division.
+	Rank     Rank   `json:"rank"`
+	Role     Role   `json:"role"`
+	Username string `json:"username"`
+	Wins     int    `json:"wins"`
+}
+
+// AdminUserPage defines model for AdminUserPage.
+type AdminUserPage struct {
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+
+	// Total How many accounts match, on every page.
+	Total int         `json:"total"`
+	Users []AdminUser `json:"users"`
+}
+
+// AdminUserStatus defines model for AdminUserStatus.
+type AdminUserStatus string
+
+// Ban defines model for Ban.
+type Ban struct {
+	// Reason What the player is shown when they log in.
+	Reason string    `json:"reason"`
+	Since  time.Time `json:"since"`
+
+	// Until When it lifts itself; absent for a ban for good, which lasts until lifted.
+	Until *time.Time `json:"until,omitempty"`
+}
+
+// BanInput defines model for BanInput.
+type BanInput struct {
+	// DurationMinutes How long the ban lasts, up to 365 days; absent for good.
+	DurationMinutes *int `json:"durationMinutes,omitempty"`
+
+	// Reason What the player is shown when they log in; one line.
+	Reason string `json:"reason"`
 }
 
 // Card defines model for Card.
@@ -608,6 +771,12 @@ type Error struct {
 
 	// Problems Every rule the deck breaks, for "deck_not_legal" errors.
 	Problems *[]DeckProblem `json:"problems,omitempty"`
+
+	// Reason Why the player is banned, for "banned" errors.
+	Reason *string `json:"reason,omitempty"`
+
+	// Until When the ban or mute ends, for "banned" and "muted" errors; absent for one for good.
+	Until *time.Time `json:"until,omitempty"`
 }
 
 // Format defines model for Format.
@@ -752,6 +921,18 @@ type MatchPlayer struct {
 	Username     string `json:"username"`
 }
 
+// MuteInput defines model for MuteInput.
+type MuteInput struct {
+	// DurationMinutes How long the mute lasts, up to 365 days; absent for good.
+	DurationMinutes *int `json:"durationMinutes,omitempty"`
+}
+
+// NewPassword defines model for NewPassword.
+type NewPassword struct {
+	// Password 8 to 128 characters.
+	Password string `json:"password"`
+}
+
 // OnlinePlayer defines model for OnlinePlayer.
 type OnlinePlayer struct {
 	// Activity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name), playing (with the game's id) or deciding on a rematch (with the id of the game that ended).
@@ -798,6 +979,14 @@ type PasswordChange struct {
 
 	// NewPassword 8 to 128 characters.
 	NewPassword string `json:"newPassword"`
+}
+
+// Penalty A ban or a mute.
+type Penalty struct {
+	Since time.Time `json:"since"`
+
+	// Until When it lifts itself; absent for one for good, which lasts until lifted.
+	Until *time.Time `json:"until,omitempty"`
 }
 
 // PlayerActivity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name), playing (with the game's id) or deciding on a rematch (with the id of the game that ended).
@@ -911,6 +1100,14 @@ type Rankings struct {
 	Total int           `json:"total"`
 	You   *RankedPlayer `json:"you,omitempty"`
 }
+
+// RealtimeAccountChanged An admin has changed the player's account, such as muting them or making them an admin, so their pages show it again. Sent to the player. A player put out of the site, by a ban or a new password, instead has their live connection closed with code 4001.
+type RealtimeAccountChanged struct {
+	Type RealtimeAccountChangedType `json:"type"`
+}
+
+// RealtimeAccountChangedType defines model for RealtimeAccountChanged.Type.
+type RealtimeAccountChangedType string
 
 // RealtimeChatMessage Someone posted to the lobby chat.
 type RealtimeChatMessage struct {
@@ -1052,6 +1249,11 @@ type RematchSeat struct {
 // Role defines model for Role.
 type Role string
 
+// RoleInput defines model for RoleInput.
+type RoleInput struct {
+	Role Role `json:"role"`
+}
+
 // RunningGame defines model for RunningGame.
 type RunningGame struct {
 	FormatId   string     `json:"formatId"`
@@ -1081,8 +1283,17 @@ type Streak = int
 // Tier defines model for Tier.
 type Tier string
 
+// UserId defines model for UserId.
+type UserId = string
+
+// AdminConflict Returned with every error status.
+type AdminConflict = Error
+
 // Busy Returned with every error status.
 type Busy = Error
+
+// Forbidden Returned with every error status.
+type Forbidden = Error
 
 // GamesPaused Returned with every error status.
 type GamesPaused = Error
@@ -1107,6 +1318,25 @@ type TooManyAttempts = Error
 
 // Unauthenticated Returned with every error status.
 type Unauthenticated = Error
+
+// GetAdminLogParams defines parameters for GetAdminLog.
+type GetAdminLogParams struct {
+	// Action Keeps the entries of one action.
+	Action   *AdminLogAction `form:"action,omitempty" json:"action,omitempty"`
+	Page     *int            `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int            `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// GetAdminUsersParams defines parameters for GetAdminUsers.
+type GetAdminUsersParams struct {
+	// Search Keeps the accounts whose name contains it, ignoring case.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Status Keeps the accounts banned now, muted now, or the admins.
+	Status   *AdminUserStatus `form:"status,omitempty" json:"status,omitempty"`
+	Page     *int             `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int             `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
 
 // SearchCardsParams defines parameters for SearchCards.
 type SearchCardsParams struct {
@@ -1141,6 +1371,18 @@ type GetRankingsParams struct {
 	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
 	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
+
+// BanUserJSONRequestBody defines body for BanUser for application/json ContentType.
+type BanUserJSONRequestBody = BanInput
+
+// MuteUserJSONRequestBody defines body for MuteUser for application/json ContentType.
+type MuteUserJSONRequestBody = MuteInput
+
+// SetUserPasswordJSONRequestBody defines body for SetUserPassword for application/json ContentType.
+type SetUserPasswordJSONRequestBody = NewPassword
+
+// SetUserRoleJSONRequestBody defines body for SetUserRole for application/json ContentType.
+type SetUserRoleJSONRequestBody = RoleInput
 
 // LogInJSONRequestBody defines body for LogIn for application/json ContentType.
 type LogInJSONRequestBody = Credentials
@@ -1481,6 +1723,40 @@ func (t *RealtimeMessage) MergeRealtimeMatchRecorded(v RealtimeMatchRecorded) er
 	return err
 }
 
+// AsRealtimeAccountChanged returns the union data inside the RealtimeMessage as a RealtimeAccountChanged
+func (t RealtimeMessage) AsRealtimeAccountChanged() (RealtimeAccountChanged, error) {
+	var body RealtimeAccountChanged
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeAccountChanged overwrites any union data inside the RealtimeMessage as the provided RealtimeAccountChanged
+func (t *RealtimeMessage) FromRealtimeAccountChanged(v RealtimeAccountChanged) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"account_changed"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeAccountChanged performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeAccountChanged
+func (t *RealtimeMessage) MergeRealtimeAccountChanged(v RealtimeAccountChanged) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"account_changed"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t RealtimeMessage) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -1495,6 +1771,8 @@ func (t RealtimeMessage) ValueByDiscriminator() (interface{}, error) {
 		return nil, err
 	}
 	switch discriminator {
+	case "account_changed":
+		return t.AsRealtimeAccountChanged()
 	case "chat_message":
 		return t.AsRealtimeChatMessage()
 	case "game_started":
@@ -1530,6 +1808,30 @@ func (t *RealtimeMessage) UnmarshalJSON(b []byte) error {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAdminLog The admin log
+	// (GET /admin/log)
+	GetAdminLog(w http.ResponseWriter, r *http.Request, params GetAdminLogParams)
+	// GetAdminUsers Search the accounts
+	// (GET /admin/users)
+	GetAdminUsers(w http.ResponseWriter, r *http.Request, params GetAdminUsersParams)
+	// UnbanUser Lift a player's ban
+	// (DELETE /admin/users/{userId}/ban)
+	UnbanUser(w http.ResponseWriter, r *http.Request, userId UserId)
+	// BanUser Ban a player
+	// (POST /admin/users/{userId}/ban)
+	BanUser(w http.ResponseWriter, r *http.Request, userId UserId)
+	// UnmuteUser Lift a player's mute
+	// (DELETE /admin/users/{userId}/mute)
+	UnmuteUser(w http.ResponseWriter, r *http.Request, userId UserId)
+	// MuteUser Mute a player in the lobby chat
+	// (POST /admin/users/{userId}/mute)
+	MuteUser(w http.ResponseWriter, r *http.Request, userId UserId)
+	// SetUserPassword Give a player a new password
+	// (PUT /admin/users/{userId}/password)
+	SetUserPassword(w http.ResponseWriter, r *http.Request, userId UserId)
+	// SetUserRole Make a player an admin, or an admin a player
+	// (PUT /admin/users/{userId}/role)
+	SetUserRole(w http.ResponseWriter, r *http.Request, userId UserId)
 	// LogIn Log in
 	// (POST /auth/login)
 	LogIn(w http.ResponseWriter, r *http.Request)
@@ -1663,6 +1965,293 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdminLog operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminLog(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminLogParams
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "action", r.URL.Query(), &params.Action, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "action"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminLog(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminUsersParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUsers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnbanUser operation middleware
+func (siw *ServerInterfaceWrapper) UnbanUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnbanUser(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// BanUser operation middleware
+func (siw *ServerInterfaceWrapper) BanUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.BanUser(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnmuteUser operation middleware
+func (siw *ServerInterfaceWrapper) UnmuteUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnmuteUser(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MuteUser operation middleware
+func (siw *ServerInterfaceWrapper) MuteUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MuteUser(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetUserPassword operation middleware
+func (siw *ServerInterfaceWrapper) SetUserPassword(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetUserPassword(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetUserRole operation middleware
+func (siw *ServerInterfaceWrapper) SetUserRole(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetUserRole(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // LogIn operation middleware
 func (siw *ServerInterfaceWrapper) LogIn(w http.ResponseWriter, r *http.Request) {
@@ -2850,11 +3439,23 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks/{deckId}", wrapper.GetDeck)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/decks/{deckId}", wrapper.UpdateDeck)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks/{deckId}/text", wrapper.GetDeckText)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/users", wrapper.GetAdminUsers)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/users/{userId}/ban", wrapper.UnbanUser)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/users/{userId}/ban", wrapper.BanUser)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/users/{userId}/mute", wrapper.UnmuteUser)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/users/{userId}/mute", wrapper.MuteUser)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/users/{userId}/role", wrapper.SetUserRole)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/users/{userId}/password", wrapper.SetUserPassword)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/log", wrapper.GetAdminLog)
 
 	return m
 }
 
+type AdminConflictJSONResponse Error
+
 type BusyJSONResponse Error
+
+type ForbiddenJSONResponse Error
 
 type GamesPausedJSONResponse Error
 
@@ -2885,6 +3486,656 @@ type TooManyAttemptsJSONResponse struct {
 }
 
 type UnauthenticatedJSONResponse Error
+
+type GetAdminLogRequestObject struct {
+	Params GetAdminLogParams
+}
+
+type GetAdminLogResponseObject interface {
+	VisitGetAdminLogResponse(w http.ResponseWriter) error
+}
+
+type GetAdminLog200JSONResponse AdminLogPage
+
+func (response GetAdminLog200JSONResponse) VisitGetAdminLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLog400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response GetAdminLog400JSONResponse) VisitGetAdminLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLog401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetAdminLog401JSONResponse) VisitGetAdminLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLog403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminLog403JSONResponse) VisitGetAdminLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUsersRequestObject struct {
+	Params GetAdminUsersParams
+}
+
+type GetAdminUsersResponseObject interface {
+	VisitGetAdminUsersResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUsers200JSONResponse AdminUserPage
+
+func (response GetAdminUsers200JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUsers400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response GetAdminUsers400JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUsers401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetAdminUsers401JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUsers403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminUsers403JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnbanUserRequestObject struct {
+	UserId UserId `json:"userId"`
+}
+
+type UnbanUserResponseObject interface {
+	VisitUnbanUserResponse(w http.ResponseWriter) error
+}
+
+type UnbanUser200JSONResponse AdminUser
+
+func (response UnbanUser200JSONResponse) VisitUnbanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnbanUser401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response UnbanUser401JSONResponse) VisitUnbanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnbanUser403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UnbanUser403JSONResponse) VisitUnbanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnbanUser404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UnbanUser404JSONResponse) VisitUnbanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnbanUser409JSONResponse struct{ AdminConflictJSONResponse }
+
+func (response UnbanUser409JSONResponse) VisitUnbanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BanUserRequestObject struct {
+	UserId UserId `json:"userId"`
+	Body   *BanUserJSONRequestBody
+}
+
+type BanUserResponseObject interface {
+	VisitBanUserResponse(w http.ResponseWriter) error
+}
+
+type BanUser200JSONResponse AdminUser
+
+func (response BanUser200JSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BanUser400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response BanUser400JSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BanUser401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response BanUser401JSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BanUser403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response BanUser403JSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BanUser404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response BanUser404JSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BanUser409JSONResponse struct{ AdminConflictJSONResponse }
+
+func (response BanUser409JSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnmuteUserRequestObject struct {
+	UserId UserId `json:"userId"`
+}
+
+type UnmuteUserResponseObject interface {
+	VisitUnmuteUserResponse(w http.ResponseWriter) error
+}
+
+type UnmuteUser200JSONResponse AdminUser
+
+func (response UnmuteUser200JSONResponse) VisitUnmuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnmuteUser401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response UnmuteUser401JSONResponse) VisitUnmuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnmuteUser403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UnmuteUser403JSONResponse) VisitUnmuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnmuteUser404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UnmuteUser404JSONResponse) VisitUnmuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnmuteUser409JSONResponse struct{ AdminConflictJSONResponse }
+
+func (response UnmuteUser409JSONResponse) VisitUnmuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MuteUserRequestObject struct {
+	UserId UserId `json:"userId"`
+	Body   *MuteUserJSONRequestBody
+}
+
+type MuteUserResponseObject interface {
+	VisitMuteUserResponse(w http.ResponseWriter) error
+}
+
+type MuteUser200JSONResponse AdminUser
+
+func (response MuteUser200JSONResponse) VisitMuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MuteUser400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response MuteUser400JSONResponse) VisitMuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MuteUser401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response MuteUser401JSONResponse) VisitMuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MuteUser403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response MuteUser403JSONResponse) VisitMuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MuteUser404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response MuteUser404JSONResponse) VisitMuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MuteUser409JSONResponse struct{ AdminConflictJSONResponse }
+
+func (response MuteUser409JSONResponse) VisitMuteUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserPasswordRequestObject struct {
+	UserId UserId `json:"userId"`
+	Body   *SetUserPasswordJSONRequestBody
+}
+
+type SetUserPasswordResponseObject interface {
+	VisitSetUserPasswordResponse(w http.ResponseWriter) error
+}
+
+type SetUserPassword204Response struct {
+}
+
+func (response SetUserPassword204Response) VisitSetUserPasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SetUserPassword400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response SetUserPassword400JSONResponse) VisitSetUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserPassword401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SetUserPassword401JSONResponse) VisitSetUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserPassword403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetUserPassword403JSONResponse) VisitSetUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserPassword404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetUserPassword404JSONResponse) VisitSetUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserPassword409JSONResponse struct{ AdminConflictJSONResponse }
+
+func (response SetUserPassword409JSONResponse) VisitSetUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserRoleRequestObject struct {
+	UserId UserId `json:"userId"`
+	Body   *SetUserRoleJSONRequestBody
+}
+
+type SetUserRoleResponseObject interface {
+	VisitSetUserRoleResponse(w http.ResponseWriter) error
+}
+
+type SetUserRole200JSONResponse AdminUser
+
+func (response SetUserRole200JSONResponse) VisitSetUserRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserRole400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response SetUserRole400JSONResponse) VisitSetUserRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserRole401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SetUserRole401JSONResponse) VisitSetUserRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserRole403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetUserRole403JSONResponse) VisitSetUserRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserRole404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetUserRole404JSONResponse) VisitSetUserRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetUserRole409JSONResponse struct{ AdminConflictJSONResponse }
+
+func (response SetUserRole409JSONResponse) VisitSetUserRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type LogInRequestObject struct {
 	Body *LogInJSONRequestBody
@@ -2942,6 +4193,20 @@ func (response LogIn401JSONResponse) VisitLogInResponse(w http.ResponseWriter) e
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LogIn403JSONResponse Error
+
+func (response LogIn403JSONResponse) VisitLogInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3430,6 +4695,20 @@ func (response PostChatMessage401JSONResponse) VisitPostChatMessageResponse(w ht
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostChatMessage403JSONResponse Error
+
+func (response PostChatMessage403JSONResponse) VisitPostChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4974,6 +6253,30 @@ func (response GetSiteStats200JSONResponse) VisitGetSiteStatsResponse(w http.Res
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAdminLog The admin log
+	// (GET /admin/log)
+	GetAdminLog(ctx context.Context, request GetAdminLogRequestObject) (GetAdminLogResponseObject, error)
+	// GetAdminUsers Search the accounts
+	// (GET /admin/users)
+	GetAdminUsers(ctx context.Context, request GetAdminUsersRequestObject) (GetAdminUsersResponseObject, error)
+	// UnbanUser Lift a player's ban
+	// (DELETE /admin/users/{userId}/ban)
+	UnbanUser(ctx context.Context, request UnbanUserRequestObject) (UnbanUserResponseObject, error)
+	// BanUser Ban a player
+	// (POST /admin/users/{userId}/ban)
+	BanUser(ctx context.Context, request BanUserRequestObject) (BanUserResponseObject, error)
+	// UnmuteUser Lift a player's mute
+	// (DELETE /admin/users/{userId}/mute)
+	UnmuteUser(ctx context.Context, request UnmuteUserRequestObject) (UnmuteUserResponseObject, error)
+	// MuteUser Mute a player in the lobby chat
+	// (POST /admin/users/{userId}/mute)
+	MuteUser(ctx context.Context, request MuteUserRequestObject) (MuteUserResponseObject, error)
+	// SetUserPassword Give a player a new password
+	// (PUT /admin/users/{userId}/password)
+	SetUserPassword(ctx context.Context, request SetUserPasswordRequestObject) (SetUserPasswordResponseObject, error)
+	// SetUserRole Make a player an admin, or an admin a player
+	// (PUT /admin/users/{userId}/role)
+	SetUserRole(ctx context.Context, request SetUserRoleRequestObject) (SetUserRoleResponseObject, error)
 	// LogIn Log in
 	// (POST /auth/login)
 	LogIn(ctx context.Context, request LogInRequestObject) (LogInResponseObject, error)
@@ -5136,6 +6439,242 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdminLog operation middleware
+func (sh *strictHandler) GetAdminLog(w http.ResponseWriter, r *http.Request, params GetAdminLogParams) {
+	var request GetAdminLogRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminLog(ctx, request.(GetAdminLogRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminLog")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminLogResponseObject); ok {
+		if err := validResponse.VisitGetAdminLogResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminUsers operation middleware
+func (sh *strictHandler) GetAdminUsers(w http.ResponseWriter, r *http.Request, params GetAdminUsersParams) {
+	var request GetAdminUsersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUsers(ctx, request.(GetAdminUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUsersResponseObject); ok {
+		if err := validResponse.VisitGetAdminUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnbanUser operation middleware
+func (sh *strictHandler) UnbanUser(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request UnbanUserRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnbanUser(ctx, request.(UnbanUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnbanUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnbanUserResponseObject); ok {
+		if err := validResponse.VisitUnbanUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// BanUser operation middleware
+func (sh *strictHandler) BanUser(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request BanUserRequestObject
+
+	request.UserId = userId
+
+	var body BanUserJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.BanUser(ctx, request.(BanUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "BanUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(BanUserResponseObject); ok {
+		if err := validResponse.VisitBanUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnmuteUser operation middleware
+func (sh *strictHandler) UnmuteUser(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request UnmuteUserRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnmuteUser(ctx, request.(UnmuteUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnmuteUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnmuteUserResponseObject); ok {
+		if err := validResponse.VisitUnmuteUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MuteUser operation middleware
+func (sh *strictHandler) MuteUser(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request MuteUserRequestObject
+
+	request.UserId = userId
+
+	var body MuteUserJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MuteUser(ctx, request.(MuteUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MuteUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MuteUserResponseObject); ok {
+		if err := validResponse.VisitMuteUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetUserPassword operation middleware
+func (sh *strictHandler) SetUserPassword(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request SetUserPasswordRequestObject
+
+	request.UserId = userId
+
+	var body SetUserPasswordJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetUserPassword(ctx, request.(SetUserPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetUserPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetUserPasswordResponseObject); ok {
+		if err := validResponse.VisitSetUserPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetUserRole operation middleware
+func (sh *strictHandler) SetUserRole(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request SetUserRoleRequestObject
+
+	request.UserId = userId
+
+	var body SetUserRoleJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetUserRole(ctx, request.(SetUserRoleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetUserRole")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetUserRoleResponseObject); ok {
+		if err := validResponse.VisitSetUserRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // LogIn operation middleware

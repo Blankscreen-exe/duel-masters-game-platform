@@ -161,13 +161,21 @@ func (h *handlers) GetMatch(ctx context.Context, request api.GetMatchRequestObje
 	return api.GetMatch200JSONResponse(apiMatch(finished)), nil
 }
 
-// account is a user as the API shows them, with their rank.
+// account is a user as the API shows them to themselves, with their rank
+// and any mute.
 func (h *handlers) account(ctx context.Context, user users.User) (api.Account, error) {
 	standing, err := h.ratings.Standing(ctx, user.ID)
 	if err != nil {
 		return api.Account{}, fmt.Errorf("reading %s's rank: %w", user.Username, err)
 	}
-	return api.Account{Id: user.ID, Username: user.Username, Role: api.Role(user.Role), CreatedAt: user.CreatedAt.UTC(), Rank: apiRank(standing.Rank)}, nil
+	return api.Account{
+		Id:        user.ID,
+		Username:  user.Username,
+		Role:      api.Role(user.Role),
+		CreatedAt: user.CreatedAt.UTC(),
+		Rank:      apiRank(standing.Rank),
+		Mute:      apiMute(user, h.now()),
+	}, nil
 }
 
 // ranks are players' ranks, by id, as names are shown with them.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
@@ -50,12 +51,28 @@ func (h *handlers) LogIn(ctx context.Context, request api.LogInRequestObject) (a
 	if errors.Is(err, auth.ErrInvalidCredentials) {
 		return api.LogIn401JSONResponse(apiError(codeInvalidCredentials, "Wrong username or password.")), nil
 	}
+	var banned *auth.BannedError
+	if errors.As(err, &banned) {
+		return api.LogIn403JSONResponse(bannedRefusal(banned.Ban)), nil
+	}
 	var tooMany *auth.TooManyAttemptsError
 	if errors.As(err, &tooMany) {
 		return api.LogIn429JSONResponse{TooManyAttemptsJSONResponse: tooManyAttempts(tooMany)}, nil
 	}
 
 	return nil, err
+}
+
+// bannedRefusal tells a banned player why, and until when.
+func bannedRefusal(ban users.Ban) api.Error {
+	refusal := apiError(codeBanned, "This account is banned for good.")
+	if ban.Until != nil {
+		until := ban.Until.UTC()
+		refusal = apiError(codeBanned, "This account is banned until "+until.Format(time.RFC1123)+".")
+		refusal.Until = &until
+	}
+	refusal.Reason = &ban.Reason
+	return refusal
 }
 
 func (h *handlers) LogOut(ctx context.Context, _ api.LogOutRequestObject) (api.LogOutResponseObject, error) {

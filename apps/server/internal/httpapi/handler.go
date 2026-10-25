@@ -8,9 +8,12 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/admin"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
@@ -53,6 +56,9 @@ type Dependencies struct {
 	QuickMatch *matchmaking.Service
 	// Rematches runs the rematches of games just ended.
 	Rematches *rematch.Service
+	// Admin carries out the admin panel's actions, which AdminLog records.
+	Admin    *admin.Service
+	AdminLog *adminlog.Service
 	// Hub keeps the live connections, which Upgrader opens for the site's
 	// pages only.
 	Hub      *realtime.Hub
@@ -60,6 +66,9 @@ type Dependencies struct {
 	Logger   *slog.Logger
 	// SecureCookies makes the session cookie HTTPS-only.
 	SecureCookies bool
+	// Now is the clock, which says whether bans and mutes are over; pass
+	// time.Now outside tests.
+	Now func() time.Time
 }
 
 // handlers implements the operations of the API contract.
@@ -76,9 +85,12 @@ type handlers struct {
 	lobby         *lobby.Service
 	quickMatch    *matchmaking.Service
 	rematches     *rematch.Service
+	admin         *admin.Service
+	adminLog      *adminlog.Service
 	hub           *realtime.Hub
 	upgrader      *websocket.Upgrader
 	secureCookies bool
+	now           func() time.Time
 }
 
 var _ api.StrictServerInterface = (*handlers)(nil)
@@ -103,9 +115,12 @@ func NewHandler(deps Dependencies) http.Handler {
 		lobby:         deps.Lobby,
 		quickMatch:    deps.QuickMatch,
 		rematches:     deps.Rematches,
+		admin:         deps.Admin,
+		adminLog:      deps.AdminLog,
 		hub:           deps.Hub,
 		upgrader:      deps.Upgrader,
 		secureCookies: deps.SecureCookies,
+		now:           deps.Now,
 	}, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: badRequest,
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {

@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/admin"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
@@ -112,6 +114,9 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 	rematches := rematch.NewService(rematch.Dependencies{
 		Lobby: lobbyService, Games: gameService, Directory: live, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
 	})
+	adminService := admin.NewService(admin.Dependencies{
+		DB: db, Auth: authService, Connections: hub, Games: gameService, Listener: live, Logger: logger, Now: clock.Now,
+	})
 
 	return testServer{
 		handler: NewHandler(Dependencies{
@@ -127,10 +132,13 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 			Lobby:         lobbyService,
 			QuickMatch:    quickMatch,
 			Rematches:     rematches,
+			Admin:         adminService,
+			AdminLog:      adminlog.NewService(db),
 			Hub:           hub,
 			Upgrader:      realtime.NewUpgrader([]string{testSiteOrigin}),
 			Logger:        logger,
 			SecureCookies: secureCookies,
+			Now:           clock.Now,
 		}),
 		settings:     siteSettings,
 		hub:          hub,

@@ -34,6 +34,15 @@ const (
 	codeHostDeckNotLegal     = "host_deck_not_legal"
 	codeOpponentDeckNotLegal = "opponent_deck_not_legal"
 	codeNotWatchable         = "not_watchable"
+
+	codeBanned = "banned"
+	codeMuted  = "muted"
+
+	codeForbidden   = "forbidden"
+	codeOwnAccount  = "own_account"
+	codeAdminBan    = "admin_ban"
+	codeBannedAdmin = "banned_admin"
+	codeLastAdmin   = "last_admin"
 )
 
 // apiError is the contract's Error body.

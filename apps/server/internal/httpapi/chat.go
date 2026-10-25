@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
 
 func (h *handlers) GetChat(ctx context.Context, _ api.GetChatRequestObject) (api.GetChatResponseObject, error) {
@@ -35,6 +37,10 @@ func (h *handlers) PostChatMessage(ctx context.Context, request api.PostChatMess
 	}
 
 	posted, err := h.chat.Post(ctx, user, request.Body.Text)
+	var muted *chat.MutedError
+	if errors.As(err, &muted) {
+		return api.PostChatMessage403JSONResponse(mutedRefusal(muted.Mute)), nil
+	}
 	var tooFast *chat.TooFastError
 	if errors.As(err, &tooFast) {
 		seconds := int(math.Ceil(tooFast.RetryAfter.Seconds()))
@@ -51,6 +57,17 @@ func (h *handlers) PostChatMessage(ctx context.Context, request api.PostChatMess
 	}
 
 	return api.PostChatMessage201JSONResponse(apiChatMessage(posted)), nil
+}
+
+// mutedRefusal tells a muted player until when.
+func mutedRefusal(mute users.Penalty) api.Error {
+	if mute.Until == nil {
+		return apiError(codeMuted, "An admin has muted you in the chat.")
+	}
+	until := mute.Until.UTC()
+	refusal := apiError(codeMuted, "An admin has muted you in the chat until "+until.Format(time.RFC1123)+".")
+	refusal.Until = &until
+	return refusal
 }
 
 func apiChatMessage(message chat.Message) api.ChatMessage {

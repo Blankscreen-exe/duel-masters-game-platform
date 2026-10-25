@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/admin"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
@@ -35,6 +36,7 @@ func NewLiveUpdates(hub *realtime.Hub, ratingService *ratings.Service, logger *s
 }
 
 var (
+	_ admin.Listener   = (*LiveUpdates)(nil)
 	_ chat.Listener    = (*LiveUpdates)(nil)
 	_ games.Listener   = (*LiveUpdates)(nil)
 	_ lobby.Listener   = (*LiveUpdates)(nil)
@@ -89,6 +91,12 @@ func (l *LiveUpdates) GameFinished(finished games.Record) {
 
 // GameClosed is part of games.Listener.
 func (l *LiveUpdates) GameClosed(games.Game) {}
+
+// AccountChanged tells a player an admin has changed their account, such as
+// muting them, so their pages show it.
+func (l *LiveUpdates) AccountChanged(userID string) {
+	l.hub.SendTo(userID, api.RealtimeAccountChanged{Type: api.RealtimeAccountChangedTypeAccountChanged})
+}
 
 // QueueChanged shows players how many wait in each format for a quick match.
 func (l *LiveUpdates) QueueChanged(waiting map[string]int) {

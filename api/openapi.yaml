@@ -48,6 +48,10 @@ tags:
       The logged-in player's decks. They are private: another player's deck is answered as not
       found. A deck may be saved unfinished, and says for every format whether it is legal and why
       not.
+  - name: admin
+    description: >-
+      The admin panel, for admins only. Every change is recorded in the admin log. No admin can
+      act on their own account here.
 paths:
   /health:
     get:
@@ -129,6 +133,14 @@ paths:
         "401":
           description: >-
             Wrong username or password (code "invalid_credentials"). The answer does not say which.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: >-
+            The password is right but the account is banned (code "banned"), with the reason and,
+            for a timed ban, when it ends.
           content:
             application/json:
               schema:
@@ -418,6 +430,13 @@ paths:
           $ref: "#/components/responses/InvalidInput"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: >-
+            An admin has muted the player (code "muted"), with when it ends for a timed mute.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "429":
           $ref: "#/components/responses/TooFast"
   /stats:
@@ -1121,6 +1140,271 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "404":
           $ref: "#/components/responses/NotFound"
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      summary: Search the accounts
+      description: Every account, by name, with its rank, record, ban and mute.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: search
+          in: query
+          description: Keeps the accounts whose name contains it, ignoring case.
+          schema:
+            type: string
+            maxLength: 20
+        - name: status
+          in: query
+          description: Keeps the accounts banned now, muted now, or the admins.
+          schema:
+            $ref: "#/components/schemas/AdminUserStatus"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: One page of the accounts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserPage"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users/{userId}/ban:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    post:
+      operationId: banUser
+      summary: Ban a player
+      description: >-
+        Replaces any earlier ban. The player's sessions end and their live connections close, the
+        game they play in stops without counting, and they leave the lobby, quick match, rematches
+        and the rankings while the ban lasts. They are shown the reason when they log in.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BanInput"
+      responses:
+        "200":
+          description: The banned account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/AdminConflict"
+    delete:
+      operationId: unbanUser
+      summary: Lift a player's ban
+      description: Lifting a ban that is over, or that never was, changes nothing.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The account, no longer banned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/AdminConflict"
+  /admin/users/{userId}/mute:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    post:
+      operationId: muteUser
+      summary: Mute a player in the lobby chat
+      description: >-
+        Replaces any earlier mute. A muted player still reads the chat and plays.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MuteInput"
+      responses:
+        "200":
+          description: The muted account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/AdminConflict"
+    delete:
+      operationId: unmuteUser
+      summary: Lift a player's mute
+      description: Lifting a mute that is over, or that never was, changes nothing.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The account, no longer muted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/AdminConflict"
+  /admin/users/{userId}/role:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    put:
+      operationId: setUserRole
+      summary: Make a player an admin, or an admin a player
+      description: >-
+        A banned player cannot be made an admin, and the last admin cannot be made a player.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleInput"
+      responses:
+        "200":
+          description: The account with its new role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/AdminConflict"
+  /admin/users/{userId}/password:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    put:
+      operationId: setUserPassword
+      summary: Give a player a new password
+      description: >-
+        For a player who has forgotten theirs: the admin passes the new password on. The player's
+        sessions end, and wrong passwords tried before no longer hold them back.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewPassword"
+      responses:
+        "204":
+          description: The password was changed.
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/AdminConflict"
+  /admin/log:
+    get:
+      operationId: getAdminLog
+      summary: The admin log
+      description: What admins have done in the admin panel, the latest first.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: action
+          in: query
+          description: Keeps the entries of one action.
+          schema:
+            $ref: "#/components/schemas/AdminLogAction"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: One page of the log.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLogPage"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 components:
   securitySchemes:
     sessionCookie:
@@ -1141,7 +1425,31 @@ components:
       description: Seconds to wait before trying again.
       schema:
         type: integer
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: The account's id.
+      schema:
+        type: string
   responses:
+    Forbidden:
+      description: Only admins can do this (code "forbidden").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    AdminConflict:
+      description: >-
+        The guards forbid it: admins cannot act on their own account (code "own_account"), an
+        admin cannot be banned until made a player (code "admin_ban"), a banned player cannot be
+        made an admin (code "banned_admin"), and the last admin cannot be made a player (code
+        "last_admin").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     InvalidInput:
       description: >-
         The request is not valid JSON (code "bad_request"), or a field breaks its rules (code
@@ -1270,9 +1578,173 @@ components:
           format: date-time
         rank:
           $ref: "#/components/schemas/Rank"
+        mute:
+          description: While an admin has muted the player in the lobby chat.
+          $ref: "#/components/schemas/Penalty"
     Role:
       type: string
       enum: [player, admin]
+    Penalty:
+      description: A ban or a mute.
+      type: object
+      required: [since]
+      properties:
+        since:
+          type: string
+          format: date-time
+        until:
+          description: When it lifts itself; absent for one for good, which lasts until lifted.
+          type: string
+          format: date-time
+    Ban:
+      type: object
+      required: [since, reason]
+      properties:
+        since:
+          type: string
+          format: date-time
+        until:
+          description: When it lifts itself; absent for a ban for good, which lasts until lifted.
+          type: string
+          format: date-time
+        reason:
+          description: What the player is shown when they log in.
+          type: string
+    AdminUser:
+      description: An account as the admin panel shows it.
+      type: object
+      required: [id, username, role, joinedAt, rank, wins, losses, online]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        joinedAt:
+          type: string
+          format: date-time
+        rank:
+          $ref: "#/components/schemas/Rank"
+        wins:
+          type: integer
+        losses:
+          type: integer
+        online:
+          description: Whether the player has the site open.
+          type: boolean
+        ban:
+          description: While the player is banned.
+          $ref: "#/components/schemas/Ban"
+        mute:
+          description: While the player is muted.
+          $ref: "#/components/schemas/Penalty"
+    AdminUserStatus:
+      type: string
+      enum: [banned, muted, admin]
+    AdminUserPage:
+      type: object
+      required: [users, total, page, pageSize]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        total:
+          description: How many accounts match, on every page.
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+    BanInput:
+      type: object
+      required: [reason]
+      properties:
+        durationMinutes:
+          description: How long the ban lasts, up to 365 days; absent for good.
+          type: integer
+          minimum: 1
+          maximum: 525600
+        reason:
+          description: What the player is shown when they log in; one line.
+          type: string
+          minLength: 1
+          maxLength: 200
+    MuteInput:
+      type: object
+      properties:
+        durationMinutes:
+          description: How long the mute lasts, up to 365 days; absent for good.
+          type: integer
+          minimum: 1
+          maximum: 525600
+    RoleInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/Role"
+    NewPassword:
+      type: object
+      required: [password]
+      properties:
+        password:
+          description: 8 to 128 characters.
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+    AdminLogAction:
+      type: string
+      enum:
+        - user_banned
+        - user_unbanned
+        - user_muted
+        - user_unmuted
+        - role_changed
+        - password_reset
+        - setting_changed
+        - setting_reset
+        - chat_message_deleted
+        - game_stopped
+    AdminLogEntry:
+      type: object
+      required: [id, adminName, action, subject, details, at]
+      properties:
+        id:
+          type: string
+        adminId:
+          description: The admin who acted; absent once their account is gone.
+          type: string
+        adminName:
+          description: The admin's name as it was.
+          type: string
+        action:
+          $ref: "#/components/schemas/AdminLogAction"
+        subject:
+          description: What the action was done to, such as a player's name.
+          type: string
+        details:
+          description: How, such as a ban's length and reason; empty when there is nothing to add.
+          type: string
+        at:
+          type: string
+          format: date-time
+    AdminLogPage:
+      type: object
+      required: [entries, total, page, pageSize]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminLogEntry"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
     Card:
       type: object
       required: [id, name, type, cost, powerText, civilizations, races, rulesText, abilities, keywords, categories, playable, printings]
@@ -1894,6 +2366,7 @@ components:
         - $ref: "#/components/schemas/RealtimeRematch"
         - $ref: "#/components/schemas/RealtimeRematchEnded"
         - $ref: "#/components/schemas/RealtimeMatchRecorded"
+        - $ref: "#/components/schemas/RealtimeAccountChanged"
       discriminator:
         propertyName: type
         mapping:
@@ -1906,6 +2379,7 @@ components:
           rematch: "#/components/schemas/RealtimeRematch"
           rematch_ended: "#/components/schemas/RealtimeRematchEnded"
           match_recorded: "#/components/schemas/RealtimeMatchRecorded"
+          account_changed: "#/components/schemas/RealtimeAccountChanged"
     RealtimeSiteStats:
       description: How many players are online and games running, for everyone.
       type: object
@@ -2248,6 +2722,17 @@ components:
           enum: [match_recorded]
         match:
           $ref: "#/components/schemas/Match"
+    RealtimeAccountChanged:
+      description: >-
+        An admin has changed the player's account, such as muting them or making them an admin, so
+        their pages show it again. Sent to the player. A player put out of the site, by a ban or a
+        new password, instead has their live connection closed with code 4001.
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [account_changed]
     Error:
       description: Returned with every error status.
       type: object
@@ -2266,4 +2751,12 @@ components:
             $ref: "#/components/schemas/DeckProblem"
         field:
           description: The request field at fault, for "invalid_input" errors.
+          type: string
+        until:
+          description: >-
+            When the ban or mute ends, for "banned" and "muted" errors; absent for one for good.
+          type: string
+          format: date-time
+        reason:
+          description: Why the player is banned, for "banned" errors.
           type: string

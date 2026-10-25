@@ -16,6 +16,8 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/admin"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
@@ -157,6 +159,15 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		Now:       time.Now,
 	})
 	hub.Watch(presence{lobby: lobbyService, quickMatch: quickMatch, rematches: rematches})
+	adminService := admin.NewService(admin.Dependencies{
+		DB:          db,
+		Auth:        authService,
+		Connections: hub,
+		Games:       gameService,
+		Listener:    live,
+		Logger:      logger.With("component", "admin"),
+		Now:         time.Now,
+	})
 
 	return &App{
 		logger:     logger,
@@ -181,10 +192,13 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 				Lobby:         lobbyService,
 				QuickMatch:    quickMatch,
 				Rematches:     rematches,
+				Admin:         adminService,
+				AdminLog:      adminlog.NewService(db),
 				Hub:           hub,
 				Upgrader:      realtime.NewUpgrader(cfg.SiteOrigins),
 				Logger:        httpLogger,
 				SecureCookies: cfg.SecureCookies,
+				Now:           time.Now,
 			}),
 			ReadHeaderTimeout: readHeaderTimeout,
 			ReadTimeout:       readTimeout,

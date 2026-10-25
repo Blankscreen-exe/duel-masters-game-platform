@@ -664,6 +664,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the accounts
+         * @description Every account, by name, with its rank, record, ban and mute.
+         */
+        get: operations["getAdminUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban a player
+         * @description Replaces any earlier ban. The player's sessions end and their live connections close, the game they play in stops without counting, and they leave the lobby, quick match, rematches and the rankings while the ban lasts. They are shown the reason when they log in.
+         */
+        post: operations["banUser"];
+        /**
+         * Lift a player's ban
+         * @description Lifting a ban that is over, or that never was, changes nothing.
+         */
+        delete: operations["unbanUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/mute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mute a player in the lobby chat
+         * @description Replaces any earlier mute. A muted player still reads the chat and plays.
+         */
+        post: operations["muteUser"];
+        /**
+         * Lift a player's mute
+         * @description Lifting a mute that is over, or that never was, changes nothing.
+         */
+        delete: operations["unmuteUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Make a player an admin, or an admin a player
+         * @description A banned player cannot be made an admin, and the last admin cannot be made a player.
+         */
+        put: operations["setUserRole"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Give a player a new password
+         * @description For a player who has forgotten theirs: the admin passes the new password on. The player's sessions end, and wrong passwords tried before no longer hold them back.
+         */
+        put: operations["setUserPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The admin log
+         * @description What admins have done in the admin panel, the latest first.
+         */
+        get: operations["getAdminLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -701,9 +841,100 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             rank: components["schemas"]["Rank"];
+            /** @description While an admin has muted the player in the lobby chat. */
+            mute?: components["schemas"]["Penalty"];
         };
         /** @enum {string} */
         Role: "player" | "admin";
+        /** @description A ban or a mute. */
+        Penalty: {
+            /** Format: date-time */
+            since: string;
+            /**
+             * Format: date-time
+             * @description When it lifts itself; absent for one for good, which lasts until lifted.
+             */
+            until?: string;
+        };
+        Ban: {
+            /** Format: date-time */
+            since: string;
+            /**
+             * Format: date-time
+             * @description When it lifts itself; absent for a ban for good, which lasts until lifted.
+             */
+            until?: string;
+            /** @description What the player is shown when they log in. */
+            reason: string;
+        };
+        /** @description An account as the admin panel shows it. */
+        AdminUser: {
+            id: string;
+            username: string;
+            role: components["schemas"]["Role"];
+            /** Format: date-time */
+            joinedAt: string;
+            rank: components["schemas"]["Rank"];
+            wins: number;
+            losses: number;
+            /** @description Whether the player has the site open. */
+            online: boolean;
+            /** @description While the player is banned. */
+            ban?: components["schemas"]["Ban"];
+            /** @description While the player is muted. */
+            mute?: components["schemas"]["Penalty"];
+        };
+        /** @enum {string} */
+        AdminUserStatus: "banned" | "muted" | "admin";
+        AdminUserPage: {
+            users: components["schemas"]["AdminUser"][];
+            /** @description How many accounts match, on every page. */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        BanInput: {
+            /** @description How long the ban lasts, up to 365 days; absent for good. */
+            durationMinutes?: number;
+            /** @description What the player is shown when they log in; one line. */
+            reason: string;
+        };
+        MuteInput: {
+            /** @description How long the mute lasts, up to 365 days; absent for good. */
+            durationMinutes?: number;
+        };
+        RoleInput: {
+            role: components["schemas"]["Role"];
+        };
+        NewPassword: {
+            /**
+             * Format: password
+             * @description 8 to 128 characters.
+             */
+            password: string;
+        };
+        /** @enum {string} */
+        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped";
+        AdminLogEntry: {
+            id: string;
+            /** @description The admin who acted; absent once their account is gone. */
+            adminId?: string;
+            /** @description The admin's name as it was. */
+            adminName: string;
+            action: components["schemas"]["AdminLogAction"];
+            /** @description What the action was done to, such as a player's name. */
+            subject: string;
+            /** @description How, such as a ban's length and reason; empty when there is nothing to add. */
+            details: string;
+            /** Format: date-time */
+            at: string;
+        };
+        AdminLogPage: {
+            entries: components["schemas"]["AdminLogEntry"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
         Card: {
             /** @description The card's id, its first printing's id in the card database. */
             id: string;
@@ -1006,7 +1237,7 @@ export interface components {
             role: components["schemas"]["GameRole"];
         };
         /** @description A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. Visitors receive only the chat and the site's numbers. */
-        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"] | components["schemas"]["RealtimeRematch"] | components["schemas"]["RealtimeRematchEnded"] | components["schemas"]["RealtimeMatchRecorded"];
+        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"] | components["schemas"]["RealtimeRematch"] | components["schemas"]["RealtimeRematchEnded"] | components["schemas"]["RealtimeMatchRecorded"] | components["schemas"]["RealtimeAccountChanged"];
         /** @description How many players are online and games running, for everyone. */
         RealtimeSiteStats: {
             /**
@@ -1225,6 +1456,14 @@ export interface components {
             type: "match_recorded";
             match: components["schemas"]["Match"];
         };
+        /** @description An admin has changed the player's account, such as muting them or making them an admin, so their pages show it again. Sent to the player. A player put out of the site, by a ban or a new password, instead has their live connection closed with code 4001. */
+        RealtimeAccountChanged: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "account_changed";
+        };
         /** @description Returned with every error status. */
         Error: {
             /** @description A stable, machine-readable error code, such as "not_found". */
@@ -1235,9 +1474,34 @@ export interface components {
             problems?: components["schemas"]["DeckProblem"][];
             /** @description The request field at fault, for "invalid_input" errors. */
             field?: string;
+            /**
+             * Format: date-time
+             * @description When the ban or mute ends, for "banned" and "muted" errors; absent for one for good.
+             */
+            until?: string;
+            /** @description Why the player is banned, for "banned" errors. */
+            reason?: string;
         };
     };
     responses: {
+        /** @description Only admins can do this (code "forbidden"). */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The guards forbid it: admins cannot act on their own account (code "own_account"), an admin cannot be banned until made a player (code "admin_ban"), a banned player cannot be made an admin (code "banned_admin"), and the last admin cannot be made a player (code "last_admin"). */
+        AdminConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description The request is not valid JSON (code "bad_request"), or a field breaks its rules (code "invalid_input", with the field named). */
         InvalidInput: {
             headers: {
@@ -1322,7 +1586,10 @@ export interface components {
             };
         };
     };
-    parameters: never;
+    parameters: {
+        /** @description The account's id. */
+        UserId: string;
+    };
     requestBodies: never;
     headers: {
         /** @description Sets the session cookie. */
@@ -1435,6 +1702,15 @@ export interface operations {
             400: components["responses"]["InvalidInput"];
             /** @description Wrong username or password (code "invalid_credentials"). The answer does not say which. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The password is right but the account is banned (code "banned"), with the reason and, for a timed ban, when it ends. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1735,6 +2011,15 @@ export interface operations {
             };
             400: components["responses"]["InvalidInput"];
             401: components["responses"]["Unauthenticated"];
+            /** @description An admin has muted the player (code "muted"), with when it ends for a timed mute. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooFast"];
         };
     };
@@ -2444,6 +2729,244 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getAdminUsers: {
+        parameters: {
+            query?: {
+                /** @description Keeps the accounts whose name contains it, ignoring case. */
+                search?: string;
+                /** @description Keeps the accounts banned now, muted now, or the admins. */
+                status?: components["schemas"]["AdminUserStatus"];
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the accounts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    banUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BanInput"];
+            };
+        };
+        responses: {
+            /** @description The banned account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["AdminConflict"];
+        };
+    };
+    unbanUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account, no longer banned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["AdminConflict"];
+        };
+    };
+    muteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MuteInput"];
+            };
+        };
+        responses: {
+            /** @description The muted account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["AdminConflict"];
+        };
+    };
+    unmuteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account, no longer muted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["AdminConflict"];
+        };
+    };
+    setUserRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleInput"];
+            };
+        };
+        responses: {
+            /** @description The account with its new role. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["AdminConflict"];
+        };
+    };
+    setUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPassword"];
+            };
+        };
+        responses: {
+            /** @description The password was changed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["AdminConflict"];
+        };
+    };
+    getAdminLog: {
+        parameters: {
+            query?: {
+                /** @description Keeps the entries of one action. */
+                action?: components["schemas"]["AdminLogAction"];
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the log. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLogPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
         };
     };
 }
