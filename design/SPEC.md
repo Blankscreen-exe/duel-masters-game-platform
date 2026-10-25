@@ -85,8 +85,16 @@ Browser ──HTTP──▶ Next.js (pages) ──/api, /ws──▶ Go server �
 - Roles: **player** and **admin**. **The first account to sign up becomes the admin**, as in Triple
   Triad; the server warns in its log at startup while no account exists, so the owner signs up
   first.
-- Banned players cannot log in or play; a ban ends their open sessions at once.
-- No email **(default)**: a forgotten password is reset by an admin.
+- **Bans**: an admin bans a player for 1 day, 7 days, 30 days or for good, with a short reason
+  the player is shown when they log in with the right password. A timed ban lifts itself; an admin
+  can lift any ban sooner. A ban ends the player's sessions and live connections at once, stops
+  the game they are playing (no winner, no rating change, shown as "Stopped"), takes them out of
+  the lobby, quick match and rematches, and hides them from the rankings.
+- No email **(default)**: a forgotten password is reset by an admin, who types the new password
+  and passes it on; it ends the player's sessions.
+- **Guards**: nobody can change their own role, ban, mute or reset their own password in the
+  admin panel. An admin cannot be banned until made a player again, a banned player cannot be
+  made an admin, and the last admin can never be made a player.
 
 ## 4. Cards
 
@@ -175,7 +183,9 @@ project not affiliated with or endorsed by them, and credit them as the owners.
 - **Who goes first is never a game option**: every game starts with a coin toss (7.1).
 - **Online players** list, with each player's rank and what they are doing.
 - **Lobby chat**: one global chat. **Visitors who are not logged in can read it; posting needs an
-  account.** Admins can delete messages and mute players.
+  account.** Admins can delete messages and mute players for 1 hour, 24 hours, 7 days or for
+  good. A muted player still reads the chat and plays, and is told when they can post again; a
+  timed mute lifts itself.
 
 ## 7. Playing
 
@@ -244,10 +254,14 @@ Every game, rematches included, starts with a coin toss that both players (and s
 ## 9. Admin panel
 
 - **Dashboard**: players online, games running, server status.
-- **Users**: search, ban/unban, reset password, make admin.
-- **Games**: watch or end a running game; recent results.
-- **Formats**: create and edit formats, their sets and their banned/limited cards.
-- **Starter decks**: build them and choose which new accounts receive.
+- **Users**: search, ban/unban, mute/unmute, reset password, make admin or player (section 3).
+- **Games**: watch or end a running game (no winner, no rating change); recent results.
+- **Formats**: create and edit formats, their sets and their banned/limited cards, and their
+  order. A format no deck or game has used can be deleted; one in use can only be **retired**:
+  it can no longer be picked for new games or shown in the deck builder, and past games keep its
+  name. A retired format can be brought back.
+- **Starter decks**: build them and switch each on or off. Every new account receives a copy of
+  each starter deck switched on when it signs up; existing players receive nothing later.
 - **Chat**: delete messages, mute players.
 - **Settings**: every server setting, kept in a key-value table and edited here. Each setting has a
   key, a value, a type (text, number, yes/no), a default, a short description and allowed limits;
@@ -258,6 +272,9 @@ Every game, rematches included, starts with a coin toss that both players (and s
 - **Backup**: export and import all data in one zip, as in Triple Triad, but with each table saved
   in a database-neutral format (not a SQLite file), so a backup from SQLite restores into
   PostgreSQL and the other way round.
+- **Admin log**: every ban, mute, password reset, role change, setting change, deleted chat
+  message, stopped game, format and starter deck change and backup import is saved with the admin
+  who did it and when, and listed in the panel.
 
 ## 10. Pages
 
@@ -300,7 +317,7 @@ Every page has hover feedback and works on phones (see 11.2).
 ### 10.4 Admin pages
 
 `/admin` (dashboard), `/admin/users`, `/admin/games`, `/admin/formats`, `/admin/starter-decks`,
-`/admin/chat`, `/admin/settings`, `/admin/backup`, as described in section 9.
+`/admin/chat`, `/admin/settings`, `/admin/backup`, `/admin/log`, as described in section 9.
 
 ## 11. UI theme: Battle Zone
 
@@ -335,7 +352,7 @@ Chosen 2026-10-24. Reference mockup: `design/themes/theme-battle-zone.html` (the
 
 | Table                              | Contents                                                          |
 | ---------------------------------- | ----------------------------------------------------------------- |
-| users                              | name, password hash, role, rating, streaks, banned and muted flags, settings |
+| users                              | name, password hash, role, rating, streaks, ban (since, until, reason) and mute (since, until), settings |
 | sessions                           | user, token hash, expiry                                          |
 | card_sets                          | sets in release order, with their icons                           |
 | cards / card_printings             | the card catalogue copied from the card database: one row per card (engine id, details, search text, name order, whether still in the card database) and one per printing (set, collector number, rarity, picture) |
@@ -347,6 +364,7 @@ Chosen 2026-10-24. Reference mockup: `design/themes/theme-battle-zone.html` (the
 | games                              | players, decks, format, options, state, winner, how it ended, turns, length, rating changes |
 | chat_messages                      | lobby chat, with moderation state                                 |
 | blocks                             | who blocked whom                                                  |
+| admin_actions                      | the admin log: what was done, to what, by which admin, when       |
 | settings                           | key-value server settings (key, value, updated by, updated at), managed in the admin panel (section 9). Types, defaults, descriptions and limits are defined in the Go code, so an unknown key or invalid value is refused |
 
 ## 13. Repository layout
@@ -376,6 +394,7 @@ duel-masters-game-platform/
 │  │  │  ├─ chat/                     lobby chat and moderation
 │  │  │  ├─ ratings/                  Elo, tiers, streaks, rankings
 │  │  │  ├─ settings/                 key-value settings: definitions, types, defaults, limits
+│  │  │  ├─ admin/                    admin panel actions, their guards, and the admin log
 │  │  │  ├─ backup/                   database-neutral export and import
 │  │  │  ├─ store/                    database connection (GORM: SQLite or PostgreSQL), migrations
 │  │  │  └─ engine/                   the rules engine in its original layout (game/, server/,
