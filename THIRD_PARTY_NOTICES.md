@@ -36,6 +36,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Fonts
+
+The website bundles two fonts under the SIL Open Font License 1.1, with their license texts beside
+them in [`apps/web/src/app/fonts/`](apps/web/src/app/fonts/):
+
+- **Rajdhani**, © 2014 Indian Type Foundry (`rajdhani-OFL.txt`);
+- **Inter**, © 2016 The Inter Project Authors (`inter-OFL.txt`).
+
 ## Duel Masters card pictures and text
 
 The card pictures, names and rules text in the linked card database

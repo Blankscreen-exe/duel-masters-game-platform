@@ -1,0 +1,83 @@
+@import 'tailwindcss';
+
+/*
+ * Battle Zone theme (design/SPEC.md, section 11): dark and modern, angled panel corners, silver
+ * primary buttons, the five civilization colours as accents. Reference mockup:
+ * design/themes/theme-battle-zone.html.
+ */
+@theme {
+  --font-display: var(--font-rajdhani), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --color-night: #07090e;
+  --color-night-glow: #1a2233;
+  --color-panel: #0f141d;
+  --color-field: #0a0e15;
+  --color-header-top: #1b2230;
+  --color-header-bottom: #0d1119;
+
+  /* The five civilizations. Darkness is lifted from black so it shows on the dark page. */
+  --color-civ-light: #fde047;
+  --color-civ-water: #3b82f6;
+  --color-civ-darkness: #52525b;
+  --color-civ-fire: #ef4444;
+  --color-civ-nature: #22c55e;
+
+  /* Active menu items, selected options and focus rings. */
+  --color-accent: #38bdf8;
+  /* Your turn, the current phase. */
+  --color-action: #2563eb;
+}
+
+/* Corners cut at an angle, like a modern card game client: panels, then buttons and bars. */
+@utility cut-corners {
+  clip-path: polygon(
+    14px 0,
+    100% 0,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    0 100%,
+    0 14px
+  );
+}
+
+@utility cut-corners-sm {
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+/* The five civilization colours in a row, under the header. */
+@utility civ-stripe {
+  background: linear-gradient(
+    90deg,
+    var(--color-civ-light) 0 20%,
+    var(--color-civ-water) 20% 40%,
+    var(--color-civ-darkness) 40% 60%,
+    var(--color-civ-fire) 60% 80%,
+    var(--color-civ-nature) 80%
+  );
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-night);
+    background-image: radial-gradient(
+      ellipse at top,
+      var(--color-night-glow) 0%,
+      var(--color-night) 60%
+    );
+    background-attachment: fixed;
+    color: var(--color-slate-200);
+    font-family: var(--font-sans);
+  }
+
+  /* Every interactive element shows where keyboard focus is, matching the hover accents. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}

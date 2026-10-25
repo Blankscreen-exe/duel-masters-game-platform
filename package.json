@@ -10,6 +10,8 @@
   },
   "scripts": {
     "dev:server": "go -C apps/server run ./cmd/server",
+    "dev:web": "pnpm --filter @duel-masters/web dev",
+    "api:generate": "go -C apps/server generate ./internal/httpapi/api/ && pnpm --filter @duel-masters/web api:generate",
     "test": "pnpm -r test && pnpm test:server",
     "test:server": "go -C apps/server test ./... -count=1 -timeout 300s",
     "test:race": "go -C apps/server test -race ./... -count=1 -timeout 300s",

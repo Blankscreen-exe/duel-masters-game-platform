@@ -1,3 +1,26 @@
 packages:
   - apps/*
   - packages/*
+
+# Packages allowed to run install scripts (pnpm blocks them by default). unrs-resolver, used by the
+# lint tooling, ships prebuilt binaries and works without its script, as in Triple Triad.
+allowBuilds:
+  unrs-resolver: false
+
+# The animation library's type definitions import React's, but it does not list them, so pnpm
+# would hand it whichever version of @types/react it found first. With the website on React 19 and
+# the duel board on React 18, that breaks the duel board's types. Listing them as an optional peer
+# links each copy to the React types of the package using it.
+packageExtensions:
+  framer-motion:
+    peerDependencies:
+      '@types/react': '*'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+  motion:
+    peerDependencies:
+      '@types/react': '*'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
