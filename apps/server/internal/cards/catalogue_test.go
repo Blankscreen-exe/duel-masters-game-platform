@@ -164,6 +164,72 @@ func TestSyncSkipsAnUnchangedCatalogue(t *testing.T) {
 	})
 }
 
+func TestCardsFindsManyCardsAtOnce(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		catalogue, _ := syncTestCatalogue(t, db)
+
+		found, err := catalogue.Cards(ctx, []string{"0079", "0029", "0079", "no-such-card"})
+		require.NoError(t, err)
+		require.Len(t, found, 2)
+		assert.Equal(t, "Bolshack Dragon", found["0079"].Name)
+		assert.Len(t, found["0029"].Printings, 2, "with their details")
+
+		none, err := catalogue.Cards(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, none)
+	})
+}
+
+func TestByNamesMatchesNamesAsPlayersTypeThem(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		catalogue, _ := syncTestCatalogue(t, db)
+
+		found, err := catalogue.ByNames(ctx, []string{
+			"Bolshack Dragon",     // exactly
+			"aqua hulcus",         // in another case
+			"Uberdragon Zaschack", // without the accent
+			"Solar-Ray",           // with punctuation
+			"Bolshack",            // only part of a name
+			"!!!",                 // nothing but punctuation
+		})
+		require.NoError(t, err)
+
+		ids := map[string]string{}
+		for name, card := range found {
+			ids[name] = card.ID
+		}
+		assert.Equal(t, map[string]string{
+			"Bolshack Dragon":     "0079",
+			"aqua hulcus":         "0033",
+			"Uberdragon Zaschack": "9026",
+			"Solar-Ray":           "0029",
+		}, ids)
+	})
+}
+
+func TestCardsAndByNamesLeaveOutHiddenCards(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		catalogue, _ := syncTestCatalogue(t, db)
+
+		smaller, err := ReadSource(writeCardDatabase(t, []map[string]any{printing("0079", "Bolshack Dragon", "DM-01", "69/110")}, []string{"0079"}, nil))
+		require.NoError(t, err)
+		_, err = Sync(ctx, db, smaller, []games.PlayableCard{{EngineID: "engine-bolshack", Name: "Bolshack Dragon"}}, storetest.Logger())
+		require.NoError(t, err)
+
+		found, err := catalogue.Cards(ctx, []string{"0079", "0033"})
+		require.NoError(t, err)
+		assert.Len(t, found, 1)
+		assert.Contains(t, found, "0079")
+
+		named, err := catalogue.ByNames(ctx, []string{"Aqua Hulcus"})
+		require.NoError(t, err)
+		assert.Empty(t, named)
+	})
+}
+
 func TestSyncKeepsCardsThatLeaveTheCardDatabaseHidden(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
 		ctx := context.Background()

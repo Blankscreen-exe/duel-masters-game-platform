@@ -21,6 +21,7 @@ func migrations() []*gormigrate.Migration {
 		migration0002Accounts(),
 		migration0003CardCatalogue(),
 		migration0004Formats(),
+		migration0005Decks(),
 	}
 }
 

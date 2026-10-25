@@ -196,6 +196,79 @@ func (c *Catalogue) Card(ctx context.Context, id string) (Card, error) {
 	return cards[0], nil
 }
 
+// Cards returns the cards still in the card database among ids, by id. Ids of
+// other cards are left out.
+func (c *Catalogue) Cards(ctx context.Context, ids []string) (map[string]Card, error) {
+	found := make(map[string]Card, len(ids))
+	if len(ids) == 0 {
+		return found, nil
+	}
+
+	var rows []cardRow
+	if err := c.db.WithContext(ctx).Where("id IN ? AND in_database = ?", unique(ids), true).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("finding cards: %w", err)
+	}
+
+	cards, err := c.withDetails(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	for _, card := range cards {
+		found[card.ID] = card
+	}
+
+	return found, nil
+}
+
+// ByNames finds cards still in the card database by name, as players type
+// them: exactly, or else ignoring case, accents, spaces and punctuation, the
+// way engine cards are linked. It returns the cards by the names given; a name
+// matching no card, or several cards once case and punctuation are ignored, is
+// left out.
+func (c *Catalogue) ByNames(ctx context.Context, names []string) (map[string]Card, error) {
+	found := make(map[string]Card, len(names))
+	if len(names) == 0 {
+		return found, nil
+	}
+
+	var rows []cardRow
+	if err := c.db.WithContext(ctx).Select("id", "name").Where("in_database = ?", true).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("listing card names: %w", err)
+	}
+
+	byName := make(map[string]string, len(rows))
+	byKey := make(map[string][]string, len(rows))
+	for _, row := range rows {
+		byName[row.Name] = row.ID
+		key := nameKey(row.Name)
+		byKey[key] = append(byKey[key], row.ID)
+	}
+
+	ids := make(map[string]string, len(names))
+	for _, name := range names {
+		if id, ok := byName[name]; ok {
+			ids[name] = id
+		} else if matches := byKey[nameKey(name)]; len(matches) == 1 && nameKey(name) != "" {
+			ids[name] = matches[0]
+		}
+	}
+
+	matched := make([]string, 0, len(ids))
+	for _, id := range ids {
+		matched = append(matched, id)
+	}
+	cards, err := c.Cards(ctx, matched)
+	if err != nil {
+		return nil, err
+	}
+
+	for name, id := range ids {
+		found[name] = cards[id]
+	}
+
+	return found, nil
+}
+
 // withDetails turns rows into cards with their lists, in the rows' order.
 func (c *Catalogue) withDetails(ctx context.Context, rows []cardRow) ([]Card, error) {
 	cards := make([]Card, len(rows))

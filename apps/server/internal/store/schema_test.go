@@ -66,6 +66,84 @@ func TestSchemaTiesSessionsToExistingUsers(t *testing.T) {
 	})
 }
 
+func insertCard(db *gorm.DB, id string) error {
+	return db.Exec(
+		"INSERT INTO cards (id, name, type, cost, power_text, rules_text, search_text, sort_order, in_database) VALUES (?, ?, 'Creature', 1, '', '', '', 1, ?)",
+		id, "Card "+id, true,
+	).Error
+}
+
+func insertDeck(db *gorm.DB, id, userID string) error {
+	now := time.Now().UTC()
+	return db.Exec("INSERT INTO decks (id, user_id, name, created_at, updated_at) VALUES (?, ?, 'Deck', ?, ?)", id, userID, now, now).Error
+}
+
+func insertDeckCard(db *gorm.DB, deckID, cardID string, count int) error {
+	return db.Exec("INSERT INTO deck_cards (deck_id, card_id, count) VALUES (?, ?, ?)", deckID, cardID, count).Error
+}
+
+func TestSchemaKeepsDeckCopiesBetweenOneAndFour(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Alice", "player"))
+		require.NoError(t, insertDeck(db, "d1", "u1"))
+		for _, id := range []string{"c0", "c1", "c4", "c5"} {
+			require.NoError(t, insertCard(db, id))
+		}
+
+		require.NoError(t, insertDeckCard(db, "d1", "c1", 1))
+		require.NoError(t, insertDeckCard(db, "d1", "c4", 4))
+		assert.Error(t, insertDeckCard(db, "d1", "c0", 0))
+		assert.Error(t, insertDeckCard(db, "d1", "c5", 5))
+	})
+}
+
+func TestSchemaTiesDeckCardsToExistingCards(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Alice", "player"))
+		require.NoError(t, insertDeck(db, "d1", "u1"))
+
+		err := insertDeckCard(db, "d1", "no-such-card", 1)
+		assert.True(t, errors.Is(err, gorm.ErrForeignKeyViolated), "got %v", err)
+	})
+}
+
+func TestSchemaDeletesDecksWithTheirUser(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Alice", "player"))
+		require.NoError(t, insertUser(db, "u2", "Bob", "player"))
+		require.NoError(t, insertCard(db, "c1"))
+		require.NoError(t, insertDeck(db, "d1", "u1"))
+		require.NoError(t, insertDeck(db, "d2", "u2"))
+		require.NoError(t, insertDeckCard(db, "d1", "c1", 4))
+		require.NoError(t, insertDeckCard(db, "d2", "c1", 4))
+
+		require.NoError(t, db.Exec("DELETE FROM users WHERE id = ?", "u1").Error)
+
+		var decks, deckCards []string
+		require.NoError(t, db.Raw("SELECT id FROM decks").Scan(&decks).Error)
+		require.NoError(t, db.Raw("SELECT deck_id FROM deck_cards").Scan(&deckCards).Error)
+		assert.Equal(t, []string{"d2"}, decks)
+		assert.Equal(t, []string{"d2"}, deckCards)
+	})
+}
+
+func TestSchemaLimitsFormatCardsToBannedOrLimited(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		var format string
+		require.NoError(t, db.Raw("SELECT id FROM formats WHERE name = 'Open'").Scan(&format).Error)
+		for _, id := range []string{"c0", "c2", "c3"} {
+			require.NoError(t, insertCard(db, id))
+		}
+
+		limit := func(cardID string, copies int) error {
+			return db.Exec("INSERT INTO format_cards (format_id, card_id, max_copies) VALUES (?, ?, ?)", format, cardID, copies).Error
+		}
+		require.NoError(t, limit("c0", 0))
+		require.NoError(t, limit("c2", 2))
+		assert.Error(t, limit("c3", 3))
+	})
+}
+
 func TestSchemaDeletesSessionsWithTheirUser(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
 		require.NoError(t, insertUser(db, "u1", "Alice", "player"))
