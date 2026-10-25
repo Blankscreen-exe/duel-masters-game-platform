@@ -4,12 +4,35 @@ import type { ComponentProps, ReactNode } from 'react';
 import { Button } from './button';
 import { useModalDialog } from './use-modal-dialog';
 
+/**
+ * How big a modal is. A dialog is as tall as its content, up to most of the screen, and scrolls
+ * past that. A full one fills most of the screen, and its content fills it edge to edge and
+ * scrolls itself, such as a chat.
+ */
+export type ModalSize = 'dialog' | 'full';
+
+const SIZES: Record<ModalSize, { dialog: string; frame: string; body: string }> = {
+  dialog: {
+    dialog: 'max-h-[90dvh] w-[min(100%-2rem,28rem)] overflow-y-auto',
+    frame: '',
+    body: 'p-5',
+  },
+  full: {
+    dialog: 'h-[90dvh] w-[min(100%-2rem,72rem)] overflow-hidden',
+    frame: 'flex h-full flex-col',
+    body: 'flex min-h-0 flex-1 flex-col',
+  },
+};
+
 interface ModalProps {
   /** The dialog's title, also its accessible name. */
   readonly title: string;
   readonly onClose: () => void;
   /** The content; use ModalClose for buttons that close it. */
   readonly children: ReactNode;
+  readonly size?: ModalSize;
+  /** Next to the title, such as a button that closes it. */
+  readonly actions?: ReactNode;
   readonly className?: string;
 }
 
@@ -17,8 +40,16 @@ interface ModalProps {
  * A modal dialog: the browser's own, so focus stays inside and Escape closes it. Clicking the
  * backdrop closes it too. Render it only while it should be open.
  */
-export function Modal({ title, onClose, children, className = '' }: ModalProps) {
+export function Modal({
+  title,
+  onClose,
+  children,
+  size = 'dialog',
+  actions,
+  className = '',
+}: ModalProps) {
   const ref = useModalDialog(onClose);
+  const sized = SIZES[size];
 
   return (
     <dialog
@@ -28,13 +59,18 @@ export function Modal({ title, onClose, children, className = '' }: ModalProps) 
         // A click on the backdrop lands on the dialog itself.
         if (event.target === event.currentTarget) event.currentTarget.close();
       }}
-      className={`m-auto max-h-[90dvh] w-[min(100%-2rem,28rem)] overflow-y-auto bg-transparent p-0 text-slate-200 backdrop:bg-night/80 backdrop:backdrop-blur-sm ${className}`}
+      className={`m-auto bg-transparent p-0 text-slate-200 backdrop:bg-night/80 backdrop:backdrop-blur-sm ${sized.dialog} ${className}`}
     >
-      <div className="cut-corners bg-panel shadow-[0_10px_30px_rgb(0_0_0/0.6)] ring-1 ring-slate-500/40 ring-inset">
-        <h2 className="border-b border-slate-600/40 bg-linear-to-r from-white/[0.07] to-transparent px-5 py-3 font-display text-lg font-bold tracking-[0.15em] text-slate-100 uppercase">
-          {title}
-        </h2>
-        <div className="p-5">{children}</div>
+      <div
+        className={`cut-corners bg-panel shadow-[0_10px_30px_rgb(0_0_0/0.6)] ring-1 ring-slate-500/40 ring-inset ${sized.frame}`}
+      >
+        <header className="flex items-center justify-between gap-3 border-b border-slate-600/40 bg-linear-to-r from-white/[0.07] to-transparent px-5 py-3">
+          <h2 className="font-display text-lg font-bold tracking-[0.15em] text-slate-100 uppercase">
+            {title}
+          </h2>
+          {actions}
+        </header>
+        <div className={sized.body}>{children}</div>
       </div>
     </dialog>
   );
