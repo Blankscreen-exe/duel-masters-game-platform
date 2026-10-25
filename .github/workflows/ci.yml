@@ -36,6 +36,9 @@ jobs:
         working-directory: apps/server
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The card database, which the catalogue tests read.
+          submodules: true
 
       - uses: actions/setup-go@v5
         with:
