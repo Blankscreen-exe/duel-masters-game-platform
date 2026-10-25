@@ -539,6 +539,12 @@ func (m *Match) End(winner *Player, message string) {
 	m.end(winner, message, EndingPlay)
 }
 
+// Abort ends the match without a winner, such as when the server stops. A
+// game that started is reported as aborted, and never counts.
+func (m *Match) Abort(message string) {
+	m.end(nil, message, EndingAborted)
+}
+
 // end ends the match, reporting the result of a game that started, telling
 // everyone who won and closing the match. Only the first ending counts.
 func (m *Match) end(winner *Player, message string, ending Ending) {
@@ -584,7 +590,7 @@ func (m *Match) result(winner *Player, ending Ending, endedAt time.Time) Result 
 		EndedAt:    endedAt,
 		Turns:      m.turnsPlayed,
 	}
-	result.Counted = result.Duration() >= m.minimumCountedDuration
+	result.Counted = ending != EndingAborted && result.Duration() >= m.minimumCountedDuration
 
 	switch {
 	case winner == nil:

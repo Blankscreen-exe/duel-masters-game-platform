@@ -489,3 +489,36 @@ func TestJoiningAnEndedMatchIsRefused(t *testing.T) {
 	late.waitFor(t, 0, "error")
 	require.Eventually(t, late.socket.IsClosed, lifecycleTimeout, 5*time.Millisecond)
 }
+
+func TestAbortingEndsTheGameWithoutAWinner(t *testing.T) {
+	// Even a game long enough to count does not count when aborted.
+	m, observer, _, bob, _ := startedMatch(t, lifecycleOptions(time.Minute))
+
+	bobMark := bob.mark()
+	m.Abort("The server is restarting.")
+
+	finished := bob.waitFor(t, bobMark, "duel_finished")
+	assert.Equal(t, "aborted", finished["ending"])
+	assert.Nil(t, finished["winner"])
+	assert.Equal(t, false, finished["counted"])
+
+	require.Eventually(t, m.IsClosed, lifecycleTimeout, 5*time.Millisecond)
+	results := observer.results()
+	require.Len(t, results, 1)
+	assert.Empty(t, results[0].WinnerID)
+	assert.Equal(t, match.EndingAborted, results[0].Ending)
+	assert.False(t, results[0].Counted)
+}
+
+func TestAbortingBeforeTheGameStartsLeavesNoResult(t *testing.T) {
+	m, observer := newLifecycleMatch(t, lifecycleOptions(time.Minute))
+	alice := connect(m, hostID, "Alice")
+	connect(m, guestID, "Bob")
+	alice.waitFor(t, 0, "choose_toss")
+
+	m.Abort("The server is restarting.")
+
+	require.Eventually(t, m.IsClosed, lifecycleTimeout, 5*time.Millisecond)
+	assert.Empty(t, observer.results())
+	assert.Equal(t, []string{m.ID}, observer.closedMatches())
+}

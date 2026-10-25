@@ -132,10 +132,8 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 ### [x] 19. Admin/cheat commands open to everyone in local dev (Verified)
 - **Status:** Fixed. Chat commands run only when the match system is created with `SystemOptions.DevCommands`, which is off by default, rather than whenever the `local_dev` environment variable is set. The server never turns it on; it is for local testing tools.
 
-### [ ] 20. 512-byte websocket read limit (Verified)
-- **Where:** `server/socket.go:18`
-- **Problem:** A large multi-card `action` message (about 35+ IDs) closes the socket.
-- **Fix:** Raise the limit to a bound derived from the maximum selection size.
+### [x] 20. 512-byte websocket read limit (Verified)
+- **Status:** Fixed. The limit is 8 KB, above the largest real message: an action selecting every card in a game, about 80 ids of up to 36 characters. Test: `server/socket_test.go`.
 
 ### [ ] 21. No per-socket rate limiting (Reported)
 - **Where:** `Match.Parse` / `eventloop.schedule` spawns a goroutine per message. Chat is unthrottled.

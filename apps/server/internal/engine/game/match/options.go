@@ -43,6 +43,9 @@ const (
 	EndingSurrender Ending = "surrender"
 	// EndingDisconnect: a player left and did not come back in time.
 	EndingDisconnect Ending = "disconnect"
+	// EndingAborted: the game was stopped without a winner, such as when the
+	// server shuts down. It never counts.
+	EndingAborted Ending = "aborted"
 )
 
 // ResultPlayer is a player as a result reports them.
@@ -68,7 +71,8 @@ type Result struct {
 	EndedAt   time.Time
 	// Turns counts the turns played, extra turns left out.
 	Turns int
-	// Counted is false for a game shorter than MinimumCountedDuration.
+	// Counted is false for a game shorter than MinimumCountedDuration, and for
+	// an aborted game.
 	Counted bool
 }
 

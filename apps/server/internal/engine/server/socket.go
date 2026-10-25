@@ -12,10 +12,13 @@ import (
 )
 
 const (
-	writeWait      = 10 * time.Second
-	pongWait       = 60 * time.Second
-	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 512
+	writeWait  = 10 * time.Second
+	pongWait   = 60 * time.Second
+	pingPeriod = (pongWait * 9) / 10
+	// maxMessageSize bounds a message from a client. The largest real one is
+	// an action selecting every card in a game: about 80 card ids of up to 36
+	// characters, some 3 KB.
+	maxMessageSize = 8 << 10
 )
 
 type Connection interface {
