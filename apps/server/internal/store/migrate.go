@@ -19,6 +19,7 @@ func migrations() []*gormigrate.Migration {
 	return []*gormigrate.Migration{
 		migration0001Settings(),
 		migration0002Accounts(),
+		migration0003CardCatalogue(),
 	}
 }
 

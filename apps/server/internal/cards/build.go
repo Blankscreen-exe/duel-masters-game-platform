@@ -218,19 +218,24 @@ func linkEngineCards(cards []Card, playable []games.PlayableCard) []string {
 // nameKey is a name with case, accents, spaces and punctuation removed:
 // "Überdragon Zaschack" and "Uberdragon Zaschack" share "uberdragonzaschack".
 func nameKey(name string) string {
-	stripped, _, err := transform.String(transform.Chain(norm.NFKD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), name)
-	if err != nil {
-		stripped = name
-	}
-
 	var key strings.Builder
-	for _, r := range strings.ToLower(stripped) {
+	for _, r := range strings.ToLower(foldAccents(name)) {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			key.WriteRune(r)
 		}
 	}
 
 	return key.String()
+}
+
+// foldAccents removes accents, so "Ü" becomes "U".
+func foldAccents(text string) string {
+	folded, _, err := transform.String(transform.Chain(norm.NFKD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), text)
+	if err != nil {
+		return text
+	}
+
+	return folded
 }
 
 // compareCollectorNumbers orders collector numbers such as "69/110", "S1/S10"
