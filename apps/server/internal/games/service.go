@@ -47,8 +47,11 @@ func Settings() []settings.Definition {
 	return []settings.Definition{DisconnectGrace, MinimumCountedDuration}
 }
 
-// abortMessage tells the players why their game ended when the server stops.
-const abortMessage = "The server is restarting, so this game was stopped. It does not count."
+// Why a game ended without a winner, as its players are told.
+const (
+	abortMessage   = "The server is restarting, so this game was stopped. It does not count."
+	stoppedMessage = "An admin stopped this game. It does not count."
+)
 
 var (
 	// ErrNotFound is returned for a game that is not running.
@@ -203,6 +206,9 @@ type Service struct {
 	live      map[string]*liveGame
 	listeners []Listener
 	closing   bool
+	// connections are the open connections to games, by user, so a player
+	// put out of the site loses those they watch.
+	connections map[string]map[*connection]struct{}
 
 	results chan finished
 }
@@ -215,13 +221,14 @@ func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.
 	registerCards()
 
 	s := &Service{
-		db:        db,
-		catalogue: catalogue,
-		settings:  siteSettings,
-		rater:     rater,
-		logger:    logger,
-		live:      map[string]*liveGame{},
-		results:   make(chan finished, resultQueue),
+		db:          db,
+		catalogue:   catalogue,
+		settings:    siteSettings,
+		rater:       rater,
+		logger:      logger,
+		live:        map[string]*liveGame{},
+		connections: map[string]map[*connection]struct{}{},
+		results:     make(chan finished, resultQueue),
 	}
 	s.system = match.NewSystem(match.SystemOptions{Observer: s})
 
@@ -438,10 +445,77 @@ func (s *Service) Connect(conn server.Connection, user users.User, gameID string
 		return ErrNotFound
 	}
 
-	// The engine takes the connection over; the duel board joins with its
-	// first message.
+	open := s.track(user.ID, conn)
+	defer s.untrack(user.ID, open)
+
+	// The engine takes the connection over until it closes; the duel board
+	// joins with its first message.
 	server.NewSocket(conn, live.match, user.ID, user.Username).Listen()
 	return nil
+}
+
+// connection is an open connection to a game.
+type connection struct {
+	conn server.Connection
+}
+
+func (s *Service) track(userID string, conn server.Connection) *connection {
+	open := &connection{conn: conn}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.connections[userID] == nil {
+		s.connections[userID] = map[*connection]struct{}{}
+	}
+	s.connections[userID][open] = struct{}{}
+	return open
+}
+
+func (s *Service) untrack(userID string, open *connection) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.connections[userID], open)
+	if len(s.connections[userID]) == 0 {
+		delete(s.connections, userID)
+	}
+}
+
+// Stop ends a running game without a winner, as an admin may, telling its
+// players and spectators so. It does not count. It returns ErrNotFound for a
+// game that is not running.
+func (s *Service) Stop(gameID string) (Game, error) {
+	s.mu.Lock()
+	live, ok := s.live[gameID]
+	s.mu.Unlock()
+	if !ok {
+		return Game{}, ErrNotFound
+	}
+
+	live.match.Abort(stoppedMessage)
+	s.logger.Info("stopped a game", "game", gameID)
+	return live.game, nil
+}
+
+// Expel stops the game a player plays in, if any, and closes their
+// connections to the games they watch, as when they are banned.
+func (s *Service) Expel(userID string) {
+	if game, playing := s.PlayingIn(userID); playing {
+		// Stop fails only for a game that has ended meanwhile.
+		_, _ = s.Stop(game.ID)
+	}
+
+	s.mu.Lock()
+	open := make([]*connection, 0, len(s.connections[userID]))
+	for each := range s.connections[userID] {
+		open = append(open, each)
+	}
+	s.mu.Unlock()
+
+	// Closing a connection ends the engine's reading of it, which lets the
+	// spectator go.
+	for _, each := range open {
+		_ = each.conn.Close()
+	}
 }
 
 // Close stops every running game without a winner and refuses new ones,

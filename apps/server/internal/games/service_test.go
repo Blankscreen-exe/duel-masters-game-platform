@@ -303,3 +303,58 @@ func TestStoppingTheServerSavesRunningGamesAsAborted(t *testing.T) {
 		assert.ErrorIs(t, err, games.ErrClosed, "no new games once stopping")
 	})
 }
+
+func TestAnAdminCanStopAGame(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db)
+		game := f.start(t, true, false)
+		shobu, kokujo := gamestest.Play(t, f.games, game)
+
+		stopped, err := f.games.Stop(game.ID)
+		require.NoError(t, err)
+		assert.Equal(t, game.ID, stopped.ID)
+
+		for _, player := range []*gamestest.Pipe{shobu, kokujo} {
+			assert.Equal(t, "aborted", player.WaitFor(t, "duel_finished")["ending"])
+			assert.Contains(t, player.WaitFor(t, "error")["message"], "An admin stopped this game")
+		}
+
+		require.Eventually(t, func() bool { return len(saved(t, db)) == 1 }, waitTimeout, 5*time.Millisecond)
+		row := saved(t, db)[0]
+		assert.Equal(t, "aborted", row.Ending)
+		assert.Nil(t, row.WinnerID)
+		assert.False(t, row.Counted, "a stopped game never counts")
+
+		require.Eventually(t, func() bool {
+			_, err := f.games.Stop(game.ID)
+			return errors.Is(err, games.ErrNotFound)
+		}, waitTimeout, 5*time.Millisecond, "a game no longer running cannot be stopped")
+	})
+}
+
+func TestExpelPutsAPlayerOutOfTheGamesTheyPlayAndWatch(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db)
+		game := f.start(t, true, true)
+		shobu, _ := gamestest.Play(t, f.games, game)
+		watching, done := gamestest.Connect(f.games, f.watcher, game.ID)
+		watching.WaitFor(t, "state_update")
+
+		f.games.Expel(f.watcher.ID)
+		select {
+		case err := <-done:
+			assert.NoError(t, err)
+		case <-time.After(waitTimeout):
+			t.Fatal("the spectator's connection should close")
+		}
+		assert.True(t, watching.IsClosed())
+		_, running := f.games.Game(game.ID)
+		assert.True(t, running, "the game goes on without its spectator")
+
+		f.games.Expel(f.shobu.ID)
+		assert.Equal(t, "aborted", shobu.WaitFor(t, "duel_finished")["ending"])
+		require.Eventually(t, func() bool { return len(saved(t, db)) == 1 }, waitTimeout, 5*time.Millisecond)
+
+		f.games.Expel(f.kokujo.ID) // in no game any more: nothing happens
+	})
+}
