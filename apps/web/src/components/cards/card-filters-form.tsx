@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { buttonClasses } from '@/components/ui/button';
 import type { CardFilters } from '@/lib/api/client';
 import { type CardSearch, SEARCH_TEXT_MAX_LENGTH } from '@/lib/card-search';
-import { CIVILIZATIONS } from '@/lib/civilizations';
+import { CIVILIZATIONS, civilizationColour } from '@/lib/civilizations';
 
 interface CardFiltersFormProps {
   readonly filters: CardFilters;
@@ -49,7 +49,7 @@ export function CardFiltersForm({ filters, search }: CardFiltersFormProps) {
                   className="peer sr-only"
                 />
                 <span
-                  className={`inline-block border-l-4 bg-slate-800/80 px-2.5 py-1 text-xs font-semibold text-slate-300 ring-1 ring-slate-600/60 ring-inset transition peer-checked:bg-slate-600 peer-checked:text-white peer-checked:ring-accent peer-focus-visible:outline-2 peer-focus-visible:outline-accent hover:text-white ${CIVILIZATION_EDGES[key]}`}
+                  className={`inline-block border-l-4 bg-slate-800/80 px-2.5 py-1 text-xs font-semibold text-slate-300 ring-1 ring-slate-600/60 ring-inset transition peer-checked:bg-slate-600 peer-checked:text-white peer-checked:ring-accent peer-focus-visible:outline-2 peer-focus-visible:outline-accent hover:text-white ${civilizationColour(key).border}`}
                 >
                   {name}
                 </span>
@@ -120,14 +120,6 @@ export function CardFiltersForm({ filters, search }: CardFiltersFormProps) {
     </form>
   );
 }
-
-const CIVILIZATION_EDGES = {
-  light: 'border-civ-light',
-  water: 'border-civ-water',
-  darkness: 'border-civ-darkness',
-  fire: 'border-civ-fire',
-  nature: 'border-civ-nature',
-} as const;
 
 interface ChoiceProps {
   readonly label: string;

@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { TabBar } from '@/components/tab-bar';
+import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 
 // Self-hosted (SIL Open Font License, see ./fonts), so the site never depends on reaching Google.
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{children}</main>
         <SiteFooter />
         <TabBar />
+        <Toaster />
       </body>
     </html>
   );

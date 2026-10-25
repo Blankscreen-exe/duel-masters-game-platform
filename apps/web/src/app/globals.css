@@ -27,6 +27,15 @@
   --color-accent: #38bdf8;
   /* Your turn, the current phase. */
   --color-action: #2563eb;
+
+  --animate-toast-in: toast-in 200ms ease-out;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
 }
 
 /* Corners cut at an angle, like a modern card game client: panels, then buttons and bars. */

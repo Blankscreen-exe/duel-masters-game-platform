@@ -1,15 +1,5 @@
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
-
-/** A civilization, whose colour can mark a panel. */
-export type Civilization = 'light' | 'water' | 'darkness' | 'fire' | 'nature';
-
-const ACCENTS: Record<Civilization, string> = {
-  light: 'border-t-2 border-civ-light',
-  water: 'border-t-2 border-civ-water',
-  darkness: 'border-t-2 border-civ-darkness',
-  fire: 'border-t-2 border-civ-fire',
-  nature: 'border-t-2 border-civ-nature',
-};
+import { civilizationColour, type Civilization } from '@/lib/civilizations';
 
 interface PanelProps extends Omit<ComponentPropsWithoutRef<'section'>, 'title'> {
   /** Shown in the panel's header bar. */
@@ -24,7 +14,7 @@ interface PanelProps extends Omit<ComponentPropsWithoutRef<'section'>, 'title'> 
 export function Panel({ title, accent, actions, className = '', children, ...props }: PanelProps) {
   return (
     <section
-      className={`cut-corners bg-panel/95 shadow-[0_10px_30px_rgb(0_0_0/0.5)] ring-1 ring-slate-500/40 ring-inset ${accent ? ACCENTS[accent] : ''} ${className}`}
+      className={`cut-corners bg-panel/95 shadow-[0_10px_30px_rgb(0_0_0/0.5)] ring-1 ring-slate-500/40 ring-inset ${accent ? `border-t-2 ${civilizationColour(accent).border}` : ''} ${className}`}
       {...props}
     >
       {(title !== undefined || actions !== undefined) && (
