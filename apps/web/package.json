@@ -10,6 +10,7 @@
     "prebuild": "pnpm run board",
     "build": "next build",
     "start": "next start --port 3000",
+    "prelint": "pnpm run board && next typegen",
     "lint": "eslint .",
     "pretypecheck": "pnpm run board",
     "typecheck": "next typegen && tsc --noEmit",
