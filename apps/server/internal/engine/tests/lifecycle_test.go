@@ -55,6 +55,16 @@ func (o *recordingObserver) closedMatches() []string {
 	return slices.Clone(o.closed)
 }
 
+// waitForClose waits until the match has reported that it closed, which is
+// the last thing closing it does, so whatever else it reported is in by then.
+// It is marked closed earlier, while it is still being taken down.
+func (o *recordingObserver) waitForClose(t *testing.T) {
+	t.Helper()
+
+	require.Eventually(t, func() bool { return len(o.closedMatches()) > 0 }, lifecycleTimeout, 5*time.Millisecond,
+		"the match reported that it closed")
+}
+
 // lifecycleOptions are a match between Alice (the host) and Bob, whose toss
 // Alice calls.
 func lifecycleOptions(grace time.Duration) match.Options {
@@ -340,7 +350,8 @@ func TestSurrenderingLoses(t *testing.T) {
 	assert.Equal(t, "surrender", finished["ending"])
 	assert.Equal(t, map[string]any{"uid": guestID, "username": "Bob"}, finished["winner"])
 
-	require.Eventually(t, m.IsClosed, lifecycleTimeout, 5*time.Millisecond)
+	observer.waitForClose(t)
+	assert.True(t, m.IsClosed())
 	results := observer.results()
 	require.Len(t, results, 1)
 	assert.Equal(t, guestID, results[0].WinnerID)
@@ -361,7 +372,8 @@ func TestAPlayerWhoDoesNotComeBackInTimeLoses(t *testing.T) {
 	assert.Equal(t, "disconnect", finished["ending"])
 	assert.Equal(t, map[string]any{"uid": guestID, "username": "Bob"}, finished["winner"])
 
-	require.Eventually(t, m.IsClosed, lifecycleTimeout, 5*time.Millisecond)
+	observer.waitForClose(t)
+	assert.True(t, m.IsClosed())
 	results := observer.results()
 	require.Len(t, results, 1)
 	assert.Equal(t, guestID, results[0].WinnerID)
@@ -406,7 +418,8 @@ func TestLeavingBeforeTheOpponentJoinsClosesTheMatchWithoutAResult(t *testing.T)
 
 	alice.socket.Close()
 
-	require.Eventually(t, m.IsClosed, lifecycleTimeout, 5*time.Millisecond)
+	observer.waitForClose(t)
+	assert.True(t, m.IsClosed())
 	assert.Empty(t, observer.results(), "a game that never started has no result")
 	assert.Equal(t, []string{m.ID}, observer.closedMatches())
 }
@@ -518,7 +531,8 @@ func TestAbortingBeforeTheGameStartsLeavesNoResult(t *testing.T) {
 
 	m.Abort("The server is restarting.")
 
-	require.Eventually(t, m.IsClosed, lifecycleTimeout, 5*time.Millisecond)
+	observer.waitForClose(t)
+	assert.True(t, m.IsClosed())
 	assert.Empty(t, observer.results())
 	assert.Equal(t, []string{m.ID}, observer.closedMatches())
 }
