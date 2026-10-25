@@ -51,11 +51,14 @@ func (e *TooManyDecksError) Error() string {
 	return fmt.Sprintf("a player can have at most %d decks", e.Limit)
 }
 
-// Deck is one of a player's decks.
+// Deck is one of a player's decks, or a starter deck.
 type Deck struct {
-	ID     string
+	ID string
+	// UserID is the player whose deck it is; empty for a starter deck.
 	UserID string
-	Name   string
+	// Starter is whether it is a starter deck, which every player may play.
+	Starter bool
+	Name    string
 	// CoverCardID is the card the player chose to show for the deck, or empty
 	// to let the site pick one (see Cover).
 	CoverCardID string
@@ -316,12 +319,10 @@ func writeCards(tx *gorm.DB, deckID string, entries []Entry) error {
 // reading through db, which may be a transaction.
 func withCards(db *gorm.DB, rows []deckRow) ([]Deck, error) {
 	decks := make([]Deck, len(rows))
-	index := make(map[string]int, len(rows))
 	ids := make([]string, len(rows))
 	for i, row := range rows {
 		ids[i] = row.ID
-		index[row.ID] = i
-		decks[i] = Deck{ID: row.ID, UserID: row.UserID, Name: row.Name, Cards: []Entry{}, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		decks[i] = Deck{ID: row.ID, UserID: row.UserID, Name: row.Name, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 		if row.CoverCardID != nil {
 			decks[i].CoverCardID = *row.CoverCardID
 		}
@@ -334,12 +335,23 @@ func withCards(db *gorm.DB, rows []deckRow) ([]Deck, error) {
 	if err := db.Where("deck_id IN ?", ids).Order("deck_id, card_id").Find(&entries).Error; err != nil {
 		return nil, fmt.Errorf("reading deck cards: %w", err)
 	}
+
+	return fillCards(decks, entries), nil
+}
+
+// fillCards gives each deck its entries, by deck id, and every deck an empty
+// list at least.
+func fillCards(decks []Deck, entries []deckCardRow) []Deck {
+	index := make(map[string]int, len(decks))
+	for i := range decks {
+		index[decks[i].ID] = i
+		decks[i].Cards = []Entry{}
+	}
 	for _, entry := range entries {
 		deck := &decks[index[entry.DeckID]]
 		deck.Cards = append(deck.Cards, Entry{CardID: entry.CardID, Count: entry.Count})
 	}
-
-	return decks, nil
+	return decks
 }
 
 // Imported is a deck list read from text: the cards found, and the lines that

@@ -603,6 +603,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/starter-decks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The starter decks
+         * @description The ready-made decks every player may play without building one, the default first. Their ids are played as any deck's are.
+         */
+        get: operations["listStarterDecks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/starter-decks/{deckId}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy a starter deck into the player's own decks
+         * @description The copy is the player's to change, with the starter deck's name, cover and cards.
+         */
+        post: operations["copyStarterDeck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/decks/text": {
         parameters: {
             query?: never;
@@ -1185,12 +1225,14 @@ export interface components {
         OpenGameInput: {
             /** @description Up to 50 characters; empty or absent picks a name. */
             name?: string;
+            /** @description One of the player's decks, or a starter deck. */
             deckId: string;
             formatId: string;
             listed: boolean;
             spectators: boolean;
         };
         JoinGameInput: {
+            /** @description One of the player's decks, or a starter deck. */
             deckId: string;
         };
         GameStarted: {
@@ -1198,6 +1240,7 @@ export interface components {
         };
         QuickMatchInput: {
             formatId: string;
+            /** @description One of the player's decks, or a starter deck. */
             deckId: string;
         };
         QueueCount: {
@@ -1306,6 +1349,7 @@ export interface components {
             civilizations: string[];
         };
         RematchDeckInput: {
+            /** @description One of the player's decks, or a starter deck. */
             deckId: string;
         };
         /** @description A rematch the player decides on, as it now is. Sent to its players. */
@@ -2596,6 +2640,60 @@ export interface operations {
             400: components["responses"]["InvalidInput"];
             401: components["responses"]["Unauthenticated"];
             /** @description The player already has as many decks as allowed (code "too_many_decks"); the decks.max_per_player setting. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listStarterDecks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The starter decks offered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeckSummary"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    copyStarterDeck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deckId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The player's new deck. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deck"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+            /** @description The player has as many decks as allowed (code "too_many_decks"). */
             409: {
                 headers: {
                     [name: string]: unknown;

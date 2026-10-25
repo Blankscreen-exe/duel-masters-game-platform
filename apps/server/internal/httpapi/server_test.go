@@ -41,6 +41,7 @@ const testSiteOrigin = "http://site.test"
 // small card database. The data layer's own tests cover PostgreSQL.
 type testServer struct {
 	handler  http.Handler
+	db       *gorm.DB
 	settings *settings.Service
 	hub      *realtime.Hub
 	games    *games.Service
@@ -140,6 +141,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 			SecureCookies: secureCookies,
 			Now:           clock.Now,
 		}),
+		db:           db,
 		settings:     siteSettings,
 		hub:          hub,
 		games:        gameService,

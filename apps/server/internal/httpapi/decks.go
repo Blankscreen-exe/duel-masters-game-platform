@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
@@ -66,7 +65,7 @@ func (h *handlers) CreateDeck(ctx context.Context, request api.CreateDeckRequest
 	deck, err := h.decks.Create(ctx, user.ID, deckInput(*request.Body))
 	var tooMany *decks.TooManyDecksError
 	if errors.As(err, &tooMany) {
-		return api.CreateDeck409JSONResponse(apiError(codeTooManyDecks, fmt.Sprintf("You can have at most %d decks. Delete one to make room.", tooMany.Limit))), nil
+		return api.CreateDeck409JSONResponse(tooManyDecks(tooMany)), nil
 	}
 	if invalid, ok := invalidInput(err, nil); ok {
 		return api.CreateDeck400JSONResponse{InvalidInputJSONResponse: invalid}, nil

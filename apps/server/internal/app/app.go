@@ -118,6 +118,9 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	if _, err := cards.Sync(ctx, db, source, games.PlayableCards(), logger.With("component", "cards")); err != nil {
 		return nil, err
 	}
+	if err := store.RunSeeds(db, decks.Seeds(logger.With("component", "decks"))...); err != nil {
+		return nil, err
+	}
 	catalogue := cards.NewCatalogue(db, cfg.CardDatabaseDir)
 	deckService := decks.NewService(db, catalogue, siteSettings, logger.With("component", "decks"))
 	formatService := formats.NewService(db)

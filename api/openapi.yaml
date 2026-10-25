@@ -47,7 +47,8 @@ tags:
     description: >-
       The logged-in player's decks. They are private: another player's deck is answered as not
       found. A deck may be saved unfinished, and says for every format whether it is legal and why
-      not.
+      not. Starter decks are ready-made decks every player may play, or copy into their own decks to
+      change; the first is every player's default.
   - name: admin
     description: >-
       The admin panel, for admins only. Every change is recorded in the admin log. No admin can
@@ -1018,6 +1019,58 @@ paths:
           description: >-
             The player already has as many decks as allowed (code "too_many_decks"); the
             decks.max_per_player setting.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /starter-decks:
+    get:
+      operationId: listStarterDecks
+      summary: The starter decks
+      description: >-
+        The ready-made decks every player may play without building one, the default first. Their
+        ids are played as any deck's are.
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The starter decks offered.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeckSummary"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /starter-decks/{deckId}/copy:
+    post:
+      operationId: copyStarterDeck
+      summary: Copy a starter deck into the player's own decks
+      description: The copy is the player's to change, with the starter deck's name, cover and cards.
+      tags: [decks]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: deckId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: The player's new deck.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The player has as many decks as allowed (code "too_many_decks").
           content:
             application/json:
               schema:
@@ -2258,6 +2311,7 @@ components:
           type: string
           maxLength: 50
         deckId:
+          description: One of the player's decks, or a starter deck.
           type: string
         formatId:
           type: string
@@ -2270,6 +2324,7 @@ components:
       required: [deckId]
       properties:
         deckId:
+          description: One of the player's decks, or a starter deck.
           type: string
     GameStarted:
       type: object
@@ -2284,6 +2339,7 @@ components:
         formatId:
           type: string
         deckId:
+          description: One of the player's decks, or a starter deck.
           type: string
     QueueCount:
       type: object
@@ -2481,6 +2537,7 @@ components:
       required: [deckId]
       properties:
         deckId:
+          description: One of the player's decks, or a starter deck.
           type: string
     RealtimeRematch:
       description: A rematch the player decides on, as it now is. Sent to its players.

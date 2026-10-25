@@ -27,6 +27,7 @@ func migrations() []*gormigrate.Migration {
 		migration0008Ratings(),
 		migration0009SQLiteTimesAsNumbers(),
 		migration0010Moderation(),
+		migration0011StarterDecks(),
 	}
 }
 

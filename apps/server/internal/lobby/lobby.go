@@ -315,7 +315,7 @@ func (s *Service) Join(ctx context.Context, guest users.User, openGameID, deckID
 		putBack()
 		return games.Game{}, err
 	}
-	hostDeck, err := s.decks.Get(ctx, open.Host.ID, open.deckID)
+	hostDeck, err := s.decks.Playable(ctx, open.Host.ID, open.deckID)
 	if err != nil {
 		// The host deleted the deck: the game cannot be played.
 		releaseGuest()
@@ -505,11 +505,11 @@ func (s *Service) broadcast() {
 	s.listener.LobbyChanged(s.Snapshot())
 }
 
-// PrepareDeck finds the format and one of the player's decks, and checks the
-// deck keeps to the format, for a player about to play. It returns a
-// *validation.Error naming the field for a format or deck that does not exist
-// (or is someone else's), and a *games.IllegalDeckError for a deck breaking the
-// format.
+// PrepareDeck finds the format and a deck the player may play, one of theirs
+// or a starter deck, and checks the deck keeps to the format, for a player
+// about to play. It returns a *validation.Error naming the field for a format
+// or deck that does not exist (or is someone else's), and a
+// *games.IllegalDeckError for a deck breaking the format.
 func (s *Service) PrepareDeck(ctx context.Context, player users.User, formatID, deckID string) (formats.Format, decks.Deck, error) {
 	format, deck, err := s.formatAndDeck(ctx, player.ID, formatID, deckID)
 	if err != nil {
@@ -534,8 +534,9 @@ func (s *Service) PrepareChosenDeck(ctx context.Context, player users.User, form
 	return format, deck, err
 }
 
-// formatAndDeck finds the format and one of the player's decks, as
-// validation errors naming the field for ones that do not exist.
+// formatAndDeck finds the format and a deck the player may play, one of
+// theirs or a starter deck, as validation errors naming the field for ones
+// that do not exist.
 func (s *Service) formatAndDeck(ctx context.Context, userID, formatID, deckID string) (formats.Format, decks.Deck, error) {
 	format, err := s.formats.ByID(ctx, formatID)
 	if errors.Is(err, formats.ErrNotFound) {
@@ -545,9 +546,9 @@ func (s *Service) formatAndDeck(ctx context.Context, userID, formatID, deckID st
 		return formats.Format{}, decks.Deck{}, err
 	}
 
-	deck, err := s.decks.Get(ctx, userID, deckID)
+	deck, err := s.decks.Playable(ctx, userID, deckID)
 	if errors.Is(err, decks.ErrNotFound) {
-		return formats.Format{}, decks.Deck{}, validation.New("deckId", "must be one of your decks")
+		return formats.Format{}, decks.Deck{}, validation.New("deckId", "must be one of your decks or a starter deck")
 	}
 	if err != nil {
 		return formats.Format{}, decks.Deck{}, err

@@ -831,6 +831,7 @@ type HealthStatus string
 
 // JoinGameInput defines model for JoinGameInput.
 type JoinGameInput struct {
+	// DeckId One of the player's decks, or a starter deck.
 	DeckId string `json:"deckId"`
 }
 
@@ -964,6 +965,7 @@ type OpenGame struct {
 
 // OpenGameInput defines model for OpenGameInput.
 type OpenGameInput struct {
+	// DeckId One of the player's decks, or a starter deck.
 	DeckId   string `json:"deckId"`
 	FormatId string `json:"formatId"`
 	Listed   bool   `json:"listed"`
@@ -1038,6 +1040,7 @@ type QuickMatchEntered struct {
 
 // QuickMatchInput defines model for QuickMatchInput.
 type QuickMatchInput struct {
+	// DeckId One of the player's decks, or a starter deck.
 	DeckId   string `json:"deckId"`
 	FormatId string `json:"formatId"`
 }
@@ -1232,6 +1235,7 @@ type RematchDeck struct {
 
 // RematchDeckInput defines model for RematchDeckInput.
 type RematchDeckInput struct {
+	// DeckId One of the player's decks, or a starter deck.
 	DeckId string `json:"deckId"`
 }
 
@@ -1952,6 +1956,12 @@ type ServerInterface interface {
 	// AgreeToRematch Offer the rematch, or accept the other player's
 	// (POST /rematches/{gameId}/ready)
 	AgreeToRematch(w http.ResponseWriter, r *http.Request, gameId string)
+	// ListStarterDecks The starter decks
+	// (GET /starter-decks)
+	ListStarterDecks(w http.ResponseWriter, r *http.Request)
+	// CopyStarterDeck Copy a starter deck into the player's own decks
+	// (POST /starter-decks/{deckId}/copy)
+	CopyStarterDeck(w http.ResponseWriter, r *http.Request, deckId string)
 	// GetSiteStats How many players are online and games running
 	// (GET /stats)
 	GetSiteStats(w http.ResponseWriter, r *http.Request)
@@ -3264,6 +3274,46 @@ func (siw *ServerInterfaceWrapper) AgreeToRematch(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ListStarterDecks operation middleware
+func (siw *ServerInterfaceWrapper) ListStarterDecks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListStarterDecks(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CopyStarterDeck operation middleware
+func (siw *ServerInterfaceWrapper) CopyStarterDeck(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "deckId" -------------
+	var deckId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "deckId", r.PathValue("deckId"), &deckId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "deckId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CopyStarterDeck(w, r, deckId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSiteStats operation middleware
 func (siw *ServerInterfaceWrapper) GetSiteStats(w http.ResponseWriter, r *http.Request) {
 
@@ -3434,6 +3484,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/formats", wrapper.ListFormats)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks", wrapper.ListDecks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/decks", wrapper.CreateDeck)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/starter-decks", wrapper.ListStarterDecks)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/starter-decks/{deckId}/copy", wrapper.CopyStarterDeck)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/decks/text", wrapper.ReadDeckList)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/decks/{deckId}", wrapper.DeleteDeck)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/decks/{deckId}", wrapper.GetDeck)
@@ -6230,6 +6282,105 @@ func (response AgreeToRematch409JSONResponse) VisitAgreeToRematchResponse(w http
 	return err
 }
 
+type ListStarterDecksRequestObject struct {
+}
+
+type ListStarterDecksResponseObject interface {
+	VisitListStarterDecksResponse(w http.ResponseWriter) error
+}
+
+type ListStarterDecks200JSONResponse []DeckSummary
+
+func (response ListStarterDecks200JSONResponse) VisitListStarterDecksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStarterDecks401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ListStarterDecks401JSONResponse) VisitListStarterDecksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyStarterDeckRequestObject struct {
+	DeckId string `json:"deckId"`
+}
+
+type CopyStarterDeckResponseObject interface {
+	VisitCopyStarterDeckResponse(w http.ResponseWriter) error
+}
+
+type CopyStarterDeck201JSONResponse Deck
+
+func (response CopyStarterDeck201JSONResponse) VisitCopyStarterDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyStarterDeck401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response CopyStarterDeck401JSONResponse) VisitCopyStarterDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyStarterDeck404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CopyStarterDeck404JSONResponse) VisitCopyStarterDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyStarterDeck409JSONResponse Error
+
+func (response CopyStarterDeck409JSONResponse) VisitCopyStarterDeckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSiteStatsRequestObject struct {
 }
 
@@ -6397,6 +6548,12 @@ type StrictServerInterface interface {
 	// AgreeToRematch Offer the rematch, or accept the other player's
 	// (POST /rematches/{gameId}/ready)
 	AgreeToRematch(ctx context.Context, request AgreeToRematchRequestObject) (AgreeToRematchResponseObject, error)
+	// ListStarterDecks The starter decks
+	// (GET /starter-decks)
+	ListStarterDecks(ctx context.Context, request ListStarterDecksRequestObject) (ListStarterDecksResponseObject, error)
+	// CopyStarterDeck Copy a starter deck into the player's own decks
+	// (POST /starter-decks/{deckId}/copy)
+	CopyStarterDeck(ctx context.Context, request CopyStarterDeckRequestObject) (CopyStarterDeckResponseObject, error)
 	// GetSiteStats How many players are online and games running
 	// (GET /stats)
 	GetSiteStats(ctx context.Context, request GetSiteStatsRequestObject) (GetSiteStatsResponseObject, error)
@@ -7750,6 +7907,56 @@ func (sh *strictHandler) AgreeToRematch(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(AgreeToRematchResponseObject); ok {
 		if err := validResponse.VisitAgreeToRematchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListStarterDecks operation middleware
+func (sh *strictHandler) ListStarterDecks(w http.ResponseWriter, r *http.Request) {
+	var request ListStarterDecksRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListStarterDecks(ctx, request.(ListStarterDecksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListStarterDecks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListStarterDecksResponseObject); ok {
+		if err := validResponse.VisitListStarterDecksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CopyStarterDeck operation middleware
+func (sh *strictHandler) CopyStarterDeck(w http.ResponseWriter, r *http.Request, deckId string) {
+	var request CopyStarterDeckRequestObject
+
+	request.DeckId = deckId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CopyStarterDeck(ctx, request.(CopyStarterDeckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CopyStarterDeck")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CopyStarterDeckResponseObject); ok {
+		if err := validResponse.VisitCopyStarterDeckResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
