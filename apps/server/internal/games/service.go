@@ -165,28 +165,27 @@ type Service struct {
 	db        *gorm.DB
 	catalogue *cards.Catalogue
 	settings  *settings.Service
-	listener  Listener
 	logger    *slog.Logger
 	system    *match.MatchSystem
 
-	mu      sync.Mutex
-	live    map[string]*liveGame
-	closing bool
+	mu        sync.Mutex
+	live      map[string]*liveGame
+	listeners []Listener
+	closing   bool
 
 	results chan finished
 }
 
 var _ match.Observer = (*Service)(nil)
 
-// NewService returns the games service, telling listener about games ending.
-func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.Service, listener Listener, logger *slog.Logger) *Service {
+// NewService returns the games service. Listeners join with Listen.
+func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.Service, logger *slog.Logger) *Service {
 	registerCards()
 
 	s := &Service{
 		db:        db,
 		catalogue: catalogue,
 		settings:  siteSettings,
-		listener:  listener,
 		logger:    logger,
 		live:      map[string]*liveGame{},
 		results:   make(chan finished, resultQueue),
@@ -194,6 +193,25 @@ func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.
 	s.system = match.NewSystem(match.SystemOptions{Observer: s})
 
 	return s
+}
+
+// Listen adds a listener to hear about games ending, before the first game
+// starts.
+func (s *Service) Listen(listener Listener) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.listeners = append(s.listeners, listener)
+}
+
+// notify tells every listener.
+func (s *Service) notify(tell func(Listener)) {
+	s.mu.Lock()
+	listeners := slices.Clone(s.listeners)
+	s.mu.Unlock()
+
+	for _, listener := range listeners {
+		tell(listener)
+	}
 }
 
 // Run closes games that never get going and saves finished games, until ctx
@@ -222,6 +240,17 @@ func (s *Service) Run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// CheckDeck lists every way a deck breaks the format, with the same check
+// Start makes: nothing for a deck that can be played.
+func (s *Service) CheckDeck(ctx context.Context, deck decks.Deck, format formats.Format) ([]decks.Problem, error) {
+	known, err := s.catalogue.Cards(ctx, cardIDs(deck.Cards))
+	if err != nil {
+		return nil, err
+	}
+
+	return decks.Check(deck.Cards, known, format), nil
 }
 
 // Start checks both decks against the format and starts the game. Players
@@ -417,7 +446,7 @@ func (s *Service) MatchClosed(matchID string) {
 	s.mu.Unlock()
 
 	if ok {
-		s.listener.GameClosed(live.game)
+		s.notify(func(l Listener) { l.GameClosed(live.game) })
 	}
 }
 

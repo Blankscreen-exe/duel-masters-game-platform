@@ -160,5 +160,5 @@ func (s *Service) save(done finished) {
 		"game", finishedGame.ID, "winner", finishedGame.WinnerID, "ending", finishedGame.Ending,
 		"turns", finishedGame.Turns, "duration", finishedGame.Duration().Round(time.Second), "counted", finishedGame.Counted)
 
-	s.listener.GameFinished(finishedGame)
+	s.notify(func(l Listener) { l.GameFinished(finishedGame) })
 }

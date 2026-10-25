@@ -7,29 +7,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/clocktest"
 )
 
-// clock is a settable time for tests.
-type clock struct {
-	mu sync.Mutex
-	t  time.Time
-}
-
-func (c *clock) now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.t
-}
-
-func (c *clock) advance(d time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.t = c.t.Add(d)
-}
-
-func newTestLimiter() (*Limiter, *clock) {
-	c := &clock{t: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}
-	return New(3, 15*time.Minute, c.now), c
+func newTestLimiter() (*Limiter, *clocktest.Clock) {
+	c := clocktest.New(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	return New(3, 15*time.Minute, c.Now), c
 }
 
 func TestLimiterAllowsUpToTheLimit(t *testing.T) {
@@ -50,7 +34,7 @@ func TestLimiterWindowStartsWithTheFirstAttempt(t *testing.T) {
 	limiter, clock := newTestLimiter()
 
 	limiter.Record("alice")
-	clock.advance(10 * time.Minute)
+	clock.Advance(10 * time.Minute)
 	limiter.Record("alice")
 	limiter.Record("alice")
 
@@ -58,7 +42,7 @@ func TestLimiterWindowStartsWithTheFirstAttempt(t *testing.T) {
 	assert.False(t, allowed)
 	assert.Equal(t, 5*time.Minute, retryAfter, "the window ends 15 minutes after the first attempt")
 
-	clock.advance(5 * time.Minute)
+	clock.Advance(5 * time.Minute)
 	allowed, _ = limiter.Allowed("alice")
 	assert.True(t, allowed, "a new window starts once the old one has ended")
 }
@@ -94,7 +78,7 @@ func TestLimiterForgetsKeysWhoseWindowEnded(t *testing.T) {
 	}
 	assert.Len(t, limiter.windows, 1000)
 
-	clock.advance(16 * time.Minute)
+	clock.Advance(16 * time.Minute)
 	limiter.Record("later")
 
 	assert.Len(t, limiter.windows, 1, "ended windows are swept, so unused keys do not pile up")
@@ -125,12 +109,12 @@ func TestTakeCountsOnlyAllowedAttempts(t *testing.T) {
 		assert.True(t, allowed, "attempt %d", i+1)
 	}
 
-	clock.advance(5 * time.Minute)
+	clock.Advance(5 * time.Minute)
 	allowed, retryAfter := limiter.Take("alice")
 	assert.False(t, allowed)
 	assert.Equal(t, 10*time.Minute, retryAfter, "the window started with the first attempt")
 
-	clock.advance(10 * time.Minute)
+	clock.Advance(10 * time.Minute)
 	allowed, _ = limiter.Take("alice")
 	assert.True(t, allowed, "a refused attempt is not counted, and the window has ended")
 }

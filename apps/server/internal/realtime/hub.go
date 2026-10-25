@@ -60,16 +60,13 @@ type Options struct {
 	// online, so reloading a page or a moment without a network does not
 	// count as leaving.
 	OfflineAfter time.Duration
-	// Presence hears players come and go; nil ignores them.
-	Presence Presence
-	Logger   *slog.Logger
+	Logger       *slog.Logger
 }
 
 // Hub keeps the live connections and sends them messages. It is safe for
 // concurrent use.
 type Hub struct {
 	offlineAfter time.Duration
-	presence     Presence
 	logger       *slog.Logger
 
 	mu      sync.Mutex
@@ -80,17 +77,37 @@ type Hub struct {
 	leaving map[string]*time.Timer
 	// viewers remembers the players online, by id.
 	viewers map[string]Viewer
-	closed  bool
+	// watchers hear players come and go.
+	watchers []Presence
+	closed   bool
 }
 
 // ErrClosed is returned for a connection offered to a hub that has closed.
 var ErrClosed = errors.New("realtime hub closed")
 
+// Watch adds a watcher to hear players come and go, before the hub serves
+// any connection.
+func (h *Hub) Watch(presence Presence) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.watchers = append(h.watchers, presence)
+}
+
+// presenceChanged tells every watcher. The caller does not hold mu.
+func (h *Hub) presenceChanged(viewer Viewer) {
+	h.mu.Lock()
+	watchers := slices.Clone(h.watchers)
+	h.mu.Unlock()
+
+	for _, watcher := range watchers {
+		watcher.PresenceChanged(viewer)
+	}
+}
+
 // NewHub returns a hub with no connections.
 func NewHub(options Options) *Hub {
 	return &Hub{
 		offlineAfter: options.OfflineAfter,
-		presence:     options.Presence,
 		logger:       options.Logger,
 		clients:      map[*client]struct{}{},
 		byUser:       map[string]map[*client]struct{}{},
@@ -212,8 +229,8 @@ func (h *Hub) add(c *client) error {
 	}
 	h.mu.Unlock()
 
-	if cameOnline && h.presence != nil {
-		h.presence.PresenceChanged(c.viewer)
+	if cameOnline {
+		h.presenceChanged(c.viewer)
 	}
 
 	return nil
@@ -251,9 +268,7 @@ func (h *Hub) goOffline(uid string) {
 	delete(h.viewers, uid)
 	h.mu.Unlock()
 
-	if h.presence != nil {
-		h.presence.PresenceChanged(viewer)
-	}
+	h.presenceChanged(viewer)
 }
 
 // Broadcast sends a message to every connection, visitors included.

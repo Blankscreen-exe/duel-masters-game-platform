@@ -63,7 +63,8 @@ func newHub(t *testing.T, offlineAfter time.Duration) (*Hub, *presenceLog) {
 	t.Helper()
 
 	presence := &presenceLog{}
-	hub := NewHub(Options{OfflineAfter: offlineAfter, Presence: presence, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	hub := NewHub(Options{OfflineAfter: offlineAfter, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	hub.Watch(presence)
 	t.Cleanup(func() { _ = hub.Close(context.Background()) })
 
 	return hub, presence

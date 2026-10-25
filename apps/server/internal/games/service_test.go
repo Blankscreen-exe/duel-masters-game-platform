@@ -12,6 +12,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 )
 
@@ -114,9 +115,9 @@ func TestWhoMayConnect(t *testing.T) {
 		_, err = f.games.RoleIn(f.shobu.ID, "no-such-game")
 		assert.ErrorIs(t, err, games.ErrNotFound)
 
-		refused, done := connect(f, f.watcher, noSpectators.ID)
+		refused, done := gamestest.Connect(f.games, f.watcher, noSpectators.ID)
 		assert.ErrorIs(t, <-done, games.ErrNotWatchable)
-		assert.True(t, refused.isClosed(), "a refused connection is closed")
+		assert.True(t, refused.IsClosed(), "a refused connection is closed")
 	})
 }
 
@@ -125,14 +126,14 @@ func TestAGameIsPlayedAndSaved(t *testing.T) {
 		f := newFixture(t, db)
 		game := f.start(t, true, true)
 
-		shobu, kokujo := play(t, f, game)
-		watcher, _ := connect(f, f.watcher, game.ID)
-		watcher.waitFor(t, "state_update")
+		shobu, kokujo := gamestest.Play(t, f.games, game)
+		watcher, _ := gamestest.Connect(f.games, f.watcher, game.ID)
+		watcher.WaitFor(t, "state_update")
 
-		shobu.say(map[string]any{"header": "resign"})
-		finished := kokujo.waitFor(t, "duel_finished")
+		shobu.Say(map[string]any{"header": "resign"})
+		finished := kokujo.WaitFor(t, "duel_finished")
 		assert.Equal(t, "surrender", finished["ending"])
-		watcher.waitFor(t, "duel_finished")
+		watcher.WaitFor(t, "duel_finished")
 
 		require.Eventually(t, func() bool { return len(f.heard.records()) == 1 }, waitTimeout, 5*time.Millisecond)
 		record := f.heard.records()[0]
@@ -173,9 +174,9 @@ func TestALongEnoughGameCounts(t *testing.T) {
 		require.NoError(t, err)
 		game := f.start(t, true, false)
 
-		shobu, kokujo := play(t, f, game)
-		kokujo.say(map[string]any{"header": "resign"})
-		shobu.waitFor(t, "duel_finished")
+		shobu, kokujo := gamestest.Play(t, f.games, game)
+		kokujo.Say(map[string]any{"header": "resign"})
+		shobu.WaitFor(t, "duel_finished")
 
 		require.Eventually(t, func() bool { return len(saved(t, db)) == 1 }, waitTimeout, 5*time.Millisecond)
 		row := saved(t, db)[0]
@@ -192,7 +193,7 @@ func TestAGameThatNeverStartsIsNotSaved(t *testing.T) {
 		game := f.start(t, true, false)
 
 		// Shobu joins and leaves before Kokujo arrives.
-		shobu, _ := connect(f, f.shobu, game.ID)
+		shobu, _ := gamestest.Connect(f.games, f.shobu, game.ID)
 		require.Eventually(t, func() bool {
 			_, ok := f.games.Game(game.ID)
 			return ok
@@ -212,13 +213,13 @@ func TestStoppingTheServerSavesRunningGamesAsAborted(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
 		f := newFixture(t, db)
 		game := f.start(t, true, false)
-		shobu, _ := play(t, f, game)
+		shobu, _ := gamestest.Play(t, f.games, game)
 
 		closeCtx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 		defer cancel()
 		require.NoError(t, f.games.Close(closeCtx))
 
-		finished := shobu.waitFor(t, "duel_finished")
+		finished := shobu.WaitFor(t, "duel_finished")
 		assert.Equal(t, "aborted", finished["ending"])
 
 		require.Eventually(t, func() bool { return len(saved(t, db)) == 1 }, waitTimeout, 5*time.Millisecond)

@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/clocktest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
@@ -31,28 +32,10 @@ func (h *heard) MessagePosted(message chat.Message) {
 	h.messages = append(h.messages, message)
 }
 
-// clock stands still until a test moves it.
-type clock struct {
-	mu  sync.Mutex
-	now time.Time
-}
-
-func (c *clock) Now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.now
-}
-
-func (c *clock) advance(d time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.now = c.now.Add(d)
-}
-
 type fixture struct {
 	chat   *chat.Service
 	heard  *heard
-	clock  *clock
+	clock  *clocktest.Clock
 	shobu  users.User
 	kokujo users.User
 }
@@ -68,7 +51,7 @@ func newFixture(t *testing.T, db *gorm.DB) fixture {
 	require.NoError(t, err)
 
 	listener := &heard{}
-	c := &clock{now: time.Now()}
+	c := clocktest.New(time.Now())
 
 	return fixture{chat: chat.NewService(db, listener, c.Now), heard: listener, clock: c, shobu: shobu, kokujo: kokujo}
 }
@@ -118,7 +101,7 @@ func TestRecentShowsTheLatestMessagesOldestFirst(t *testing.T) {
 			_, err := f.chat.Post(ctx, author, fmt.Sprintf("message %d", i))
 			require.NoError(t, err)
 			// Past the posting limit, as players taking turns would be.
-			f.clock.advance(5 * time.Second)
+			f.clock.Advance(5 * time.Second)
 		}
 
 		recent, err := f.chat.Recent(ctx)
@@ -190,7 +173,7 @@ func TestPostingTooFastIsRefused(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		f.clock.advance(4 * time.Second)
+		f.clock.Advance(4 * time.Second)
 		_, err := f.chat.Post(ctx, f.shobu, "one more")
 		var tooFast *chat.TooFastError
 		require.True(t, errors.As(err, &tooFast), "got %v", err)
@@ -199,7 +182,7 @@ func TestPostingTooFastIsRefused(t *testing.T) {
 		_, err = f.chat.Post(ctx, f.kokujo, "my turn")
 		assert.NoError(t, err, "the limit is per player")
 
-		f.clock.advance(6 * time.Second)
+		f.clock.Advance(6 * time.Second)
 		_, err = f.chat.Post(ctx, f.shobu, "calm now")
 		assert.NoError(t, err, "allowed again once the window has passed")
 	})

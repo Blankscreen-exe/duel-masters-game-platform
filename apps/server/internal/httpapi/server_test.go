@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/clocktest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
@@ -36,7 +36,7 @@ type testServer struct {
 	hub      *realtime.Hub
 	// clock is the time the features see, which only moves when a test
 	// moves it, so answers that depend on time are exact.
-	clock *testClock
+	clock *clocktest.Clock
 	// cardDatabase is the card database's folder.
 	cardDatabase string
 }
@@ -61,7 +61,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, cardDatabase string, pl
 	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), decks.Settings())...)
 	require.NoError(t, err)
 
-	clock := &testClock{now: time.Now()}
+	clock := clocktest.New(time.Now())
 	authService := auth.NewService(db, users.NewService(db, logger), siteSettings, auth.NewPasswordHasher(4), clock.Now, logger)
 
 	source, err := cards.ReadSource(cardDatabase)
@@ -117,23 +117,4 @@ func testCardDatabase(t *testing.T) string {
 		[]string{"0079", "0029"},
 		[]string{"dm-01"},
 	)
-}
-
-// testClock is a clock that stands still until a test moves it.
-type testClock struct {
-	mu  sync.Mutex
-	now time.Time
-}
-
-func (c *testClock) Now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.now
-}
-
-// Advance moves the clock on.
-func (c *testClock) Advance(d time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.now = c.now.Add(d)
 }
