@@ -158,7 +158,11 @@ project not affiliated with or endorsed by them, and credit them as the owners.
   more than 4 copies of a card, or a card the game cannot play.
 - A deck is checked against a format when it is used, by one check in the server (`decks.Check`).
   The deck builder shows, for each format, whether the deck is legal and what breaks the rules.
-- **Starter decks**: admins build ready-made decks; every new account receives copies of them.
+- **Starter decks**: ready-made decks every player, new or old, may play straight away without
+  building one, or copy into their own decks to change. The site begins with five, one for each
+  civilization, of DM-01 cards only, so they keep to every format: Fire: Bolshack Rush, Water:
+  Depthcon Tide, Nature: Great-Horn Stampede, Light: Urth's Guardians and Darkness: Zagaan's Shadow.
+  The first, Fire's, is every player's default deck in the lobby. Admins manage them (section 9).
 - Decks can be exported and imported as text (`4 Bolshack Dragon` per line).
 
 ## 6. Lobby
@@ -260,8 +264,8 @@ Every game, rematches included, starts with a coin toss that both players (and s
   order. A format no deck or game has used can be deleted; one in use can only be **retired**:
   it can no longer be picked for new games or shown in the deck builder, and past games keep its
   name. A retired format can be brought back.
-- **Starter decks**: build them and switch each on or off. Every new account receives a copy of
-  each starter deck switched on when it signs up; existing players receive nothing later.
+- **Starter decks**: build them, order them (the first is every player's default) and switch each
+  on or off; players are offered the ones switched on (section 5).
 - **Chat**: delete messages, mute players.
 - **Settings**: every server setting, kept in a key-value table and edited here. Each setting has a
   key, a value, a type (text, number, yes/no), a default, a short description and allowed limits;
