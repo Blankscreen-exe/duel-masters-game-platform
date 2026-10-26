@@ -11,7 +11,7 @@ import { JoinDialog } from './join-dialog';
 const ROW =
   'flex items-center justify-between gap-3 border-b border-slate-800/80 px-4 py-3 last:border-0 hover:bg-white/[0.03]';
 
-/** A tag saying whether a game is waiting for an opponent or under way. */
+/** A tag saying whether a game is waiting for an opponent or under way, in the status colours. */
 const STATUS_TAG =
   'shrink-0 px-2 py-0.5 font-display text-xs font-semibold tracking-wider uppercase';
 
@@ -85,7 +85,7 @@ export function GamesList({
         {running.map((game) => (
           <li key={game.id} className={ROW}>
             <div className="flex min-w-0 items-center gap-3">
-              <span className={`${STATUS_TAG} bg-slate-500/15 text-slate-400`}>Playing</span>
+              <span className={`${STATUS_TAG} bg-red-500/15 text-red-300`}>Playing</span>
               <div className="min-w-0">
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                   <PlayerName username={game.host.username} rank={game.host.rank} />

@@ -19,7 +19,10 @@ interface OpenGameFormProps {
   readonly disabled: boolean;
 }
 
-/** Opens a game for an opponent to join: listed in the lobby, or by invite link only. */
+/**
+ * Opens a game for an opponent to join: listed in the lobby, or by invite link only. On a wider
+ * screen the name, format and deck sit in one row, and the choices and the button in the next.
+ */
 export function OpenGameForm({ decks, formats, disabled }: OpenGameFormProps) {
   const [formatId, setFormatId] = useState(formats[0]?.id ?? '');
   const [deckId, setDeckId] = useState(() => defaultDeck(decks, formats[0]?.id ?? ''));
@@ -38,56 +41,64 @@ export function OpenGameForm({ decks, formats, disabled }: OpenGameFormProps) {
 
   return (
     <form onSubmit={(event) => void submit(event)} className="space-y-4 p-4">
-      <TextField
-        label="Name"
-        value={name}
-        maxLength={NAME_MAX_LENGTH}
-        placeholder="Leave empty for a random name"
-        onChange={(event) => {
-          setName(event.target.value);
-        }}
-      />
+      <div className="grid items-end gap-4 md:grid-cols-3">
+        <TextField
+          label="Name"
+          value={name}
+          maxLength={NAME_MAX_LENGTH}
+          placeholder="Leave empty for a random name"
+          onChange={(event) => {
+            setName(event.target.value);
+          }}
+        />
 
-      <FormatPicker
-        formats={formats}
-        value={formatId}
-        onChange={(chosen) => {
-          setFormatId(chosen);
-          setDeckId(defaultDeck(decks, chosen));
-        }}
-      />
+        <FormatPicker
+          formats={formats}
+          value={formatId}
+          onChange={(chosen) => {
+            setFormatId(chosen);
+            setDeckId(defaultDeck(decks, chosen));
+          }}
+        />
 
-      <DeckPicker decks={decks} formatId={formatId} value={deckId} onChange={setDeckId} />
+        <DeckPicker decks={decks} formatId={formatId} value={deckId} onChange={setDeckId} />
+      </div>
 
-      <fieldset className="space-y-2 text-sm text-slate-300">
-        <legend className="sr-only">Who can see the game</legend>
-        <label className="flex cursor-pointer items-center gap-2 hover:text-white">
-          <input
-            type="checkbox"
-            checked={listed}
-            onChange={(event) => {
-              setListed(event.target.checked);
-            }}
-            className="size-4 accent-sky-400"
-          />
-          List it in the lobby (otherwise only your invite link leads to it)
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 hover:text-white">
-          <input
-            type="checkbox"
-            checked={spectators}
-            onChange={(event) => {
-              setSpectators(event.target.checked);
-            }}
-            className="size-4 accent-sky-400"
-          />
-          Let others watch
-        </label>
-      </fieldset>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <fieldset className="space-y-2 text-sm text-slate-300 md:flex md:gap-6 md:space-y-0">
+          <legend className="sr-only">Who can see the game</legend>
+          <label className="flex cursor-pointer items-center gap-2 hover:text-white">
+            <input
+              type="checkbox"
+              checked={listed}
+              onChange={(event) => {
+                setListed(event.target.checked);
+              }}
+              className="size-4 accent-sky-400"
+            />
+            List it in the lobby (otherwise only your invite link leads to it)
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 hover:text-white">
+            <input
+              type="checkbox"
+              checked={spectators}
+              onChange={(event) => {
+                setSpectators(event.target.checked);
+              }}
+              className="size-4 accent-sky-400"
+            />
+            Let others watch
+          </label>
+        </fieldset>
 
-      <Button type="submit" className="w-full" disabled={disabled || pending || deckId === ''}>
-        {pending ? 'Opening…' : 'Open game'}
-      </Button>
+        <Button
+          type="submit"
+          className="w-full md:w-auto"
+          disabled={disabled || pending || deckId === ''}
+        >
+          {pending ? 'Opening…' : 'Open game'}
+        </Button>
+      </div>
     </form>
   );
 }

@@ -19,7 +19,10 @@ interface QuickMatchPanelProps {
   readonly disabled: boolean;
 }
 
-/** Quick match: pick a format and a deck, and play the next player waiting in that format. */
+/**
+ * Quick match: pick a format and a deck, and play the next player waiting in that format. On a
+ * wider screen the pickers and the button sit in one row.
+ */
 export function QuickMatchPanel({
   decks,
   formats,
@@ -47,17 +50,17 @@ export function QuickMatchPanel({
 
   if (waitingFormatName !== null) {
     return (
-      <div className="space-y-4 p-4 text-center">
+      <div className="flex flex-wrap items-center justify-center gap-4 p-4">
+        <span
+          aria-hidden
+          className="block size-8 shrink-0 animate-spin rounded-full border-2 border-accent border-t-transparent"
+        />
         <p
           aria-live="polite"
           className="font-display text-lg font-semibold tracking-wide text-white"
         >
           Looking for an opponent in {waitingFormatName}…
         </p>
-        <span
-          aria-hidden
-          className="mx-auto block size-8 animate-spin rounded-full border-2 border-accent border-t-transparent"
-        />
         <Button variant="secondary" disabled={pending} onClick={() => void leave()}>
           Stop looking
         </Button>
@@ -66,7 +69,7 @@ export function QuickMatchPanel({
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="grid items-end gap-4 p-4 md:grid-cols-[1fr_1fr_auto]">
       <FormatPicker
         formats={formats}
         value={formatId}
@@ -81,7 +84,7 @@ export function QuickMatchPanel({
       />
       <DeckPicker decks={decks} formatId={formatId} value={deckId} onChange={setDeckId} />
       <Button
-        className="w-full"
+        className="w-full md:w-auto"
         disabled={disabled || pending || deckId === ''}
         onClick={() => void enter()}
       >
