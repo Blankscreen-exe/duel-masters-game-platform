@@ -10,6 +10,11 @@ import { useEffect, useEffectEvent, useRef } from 'react';
  * page you moved away from in the document, hidden, and a modal left open there would block every
  * click on the new page. That close is not reported, so the dialog's state survives; React runs
  * the same cleanup in development when it mounts components twice.
+ *
+ * The browser fires a dialog's close event a moment after closing it. When the component is shown
+ * again straight away, as when React mounts it twice, the close from the cleanup arrives after the
+ * dialog has opened again. Only a close that leaves the dialog closed is the player's, so only that
+ * one is reported.
  */
 export function useModalDialog(onClose: () => void) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -19,7 +24,7 @@ export function useModalDialog(onClose: () => void) {
     const dialog = ref.current;
     if (!dialog) return;
     const listener = () => {
-      handleClose();
+      if (!dialog.open) handleClose();
     };
     dialog.addEventListener('close', listener);
     if (!dialog.open) dialog.showModal();
