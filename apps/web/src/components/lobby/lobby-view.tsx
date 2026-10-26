@@ -27,10 +27,11 @@ interface LobbyViewProps {
  * The lobby: open a game or find a quick match, join an open game, watch a running one, and chat.
  * Everything on it stays up to date over the live connection.
  *
- * On a wide screen it has four columns. Three hold starting a game, a tab each for quick match and
- * opening a game, with the games under it, open and running in one list. The fourth holds the chat
- * and who is online, a tab each, the height of the screen. A little narrower, the fourth keeps a
- * fixed width; on a phone everything stacks.
+ * On a wide screen it has four columns. Three hold the title, starting a game, a tab each for quick
+ * match and opening a game, and the games under it, open and running in one list. The fourth holds
+ * the chat and who is online, a tab each: it starts level with the title and is as tall as the
+ * screen, so it fits from the start and stays in view when the page scrolls. A little narrower, the
+ * fourth keeps a fixed width; on a phone everything stacks.
  */
 export function LobbyView({
   account,
@@ -60,106 +61,106 @@ export function LobbyView({
   const [openOnly, setOpenOnly] = useState(false);
 
   return (
-    <div className="space-y-6">
-      <h1 className="font-display text-4xl font-bold tracking-widest text-white uppercase">Play</h1>
+    <div className="grid gap-6 lg:grid-cols-[1fr_20rem] xl:grid-cols-4">
+      <div className="space-y-6 xl:col-span-3">
+        <h1 className="font-display text-4xl font-bold tracking-widest text-white uppercase">
+          Play
+        </h1>
 
-      {lobby.paused && (
-        <p
-          role="status"
-          className="bg-amber-500/10 px-4 py-3 text-sm text-amber-200 ring-1 ring-amber-400/40 ring-inset"
+        {lobby.paused && (
+          <p
+            role="status"
+            className="bg-amber-500/10 px-4 py-3 text-sm text-amber-200 ring-1 ring-amber-400/40 ring-inset"
+          >
+            New games are paused for a moment. Games already running carry on.
+          </p>
+        )}
+
+        {activity && activity.kind !== 'queued' && (
+          <YourActivity activity={activity} hosted={hosted} />
+        )}
+
+        <TabbedPanel
+          label="Start a game"
+          idPrefix="start-game"
+          accent="fire"
+          tabs={[
+            {
+              id: 'quick',
+              label: 'Quick match',
+              content: (
+                <QuickMatchPanel
+                  decks={decks}
+                  formats={formats}
+                  queue={queue}
+                  waitingFormatName={waitingFormatName}
+                  disabled={lobby.paused || (busy && activity.kind !== 'queued')}
+                />
+              ),
+            },
+            {
+              id: 'open',
+              label: 'Open a game',
+              content: (
+                <OpenGameForm decks={decks} formats={formats} disabled={lobby.paused || busy} />
+              ),
+            },
+          ]}
+        />
+
+        <Panel
+          title="Games"
+          actions={
+            <div className="flex items-center gap-4">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  checked={openOnly}
+                  onChange={(event) => {
+                    setOpenOnly(event.target.checked);
+                  }}
+                  className="size-4 accent-sky-400"
+                />
+                Show open games only
+              </label>
+              <span className="font-display text-sm font-semibold text-slate-400">
+                {lobby.openGames.length} open
+                {openOnly ? '' : ` · ${String(lobby.runningGames.length)} running`}
+              </span>
+            </div>
+          }
         >
-          New games are paused for a moment. Games already running carry on.
-        </p>
-      )}
+          <GamesList
+            openGames={lobby.openGames}
+            runningGames={lobby.runningGames}
+            openOnly={openOnly}
+            decks={decks}
+            userId={account.id}
+            canJoin={!busy && !lobby.paused}
+          />
+        </Panel>
+      </div>
 
-      {activity && activity.kind !== 'queued' && (
-        <YourActivity activity={activity} hosted={hosted} />
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem] xl:grid-cols-4">
-        <div className="space-y-6 xl:col-span-3">
+      <LobbyChat
+        initial={chat}
+        canPost
+        mute={account.mute}
+        frame={({ expand, body }) => (
           <TabbedPanel
-            label="Start a game"
-            idPrefix="start-game"
-            accent="fire"
+            label="Chat and players"
+            idPrefix="lobby-side"
+            className="h-[calc(100dvh-6.75rem)] min-h-96 lg:sticky lg:top-[5.25rem] lg:self-start"
             tabs={[
+              { id: 'chat', label: 'Lobby chat', content: body, actions: expand },
               {
-                id: 'quick',
-                label: 'Quick match',
-                content: (
-                  <QuickMatchPanel
-                    decks={decks}
-                    formats={formats}
-                    queue={queue}
-                    waitingFormatName={waitingFormatName}
-                    disabled={lobby.paused || (busy && activity.kind !== 'queued')}
-                  />
-                ),
-              },
-              {
-                id: 'open',
-                label: 'Open a game',
-                content: (
-                  <OpenGameForm decks={decks} formats={formats} disabled={lobby.paused || busy} />
-                ),
+                id: 'online',
+                label: `Online ${String(lobby.online.length)}`,
+                content: <OnlinePlayers players={lobby.online} />,
               },
             ]}
           />
-
-          <Panel
-            title="Games"
-            actions={
-              <div className="flex items-center gap-4">
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300 hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={openOnly}
-                    onChange={(event) => {
-                      setOpenOnly(event.target.checked);
-                    }}
-                    className="size-4 accent-sky-400"
-                  />
-                  Show open games only
-                </label>
-                <span className="font-display text-sm font-semibold text-slate-400">
-                  {lobby.openGames.length} open
-                  {openOnly ? '' : ` · ${String(lobby.runningGames.length)} running`}
-                </span>
-              </div>
-            }
-          >
-            <GamesList
-              openGames={lobby.openGames}
-              runningGames={lobby.runningGames}
-              openOnly={openOnly}
-              decks={decks}
-              userId={account.id}
-              canJoin={!busy && !lobby.paused}
-            />
-          </Panel>
-        </div>
-
-        <LobbyChat
-          initial={chat}
-          canPost
-          mute={account.mute}
-          frame={({ expand, body }) => (
-            <TabbedPanel
-              label="Chat and players"
-              idPrefix="lobby-side"
-              className="h-[32rem] lg:sticky lg:top-20 lg:h-[calc(100dvh-6.5rem)] lg:self-start"
-              tabs={[
-                { id: 'chat', label: 'Lobby chat', content: body, actions: expand },
-                {
-                  id: 'online',
-                  label: `Online ${String(lobby.online.length)}`,
-                  content: <OnlinePlayers players={lobby.online} />,
-                },
-              ]}
-            />
-          )}
-        />
-      </div>
+        )}
+      />
     </div>
   );
 }

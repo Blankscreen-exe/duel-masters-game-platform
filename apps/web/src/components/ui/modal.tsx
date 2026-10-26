@@ -6,8 +6,8 @@ import { useModalDialog } from './use-modal-dialog';
 
 /**
  * How big a modal is. A dialog is as tall as its content, up to most of the screen, and scrolls
- * past that. A full one fills most of the screen, and its content fills it edge to edge and
- * scrolls itself, such as a chat.
+ * past that. A full one is the height of the screen, less a thin margin, however tall the screen
+ * is, and its content fills it edge to edge and scrolls itself, such as a chat.
  */
 export type ModalSize = 'dialog' | 'full';
 
@@ -18,7 +18,7 @@ const SIZES: Record<ModalSize, { dialog: string; frame: string; body: string }> 
     body: 'p-5',
   },
   full: {
-    dialog: 'h-[90dvh] w-[min(100%-2rem,72rem)] overflow-hidden',
+    dialog: 'h-[calc(100dvh-2rem)] max-h-none w-[min(100%-2rem,72rem)] overflow-hidden',
     frame: 'flex h-full flex-col',
     body: 'flex min-h-0 flex-1 flex-col',
   },
