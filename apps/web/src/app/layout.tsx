@@ -35,7 +35,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={`${rajdhani.variable} ${inter.variable}`}>
-      <body className="flex flex-col">
+      <body className="flex flex-col lg:has-[[data-fill-screen]]:h-[max(100dvh,36rem)]">
         <LiveProvider>
           {children}
           <Suspense>

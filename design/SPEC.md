@@ -289,8 +289,11 @@ Every page has hover feedback and works on phones (see 11.2).
 - **Header (desktop)**: logo, menu (Play, Decks, Cards, Rankings, Rules), the player's name and
   rank, user menu (Profile, Settings, Admin for admins, Log out). Visitors see Log in and Sign up.
 - **Bottom tab bar (phone)**: Play, Decks, Cards, Rankings, Profile.
-- **Footer**: rules, credits, the MIT license notice of the engine, and "not affiliated with
-  Wizards of the Coast".
+- **Footer**: one thin line, so pages that fit the screen have room for it: rules, credits, the
+  MIT license notice of the engine, and "not affiliated with Wizards of the Coast".
+- **Pages that fit the screen**: on a wide screen the play page fits the screen between the header
+  and the footer, without scrolling; its games list and chat scroll inside their boxes. On a phone
+  it stacks and scrolls.
 - **Card preview**: hover (desktop) or tap (phone) any card for the full picture and its text.
 - **Toasts** ("Deck saved", "Shobu joined your game"), **confirm dialogs** for risky actions,
   **loading placeholders**, and friendly **empty states**.
