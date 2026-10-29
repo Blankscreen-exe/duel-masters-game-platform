@@ -232,6 +232,22 @@ func TestTheTooFastRefusalCountsWholeSeconds(t *testing.T) {
 	}
 }
 
+func TestTheRefusalsTellThePlayerWhy(t *testing.T) {
+	until := time.Date(2026, 3, 1, 18, 30, 0, 0, time.FixedZone("UTC+5", 5*60*60))
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{err: &chat.MutedError{}, want: "An admin has muted you in the chat."},
+		{err: &chat.MutedError{Mute: users.Penalty{Until: &until}}, want: "An admin has muted you in the chat until Sun, 01 Mar 2026 13:30:00 UTC."},
+		{err: fmt.Errorf("posting: %w", &chat.TooFastError{RetryAfter: 2 * time.Second}), want: "You are posting too fast. Wait 2 seconds."},
+		{err: errors.New("the database is down"), want: ""},
+		{err: nil, want: ""},
+	} {
+		assert.Equal(t, tc.want, chat.Refusal(tc.err), "for %v", tc.err)
+	}
+}
+
 func TestAMutedPlayerCannotPostUntilTheMuteEnds(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
 		ctx := context.Background()

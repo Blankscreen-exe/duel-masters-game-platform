@@ -16,6 +16,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
 
 // savedGame is a row of the games table as a test reads it.
@@ -217,6 +218,36 @@ func TestChattingInAGameTooFastIsRefused(t *testing.T) {
 		kokujo.Say(map[string]any{"header": "chat", "message": "calm down"})
 		shobu.WaitForChat(t, "calm down")
 		assert.Len(t, shown(), 2, "the refused message never reached the opponent")
+	})
+}
+
+func TestAMutedPlayerCannotChatInAGame(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db)
+		shobu, kokujo := gamestest.Play(t, f.games, f.start(t, true, true))
+		mute := func(since time.Time, until *time.Time) {
+			t.Helper()
+			require.NoError(t, db.Model(&users.User{}).Where("id = ?", f.shobu.ID).
+				Updates(map[string]any{"muted_at": since, "muted_until": until}).Error)
+		}
+
+		// Muted for good once the game has begun.
+		now := time.Now()
+		mute(now, nil)
+		shobu.Say(map[string]any{"header": "chat", "message": "anyone there?"})
+		shobu.WaitForChat(t, "An admin has muted you in the chat.")
+
+		kokujo.Say(map[string]any{"header": "chat", "message": "hello"})
+		shobu.WaitForChat(t, "hello")
+		kokujo.WaitForChat(t, "hello")
+		assert.NotContains(t, kokujo.Chats(), "anyone there?", "nobody sees a muted player's message")
+		assert.NotContains(t, kokujo.Chats(), "An admin has muted you in the chat.", "only the muted player is told")
+
+		// Once the mute has ended they chat again.
+		ended := now.Add(-time.Second)
+		mute(now.Add(-time.Hour), &ended)
+		shobu.Say(map[string]any{"header": "chat", "message": "back again"})
+		kokujo.WaitForChat(t, "back again")
 	})
 }
 

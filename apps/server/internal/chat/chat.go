@@ -5,6 +5,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -113,6 +114,56 @@ func (e *MutedError) Error() string {
 	return fmt.Sprintf("muted until %s", e.Mute.Until.Format(time.RFC3339))
 }
 
+// Refusal tells the player, in a sentence, that they are muted and until
+// when.
+func (e *MutedError) Refusal() string {
+	if e.Mute.Until == nil {
+		return "An admin has muted you in the chat."
+	}
+	return "An admin has muted you in the chat until " + e.Mute.Until.UTC().Format(time.RFC1123) + "."
+}
+
+// Refusal is what to tell a player whose post Gate.Check refused, or an
+// empty string for an error it did not return.
+func Refusal(err error) string {
+	var muted *MutedError
+	if errors.As(err, &muted) {
+		return muted.Refusal()
+	}
+	var tooFast *TooFastError
+	if errors.As(err, &tooFast) {
+		return tooFast.Refusal()
+	}
+	return ""
+}
+
+// Gate decides whether a player may post in a chat now: not muted by an
+// admin, and no faster than the settings allow. Each chat keeps its own
+// gate, so each counts its posts on its own. It is safe for concurrent use.
+type Gate struct {
+	posts *ratelimit.Limiter
+	now   func() time.Time
+}
+
+// NewGate returns a gate following the settings as they change. now is the
+// clock; pass time.Now outside tests.
+func NewGate(siteSettings *settings.Service, now func() time.Time) *Gate {
+	return &Gate{posts: ratelimit.NewLive(PostLimits(siteSettings), now), now: now}
+}
+
+// Check returns a *MutedError for a muted author and a *TooFastError for one
+// posting too fast. A post it allows counts towards the limit; a refused one
+// does not.
+func (g *Gate) Check(author users.User) error {
+	if mute, muted := author.MuteAt(g.now()); muted {
+		return &MutedError{Mute: mute}
+	}
+	if allowed, retryAfter := g.posts.Take(author.ID); !allowed {
+		return &TooFastError{RetryAfter: retryAfter}
+	}
+	return nil
+}
+
 // Listener hears about new messages, to pass them on to everyone watching
 // the chat. It is called after the message is saved and must not block.
 type Listener interface {
@@ -143,15 +194,14 @@ type shownRow struct {
 type Service struct {
 	db       *gorm.DB
 	listener Listener
-	posts    *ratelimit.Limiter
-	now      func() time.Time
+	gate     *Gate
 }
 
 // NewService returns the chat, telling listener about every new message and
 // letting each player post as fast as the settings allow. now is the clock;
 // pass time.Now outside tests.
 func NewService(db *gorm.DB, listener Listener, siteSettings *settings.Service, now func() time.Time) *Service {
-	return &Service{db: db, listener: listener, posts: ratelimit.NewLive(PostLimits(siteSettings), now), now: now}
+	return &Service{db: db, listener: listener, gate: NewGate(siteSettings, now)}
 }
 
 // Post adds a message from a player. Line breaks and tabs become spaces, and
@@ -164,12 +214,8 @@ func (s *Service) Post(ctx context.Context, author users.User, text string) (Mes
 		return Message{}, err
 	}
 
-	if mute, muted := author.MuteAt(s.now()); muted {
-		return Message{}, &MutedError{Mute: mute}
-	}
-
-	if allowed, retryAfter := s.posts.Take(author.ID); !allowed {
-		return Message{}, &TooFastError{RetryAfter: retryAfter}
+	if err := s.gate.Check(author); err != nil {
+		return Message{}, err
 	}
 
 	id, err := uuid.NewV7()

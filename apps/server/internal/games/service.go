@@ -17,7 +17,6 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/match"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/server"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratelimit"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
@@ -204,9 +203,12 @@ type Service struct {
 	rater     Rater
 	logger    *slog.Logger
 	system    *match.MatchSystem
-	// chatPosts limits how fast each player chats in games, all their games
-	// together, as fast as in the lobby chat but counted on its own.
-	chatPosts *ratelimit.Limiter
+	// accounts reads who is chatting, so a mute applies as soon as an admin
+	// gives it. chatGate refuses muted players and limits how fast each player
+	// chats in games, all their games together, as fast as in the lobby chat
+	// but counted on its own.
+	accounts *users.Service
+	chatGate *chat.Gate
 
 	mu        sync.Mutex
 	live      map[string]*liveGame
@@ -235,7 +237,8 @@ func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.
 		live:        map[string]*liveGame{},
 		connections: map[string]map[*connection]struct{}{},
 		results:     make(chan finished, resultQueue),
-		chatPosts:   ratelimit.NewLive(chat.PostLimits(siteSettings), time.Now),
+		accounts:    users.NewService(db, logger),
+		chatGate:    chat.NewGate(siteSettings, time.Now),
 	}
 	s.system = match.NewSystem(match.SystemOptions{Observer: s})
 
@@ -463,13 +466,26 @@ func (s *Service) Connect(conn server.Connection, user users.User, gameID string
 	return nil
 }
 
-// chatRefusal tells a player chatting in a game faster than the chat
-// settings allow to wait, and lets everyone else's message through.
+// chatUnavailable is what a player chatting in a game is told when who they
+// are cannot be read.
+const chatUnavailable = "The chat is not available right now. Try again in a moment."
+
+// chatLookupTimeout bounds reading who is chatting.
+const chatLookupTimeout = 5 * time.Second
+
+// chatRefusal refuses the chat message of a player muted by an admin or
+// chatting faster than the chat settings allow, telling them why, and lets
+// everyone else's through.
 func (s *Service) chatRefusal(userID string) string {
-	if allowed, retryAfter := s.chatPosts.Take(userID); !allowed {
-		return (&chat.TooFastError{RetryAfter: retryAfter}).Refusal()
+	ctx, cancel := context.WithTimeout(context.Background(), chatLookupTimeout)
+	defer cancel()
+
+	author, err := s.accounts.ByID(ctx, userID)
+	if err != nil {
+		s.logger.Error("reading who is chatting in a game", "user", userID, "error", err)
+		return chatUnavailable
 	}
-	return ""
+	return chat.Refusal(s.chatGate.Check(author))
 }
 
 // connection is an open connection to a game.

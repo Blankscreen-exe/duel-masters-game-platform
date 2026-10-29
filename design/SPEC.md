@@ -188,8 +188,8 @@ project not affiliated with or endorsed by them, and credit them as the owners.
 - **Online players** list, with each player's rank and what they are doing.
 - **Lobby chat**: one global chat. **Visitors who are not logged in can read it; posting needs an
   account.** Admins can delete messages and mute players for 1 hour, 24 hours, 7 days or for
-  good. A muted player still reads the chat and plays, and is told when they can post again; a
-  timed mute lifts itself.
+  good. A mute covers the chat in games too, from the moment it is given. A muted player still
+  reads the chat and plays, and is told when they can post again; a timed mute lifts itself.
 
 ## 7. Playing
 

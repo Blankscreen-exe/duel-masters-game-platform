@@ -32,8 +32,9 @@ type Options struct {
 	// ChatRefusal, when set, is asked about every chat message sent in the
 	// match, by the id of whoever sent it. A non-empty answer refuses the
 	// message: nobody sees it, and its sender alone is shown the answer. It
-	// is called on socket goroutines, so it must be safe for concurrent use,
-	// and must not block.
+	// is called beside the event loop, so it must be safe for concurrent use.
+	// It may take as long as a database read, but must never wait on the
+	// match.
 	ChatRefusal func(userID string) string
 }
 
