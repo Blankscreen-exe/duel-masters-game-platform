@@ -32,7 +32,8 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 - **Fix:** Make it a per-match counter field (for example `nextPersistentEffectID int` on `Match`). It is only touched from that match's event loop.
 - **Test:** Run two scenario matches in parallel that each add persistent effects, under `-race`.
 
-### [ ] 3. `BreakShields` can index an empty slice (Verified)
+### [x] 3. `BreakShields` can index an empty slice (Verified)
+- **Status:** Fixed. A break an effect has taken every shield out of ends there, with nothing broken and nothing reported. Tests: `game/match/break_shields_test.go`, which also checks that the shields an effect leaves are still broken.
 - **Where:** `game/match/match.go:310-314`
 - **Problem:** `shields := event.Cards` and then `shields[0]`. Handlers may shrink `event.Cards`. Mecha del Sol and Initiate avoid leaving it empty by cancelling the event themselves, but the engine itself does not check.
 - **Fix:** `if len(shields) == 0 { return }` after the cancel check.

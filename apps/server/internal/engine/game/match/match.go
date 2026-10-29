@@ -404,6 +404,10 @@ func (m *Match) BreakShields(attemptedShields []*Card, source *Card) {
 		return
 	}
 	shields := event.Cards
+	// An effect may take every shield out of the break without cancelling it.
+	if len(shields) == 0 {
+		return
+	}
 
 	m.ReportActionInChat(shields[0].Player, fmt.Sprintf("%v of %v's shields were broken", len(shields), m.PlayerRef(shields[0].Player).Socket.User.Username))
 
