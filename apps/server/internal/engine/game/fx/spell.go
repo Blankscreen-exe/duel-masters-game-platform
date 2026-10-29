@@ -59,6 +59,7 @@ func Spell(card *match.Card, ctx *match.Context) {
 
 			ctx.Match.NewAction(
 				card.Player,
+				match.PromptPayMana,
 				untappedMana,
 				manaCost,
 				manaCost,

@@ -32,6 +32,9 @@ type Match struct {
 	Player2           *PlayerReference                         `json:"-"`
 	spectators        internal.ConcurrentDictionary[Spectator] `json:"-"`
 	persistentEffects map[int]PersistentEffect
+	// effectSources are the cards whose effects are running, innermost last;
+	// see effectSource. Only used on the match's event loop.
+	effectSources []*Card
 	// lastPersistentEffectID is the key of the persistent effect added last.
 	// Like persistentEffects, it is only used on the match's event loop.
 	lastPersistentEffectID int
@@ -476,6 +479,7 @@ func (m *Match) ResolveShieldTriggers(shieldTriggers []*Card, source *Card) {
 
 		m.NewActionFullList(
 			player,
+			PromptShieldTrigger,
 			playableShieldTriggers,
 			1,
 			1,
@@ -1004,11 +1008,18 @@ func (m *Match) HandleFx(ctx *Context) {
 
 	}
 
+	// Each effect runs as its card's (effectSource), back to the effects
+	// running before once this event is handled.
+	depth := len(m.effectSources)
+	defer m.leaveEffect(depth)
+
 	// Handle persistent effects
 	for _, fx := range m.persistentEffects {
 		if m.IsEnding() {
 			return
 		}
+		m.leaveEffect(depth)
+		m.enterEffect(fx.source)
 		fx.effect(ctx, fx.exit)
 	}
 
@@ -1021,13 +1032,17 @@ func (m *Match) HandleFx(ctx *Context) {
 				return
 			}
 
+			m.leaveEffect(depth)
+			m.enterEffect(card)
 			h(card, ctx)
 
 		}
 
 	}
+	m.leaveEffect(depth)
 
-	// Handle ctx.ScheduleAfter effects
+	// Handle ctx.ScheduleAfter effects, each run as the effect of the card
+	// that scheduled it.
 	for _, h := range ctx.postFxs {
 
 		if ctx.cancel || m.IsEnding() {
@@ -1048,13 +1063,14 @@ func (m *Match) HandleFx(ctx *Context) {
 }
 
 // NewAction prompts the user to make a selection of the specified []Cards
-func (m *Match) NewAction(player *Player, cards []*Card, minSelections int, maxSelections int, text string, cancellable bool) {
-	m.NewActionFullList(player, cards, minSelections, maxSelections, text, cancellable, nil)
+func (m *Match) NewAction(player *Player, kind PromptKind, cards []*Card, minSelections int, maxSelections int, text string, cancellable bool) {
+	m.NewActionFullList(player, kind, cards, minSelections, maxSelections, text, cancellable, nil)
 }
 
-func (m *Match) NewActionFullList(player *Player, cards []*Card, minSelections int, maxSelections int, text string, cancellable bool, unselectableCards []*Card) {
+func (m *Match) NewActionFullList(player *Player, kind PromptKind, cards []*Card, minSelections int, maxSelections int, text string, cancellable bool, unselectableCards []*Card) {
 
 	msg := &server.ActionMessage{
+		PromptAbout:       m.promptAbout(player, kind, cards),
 		Header:            "action",
 		Cards:             denormalizeCards(cards, false),
 		Text:              text,
@@ -1069,9 +1085,10 @@ func (m *Match) NewActionFullList(player *Player, cards []*Card, minSelections i
 }
 
 // NewBacksideAction prompts the user to make a selection of the specified cards without their names or images
-func (m *Match) NewBacksideAction(player *Player, cards []*Card, minSelections int, maxSelections int, text string, cancellable bool) {
+func (m *Match) NewBacksideAction(player *Player, kind PromptKind, cards []*Card, minSelections int, maxSelections int, text string, cancellable bool) {
 
 	msg := &server.ActionMessage{
+		PromptAbout:   m.promptAbout(player, kind, cards),
 		Header:        "action",
 		Cards:         denormalizeCards(cards, true),
 		Text:          text,
@@ -1085,24 +1102,27 @@ func (m *Match) NewBacksideAction(player *Player, cards []*Card, minSelections i
 }
 
 // NewMultipartAction prompts the user to make a selection of the specified {string: []Cards}
-func (m *Match) NewMultipartAction(player *Player, cards map[string][]*Card, minSelections int, maxSelections int, text string, cancellable bool) {
-	m.newMultipartActionBase(player, cards, minSelections, maxSelections, text, cancellable, false)
+func (m *Match) NewMultipartAction(player *Player, kind PromptKind, cards map[string][]*Card, minSelections int, maxSelections int, text string, cancellable bool) {
+	m.newMultipartActionBase(player, kind, cards, minSelections, maxSelections, text, cancellable, false)
 }
 
 // NewMultipartAction prompts the user to make a selection of the specified {string: []Cards}
-func (m *Match) NewMultipartActionBackside(player *Player, cards map[string][]*Card, minSelections int, maxSelections int, text string, cancellable bool) {
-	m.newMultipartActionBase(player, cards, minSelections, maxSelections, text, cancellable, true)
+func (m *Match) NewMultipartActionBackside(player *Player, kind PromptKind, cards map[string][]*Card, minSelections int, maxSelections int, text string, cancellable bool) {
+	m.newMultipartActionBase(player, kind, cards, minSelections, maxSelections, text, cancellable, true)
 }
 
-func (m *Match) newMultipartActionBase(player *Player, cards map[string][]*Card, minSelections int, maxSelections int, text string, cancellable bool, backsideOnly bool) {
+func (m *Match) newMultipartActionBase(player *Player, kind PromptKind, cards map[string][]*Card, minSelections int, maxSelections int, text string, cancellable bool, backsideOnly bool) {
 
 	cardMap := make(map[string][]server.CardState)
+	offered := make([]*Card, 0)
 
 	for key, cards := range cards {
 		cardMap[key] = denormalizeCards(cards, backsideOnly)
+		offered = append(offered, cards...)
 	}
 
 	msg := &server.MultipartActionMessage{
+		PromptAbout:   m.promptAbout(player, kind, offered),
 		Header:        "action",
 		Cards:         cardMap,
 		Text:          text,
@@ -1116,9 +1136,10 @@ func (m *Match) newMultipartActionBase(player *Player, cards map[string][]*Card,
 }
 
 // NewCountAction prompts the user to select a number in an interval
-func (m *Match) NewCountAction(player *Player, text string, minSelections int, maxSelections int) {
+func (m *Match) NewCountAction(player *Player, kind PromptKind, text string, minSelections int, maxSelections int) {
 
 	msg := &server.ActionMessage{
+		PromptAbout:   m.promptAbout(player, kind, nil),
 		Header:        "action",
 		ActionType:    "count",
 		Text:          text,
@@ -1131,25 +1152,27 @@ func (m *Match) NewCountAction(player *Player, text string, minSelections int, m
 }
 
 // NewQuestionAction prompts the user to answer a yes/no question
-func (m *Match) NewQuestionAction(player *Player, text string) {
+func (m *Match) NewQuestionAction(player *Player, kind PromptKind, text string) {
 
 	msg := &server.ActionMessage{
-		Header:     "action",
-		ActionType: "question",
-		Text:       text,
+		PromptAbout: m.promptAbout(player, kind, nil),
+		Header:      "action",
+		ActionType:  "question",
+		Text:        text,
 	}
 
 	m.ask(player, msg)
 
 }
 
-func (m *Match) NewOrderAction(player *Player, cards []*Card, text string) {
+func (m *Match) NewOrderAction(player *Player, kind PromptKind, cards []*Card, text string) {
 
 	msg := &server.ActionMessage{
-		Header:     "action",
-		ActionType: "order",
-		Cards:      denormalizeCards(cards, false),
-		Text:       text,
+		PromptAbout: m.promptAbout(player, kind, cards),
+		Header:      "action",
+		ActionType:  "order",
+		Cards:       denormalizeCards(cards, false),
+		Text:        text,
 	}
 
 	m.ask(player, msg)
@@ -1157,13 +1180,14 @@ func (m *Match) NewOrderAction(player *Player, cards []*Card, text string) {
 }
 
 // NewMultipleChoiceQuestionAction prompts the user to answer a yes/no question
-func (m *Match) NewMultipleChoiceQuestionAction(player *Player, text string, choices []string) {
+func (m *Match) NewMultipleChoiceQuestionAction(player *Player, kind PromptKind, text string, choices []string) {
 
 	msg := &server.ActionMessage{
-		Header:     "action",
-		ActionType: "question",
-		Text:       text,
-		Choices:    choices,
+		PromptAbout: m.promptAbout(player, kind, nil),
+		Header:      "action",
+		ActionType:  "question",
+		Text:        text,
+		Choices:     choices,
 	}
 
 	m.ask(player, msg)
@@ -1172,13 +1196,14 @@ func (m *Match) NewMultipleChoiceQuestionAction(player *Player, text string, cho
 
 // NewMultipleChoiceSearchableAction prompts the user to select an option
 // from a multiple choice selection with a search and scrollable bar
-func (m *Match) NewMultipleChoiceSearchableAction(player *Player, text string, choices []string) {
+func (m *Match) NewMultipleChoiceSearchableAction(player *Player, kind PromptKind, text string, choices []string) {
 
 	msg := &server.ActionMessage{
-		Header:     "action",
-		ActionType: "searchable",
-		Text:       text,
-		Choices:    choices,
+		PromptAbout: m.promptAbout(player, kind, nil),
+		Header:      "action",
+		ActionType:  "searchable",
+		Text:        text,
+		Choices:     choices,
 	}
 
 	m.ask(player, msg)

@@ -94,9 +94,10 @@ func handleEvolutionEvents(card *match.Card, ctx *match.Context, evolvableCreatu
 			return
 		}
 
-		creatures := SelectFilter(
+		creatures := selectFilter(
 			card.Player,
 			ctx.Match,
+			match.PromptEvolve,
 			card.Player,
 			match.BATTLEZONE,
 			fmt.Sprintf("Choose one %s to evolve %s from", cardFamilies, card.Name),

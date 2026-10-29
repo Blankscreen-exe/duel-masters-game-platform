@@ -212,9 +212,32 @@ type Prompting interface {
 	Number(id int)
 }
 
+// PromptSource is the card whose effect asks a question.
+type PromptSource struct {
+	CardID  string `json:"virtualId"`
+	ImageID string `json:"uid"`
+	Name    string `json:"name"`
+}
+
+// PromptAbout says what a question is about, for programs that answer
+// questions as a player does, such as the computer opponent, which cannot go
+// by the words meant for people.
+type PromptAbout struct {
+	// Kind is what is asked, such as paying mana or blocking; "effect" for
+	// a question a card's effect asks. See match.PromptKind.
+	Kind string `json:"kind,omitempty"`
+	// Source is the card whose effect asks, when the player asked may know
+	// it: their own card, or one in a zone both players can see.
+	Source *PromptSource `json:"source,omitempty"`
+	// OpponentCards lists, by virtualId, the cards offered that belong to the
+	// opponent of the player asked; the others are their own.
+	OpponentCards []string `json:"opponentCards,omitempty"`
+}
+
 // ActionMessage is used to prompt the user to make a selection of the specified cards
 type ActionMessage struct {
 	Prompt
+	PromptAbout
 	Header            string      `json:"header"`
 	ActionType        string      `json:"actionType"`
 	Cards             []CardState `json:"cards"`
@@ -229,6 +252,7 @@ type ActionMessage struct {
 // MultipartActionMessage is used to prompt the user to make a selection of the specified cards
 type MultipartActionMessage struct {
 	Prompt
+	PromptAbout
 	Header        string                 `json:"header"`
 	Cards         map[string][]CardState `json:"cards"`
 	Text          string                 `json:"text"`

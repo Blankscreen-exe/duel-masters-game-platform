@@ -73,6 +73,7 @@ func Creature(card *match.Card, ctx *match.Context) {
 
 			ctx.Match.NewAction(
 				card.Player,
+				match.PromptPayMana,
 				untappedMana,
 				manaCost,
 				manaCost,
@@ -167,9 +168,10 @@ func Creature(card *match.Card, ctx *match.Context) {
 				// Only for cards that have a specific effect that needs Attack Confirmation BEFORE Selecting Shields
 				// Prompt the user for confirmation of attack player sequence
 				// After this step, user will NOT be able to cancel the attack player sequence anymore
-				if BinaryQuestion(
+				if binaryQuestion(
 					card.Player,
 					ctx.Match,
+					match.PromptConfirmAttack,
 					fmt.Sprintf("Do you CONFIRM to Attack your Opponent? This is irreversible and cannot be cancelled afterwards.\r\nYou will be prompted to select shields after %s's effect will be resolved.", card.Name),
 				) {
 					if !tapCardAndConfirmAttack(card, ctx, true, func() { event.Confirmed = true }) {
@@ -251,7 +253,7 @@ func Creature(card *match.Card, ctx *match.Context) {
 
 			attackedCreatures := make([]*match.Card, 0)
 
-			ctx.Match.NewAction(card.Player, event.AttackableCreatures, 1, 1, "Select the creature to attack", true)
+			ctx.Match.NewAction(card.Player, match.PromptAttackTarget, event.AttackableCreatures, 1, 1, "Select the creature to attack", true)
 
 			for {
 
@@ -322,7 +324,7 @@ func Creature(card *match.Card, ctx *match.Context) {
 				if len(event.Blockers) > 0 && card.IsBlockable(ctx) {
 					ctx.Match.Wait(card.Player, "Waiting for your opponent to make an action")
 
-					ctx.Match.NewAction(opponent, event.Blockers, 1, 1, fmt.Sprintf("%s (%v) is attacking you. Choose a creature to block the attack with or close to not block the attack.", card.Name, ctx.Match.GetPower(card, true)), true)
+					ctx.Match.NewAction(opponent, match.PromptBlock, event.Blockers, 1, 1, fmt.Sprintf("%s (%v) is attacking you. Choose a creature to block the attack with or close to not block the attack.", card.Name, ctx.Match.GetPower(card, true)), true)
 
 					for {
 						action := opponent.NextAction()
@@ -403,7 +405,7 @@ func Creature(card *match.Card, ctx *match.Context) {
 				if len(event.Blockers) > 0 && card.IsBlockable(ctx) {
 					ctx.Match.Wait(card.Player, "Waiting for your opponent to make an action")
 
-					ctx.Match.NewAction(opponent, event.Blockers, 1, 1, fmt.Sprintf("%s (%v) is attacking %s (%v). Choose a creature to block the attack with or close to not block the attack.", card.Name, ctx.Match.GetPower(card, true), attackedCard.Name, ctx.Match.GetPower(attackedCard, false)), true)
+					ctx.Match.NewAction(opponent, match.PromptBlock, event.Blockers, 1, 1, fmt.Sprintf("%s (%v) is attacking %s (%v). Choose a creature to block the attack with or close to not block the attack.", card.Name, ctx.Match.GetPower(card, true), attackedCard.Name, ctx.Match.GetPower(attackedCard, false)), true)
 
 					for {
 						action := opponent.NextAction()
@@ -517,6 +519,7 @@ func Creature(card *match.Card, ctx *match.Context) {
 
 				ctx.Match.NewAction(
 					card.Player,
+					match.PromptTapAbility,
 					tapConditionsSourceCards,
 					1,
 					1,
@@ -698,7 +701,7 @@ func SelectAndReturnShields(card *match.Card, ctx *match.Context, cancellable bo
 
 	shieldsAttacked := make([]*match.Card, 0)
 
-	ctx.Match.NewBacksideAction(card.Player, shieldzone, noOfShields, noOfShields, fmt.Sprintf("Select %v shield(s) to break", noOfShields), cancellable)
+	ctx.Match.NewBacksideAction(card.Player, match.PromptBreakShields, shieldzone, noOfShields, noOfShields, fmt.Sprintf("Select %v shield(s) to break", noOfShields), cancellable)
 
 	for {
 		action := card.Player.NextAction()

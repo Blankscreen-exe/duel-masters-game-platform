@@ -26,9 +26,13 @@ func NewContext(m *Match, e interface{}) *Context {
 }
 
 // ScheduleAfter allows you to run the logic at the end of the context flow,
-// after the default behaviour
+// after the default behaviour. Each handler runs as an effect of the card
+// whose effect scheduled it.
 func (c *Context) ScheduleAfter(handlers ...func()) {
-	c.postFxs = append(c.postFxs, handlers...)
+	source := c.Match.effectSource()
+	for _, h := range handlers {
+		c.postFxs = append(c.postFxs, c.Match.asEffectOf(source, h))
+	}
 }
 
 // InterruptFlow stops the context flow, cancelling the default behaviour

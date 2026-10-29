@@ -95,8 +95,9 @@ computer running at once, so a busy evening cannot overload the server.
 
 ## Build order
 
-1. **The engine says what each question is about.** Every question gets its kind and whose cards
-   it offers.
+1. **The engine says what each question is about** (done). Every question tells its kind, the
+   card whose effect asks when the player may know it, and which cards offered are the
+   opponent's (`server.PromptAbout`).
 2. **The computer plays a whole game.** Rules of thumb and scoring, in Go, tested by having it play
    complete games against itself with each starting deck: every game must finish, with no stalled
    questions, under the race detector.

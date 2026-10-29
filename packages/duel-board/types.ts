@@ -221,7 +221,35 @@ export enum ActionType {
 }
 
 // ActionMessage is used to prompt the user to make a selection of the specified cards
-export interface ActionMessage {
+/** The kind of a question, as the engine tells it (match.PromptKind). */
+export type PromptKind =
+  | "effect"
+  | "pay_mana"
+  | "attack_target"
+  | "confirm_attack"
+  | "break_shields"
+  | "block"
+  | "shield_trigger"
+  | "evolve"
+  | "tap_ability";
+
+/** The card whose effect asks a question. */
+export interface PromptSource {
+  virtualId: string;
+  uid: string;
+  name: string;
+}
+
+/** What a question is about, for programs that answer as a player does. */
+export interface PromptAbout {
+  kind?: PromptKind;
+  /** Told only when the player asked may know the card. */
+  source?: PromptSource;
+  /** The offered cards, by virtualId, that are the opponent's. */
+  opponentCards?: string[];
+}
+
+export interface ActionMessage extends PromptAbout {
   header: string;
   /** The question's number, which its answer names. Absent from a preview
    * that only shows cards and waits for nothing. */
@@ -241,7 +269,7 @@ export interface ActionMessage {
 }
 
 // MultipartActionMessage is used to prompt the user to make a selection of the specified cards
-export interface MultipartActionMessage {
+export interface MultipartActionMessage extends PromptAbout {
   header: string;
   cards: Record<string, CardState[]>;
   text: string;

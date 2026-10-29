@@ -158,7 +158,7 @@ func Select(p *match.Player, m *match.Match, containerOwner *match.Player, conta
 func SelectCount(p *match.Player, m *match.Match, text string, min int, max int) int {
 	result := 0
 
-	m.NewCountAction(p, text, min, max)
+	m.NewCountAction(p, match.PromptEffect, text, min, max)
 
 	defer m.CloseAction(p)
 
@@ -185,8 +185,15 @@ func SelectCount(p *match.Player, m *match.Match, text string, min int, max int)
 	return result
 }
 
+// BinaryQuestion asks the player a yes or no question, answered yes unless
+// they cancel.
 func BinaryQuestion(p *match.Player, m *match.Match, text string) bool {
-	m.NewQuestionAction(p, text)
+	return binaryQuestion(p, m, match.PromptEffect, text)
+}
+
+// binaryQuestion is BinaryQuestion, telling what the question is about.
+func binaryQuestion(p *match.Player, m *match.Match, kind match.PromptKind, text string) bool {
+	m.NewQuestionAction(p, kind, text)
 
 	defer m.CloseAction(p)
 
@@ -212,7 +219,7 @@ func OrderCards(p *match.Player, m *match.Match, cards []*match.Card, text strin
 		return cardsIds
 	}
 
-	m.NewOrderAction(p, cards, text)
+	m.NewOrderAction(p, match.PromptEffect, cards, text)
 	defer m.CloseAction(p)
 
 	if !m.IsPlayerTurn(p) {
@@ -256,7 +263,7 @@ func OrderCards(p *match.Player, m *match.Match, cards []*match.Card, text strin
 func MultipleChoiceQuestion(p *match.Player, m *match.Match, text string, options []string) int {
 	result := 0
 
-	m.NewMultipleChoiceQuestionAction(p, text, options)
+	m.NewMultipleChoiceQuestionAction(p, match.PromptEffect, text, options)
 
 	defer m.CloseAction(p)
 
@@ -288,7 +295,7 @@ func MultipleChoiceQuestion(p *match.Player, m *match.Match, text string, option
 func MultipleChoiceSearchable(p *match.Player, m *match.Match, text string, options []string) int {
 	result := 0
 
-	m.NewMultipleChoiceSearchableAction(p, text, options)
+	m.NewMultipleChoiceSearchableAction(p, match.PromptEffect, text, options)
 
 	defer m.CloseAction(p)
 
@@ -318,6 +325,11 @@ func MultipleChoiceSearchable(p *match.Player, m *match.Match, text string, opti
 // SelectFilter prompts the user to select n cards from the specified container that matches the given filter.
 // It also allows to show all the other cards from the container that are unselectable
 func SelectFilter(p *match.Player, m *match.Match, containerOwner *match.Player, containerName string, text string, min int, max int, cancellable bool, filter func(*match.Card) bool, showUnselectables bool) CardCollection {
+	return selectFilter(p, m, match.PromptEffect, containerOwner, containerName, text, min, max, cancellable, filter, showUnselectables)
+}
+
+// selectFilter is SelectFilter, telling what the question is about.
+func selectFilter(p *match.Player, m *match.Match, kind match.PromptKind, containerOwner *match.Player, containerName string, text string, min int, max int, cancellable bool, filter func(*match.Card) bool, showUnselectables bool) CardCollection {
 
 	result := make([]*match.Card, 0)
 
@@ -377,7 +389,7 @@ func SelectFilter(p *match.Player, m *match.Match, containerOwner *match.Player,
 		defer m.EndWait(m.Opponent(p))
 	}
 
-	m.NewActionFullList(p, filtered, min, max, text, cancellable, unselectables)
+	m.NewActionFullList(p, kind, filtered, min, max, text, cancellable, unselectables)
 
 	defer m.CloseAction(p)
 
@@ -489,9 +501,9 @@ func selectMultipartBase(p *match.Player, m *match.Match, cards map[string][]*ma
 	}
 
 	if backsideOnly {
-		m.NewMultipartActionBackside(p, cards, min, max, text, cancellable)
+		m.NewMultipartActionBackside(p, match.PromptEffect, cards, min, max, text, cancellable)
 	} else {
-		m.NewMultipartAction(p, cards, min, max, text, cancellable)
+		m.NewMultipartAction(p, match.PromptEffect, cards, min, max, text, cancellable)
 	}
 
 	if !m.IsPlayerTurn(p) {
@@ -579,7 +591,7 @@ func SelectBacksideFilter(p *match.Player, m *match.Match, containerOwner *match
 		defer m.EndWait(m.Opponent(p))
 	}
 
-	m.NewBacksideAction(p, filtered, min, max, text, cancellable)
+	m.NewBacksideAction(p, match.PromptEffect, filtered, min, max, text, cancellable)
 
 	defer m.CloseAction(p)
 

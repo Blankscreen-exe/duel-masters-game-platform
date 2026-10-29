@@ -5,6 +5,9 @@ type PersistentHandlerFunc func(ctx2 *Context, exit func())
 type PersistentEffect struct {
 	exit   func()
 	effect PersistentHandlerFunc
+	// source is the card whose effect added it, which it runs as; nil for
+	// one added by the rules themselves.
+	source *Card
 }
 
 // ApplyPersistentEffect adds an effect that sees every event of the match
@@ -17,6 +20,7 @@ func (match *Match) ApplyPersistentEffect(f PersistentHandlerFunc) {
 	fx := PersistentEffect{
 		exit:   func() { match.RemovePersistentEffect(key) },
 		effect: f,
+		source: match.effectSource(),
 	}
 
 	match.persistentEffects[key] = fx
