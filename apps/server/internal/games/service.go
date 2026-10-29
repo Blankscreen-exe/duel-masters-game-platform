@@ -12,10 +12,12 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/match"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/server"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratelimit"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
@@ -42,9 +44,10 @@ var MinimumCountedDuration = settings.Number{
 	Max:         1800,
 }
 
-// Settings are the settings this feature declares.
+// Settings are the settings this feature declares. The chat in games also
+// follows the chat's own settings (chat.Settings), which must be declared too.
 func Settings() []settings.Definition {
-	return []settings.Definition{DisconnectGrace, MinimumCountedDuration}
+	return []settings.Definition{DisconnectGrace, MinimumCountedDuration, MessagesPerSecond, MessageBurst}
 }
 
 // Why a game ended without a winner, as its players are told.
@@ -201,6 +204,9 @@ type Service struct {
 	rater     Rater
 	logger    *slog.Logger
 	system    *match.MatchSystem
+	// chatPosts limits how fast each player chats in games, all their games
+	// together, as fast as in the lobby chat but counted on its own.
+	chatPosts *ratelimit.Limiter
 
 	mu        sync.Mutex
 	live      map[string]*liveGame
@@ -229,6 +235,7 @@ func NewService(db *gorm.DB, catalogue *cards.Catalogue, siteSettings *settings.
 		live:        map[string]*liveGame{},
 		connections: map[string]map[*connection]struct{}{},
 		results:     make(chan finished, resultQueue),
+		chatPosts:   ratelimit.NewLive(chat.PostLimits(siteSettings), time.Now),
 	}
 	s.system = match.NewSystem(match.SystemOptions{Observer: s})
 
@@ -348,6 +355,7 @@ func (s *Service) Start(ctx context.Context, input StartInput) (Game, error) {
 		TossCaller:             input.TossCaller,
 		MinimumCountedDuration: time.Duration(s.settings.Number(MinimumCountedDuration)) * time.Second,
 		DisconnectGrace:        time.Duration(s.settings.Number(DisconnectGrace)) * time.Second,
+		ChatRefusal:            s.chatRefusal,
 	})
 	if err != nil {
 		return Game{}, fmt.Errorf("starting a game: %w", err)
@@ -445,13 +453,23 @@ func (s *Service) Connect(conn server.Connection, user users.User, gameID string
 		return ErrNotFound
 	}
 
-	open := s.track(user.ID, conn)
+	paced := newPacedConnection(conn, s.settings)
+	open := s.track(user.ID, paced)
 	defer s.untrack(user.ID, open)
 
 	// The engine takes the connection over until it closes; the duel board
 	// joins with its first message.
-	server.NewSocket(conn, live.match, user.ID, user.Username).Listen()
+	server.NewSocket(paced, live.match, user.ID, user.Username).Listen()
 	return nil
+}
+
+// chatRefusal tells a player chatting in a game faster than the chat
+// settings allow to wait, and lets everyone else's message through.
+func (s *Service) chatRefusal(userID string) string {
+	if allowed, retryAfter := s.chatPosts.Take(userID); !allowed {
+		return (&chat.TooFastError{RetryAfter: retryAfter}).Refusal()
+	}
+	return ""
 }
 
 // connection is an open connection to a game.

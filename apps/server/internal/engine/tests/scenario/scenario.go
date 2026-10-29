@@ -20,7 +20,8 @@ type TestScenario struct {
 type Option func(*scenarioConfig)
 
 type scenarioConfig struct {
-	deck []string
+	deck        []string
+	chatRefusal func(userID string) string
 }
 
 type DeckEntry struct {
@@ -39,6 +40,14 @@ func WithDeck(entries ...DeckEntry) Option {
 		}
 
 		opts.deck = deck
+	}
+}
+
+// WithChatRefusal asks refusal about every chat message, as the server does
+// to limit how fast players chat (match.Options.ChatRefusal).
+func WithChatRefusal(refusal func(userID string) string) Option {
+	return func(opts *scenarioConfig) {
+		opts.chatRefusal = refusal
 	}
 }
 
@@ -67,6 +76,11 @@ func DefaultDeck() []string {
 func New(options ...Option) *TestScenario {
 	RegisterCards()
 
+	config := scenarioConfig{deck: defaultDeck()}
+	for _, option := range options {
+		option(&config)
+	}
+
 	matchSystem := match.NewSystem(match.SystemOptions{})
 	m, err := matchSystem.NewMatch(match.Options{
 		Name:            "test-scenario",
@@ -74,14 +88,10 @@ func New(options ...Option) *TestScenario {
 		Guest:           match.Seat{ID: "2", Username: "Player2"},
 		Visible:         true,
 		DisconnectGrace: scenarioDisconnectGrace,
+		ChatRefusal:     config.chatRefusal,
 	})
 	if err != nil {
 		panic(err)
-	}
-
-	config := scenarioConfig{deck: defaultDeck()}
-	for _, option := range options {
-		option(&config)
 	}
 
 	p1Conn := NewMockConnection()
@@ -803,6 +813,15 @@ func (s *TestScenario) Warnings(player *match.PlayerReference, since int) ([]str
 	}
 
 	return warnings, nil
+}
+
+// SendChat sends a chat message from the player, as the duel board does.
+// Chat runs beside the event loop; wait for what it sends with WaitForMessage.
+func (s *TestScenario) SendChat(player *match.PlayerReference, text string) error {
+	return s.send(player, struct {
+		Header  string `json:"header"`
+		Message string `json:"message"`
+	}{Header: "chat", Message: text})
 }
 
 // ChatMessages returns the text of every chat message the player received since

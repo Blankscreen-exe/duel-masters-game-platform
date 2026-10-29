@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
@@ -187,6 +188,35 @@ func TestAGameIsPlayedAndSaved(t *testing.T) {
 		assert.Empty(t, f.games.Games(), "no longer running")
 		_, ok := f.games.PlayingIn(f.shobu.ID)
 		assert.False(t, ok)
+	})
+}
+
+func TestChattingInAGameTooFastIsRefused(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		_, err := f.settings.Set(ctx, chat.PostsAllowed.Key, "2")
+		require.NoError(t, err)
+		_, err = f.settings.Set(ctx, chat.PostWindow.Key, "60")
+		require.NoError(t, err)
+
+		shobu, kokujo := gamestest.Play(t, f.games, f.start(t, true, true))
+		spam := []string{"gg 1", "gg 2", "gg 3"}
+		for _, text := range spam {
+			shobu.Say(map[string]any{"header": "chat", "message": text})
+		}
+
+		shobu.WaitForChat(t, "You are posting too fast. Wait 60 seconds.")
+		shown := func() []string {
+			return slices.DeleteFunc(kokujo.Chats(), func(text string) bool { return !slices.Contains(spam, text) })
+		}
+		require.Eventually(t, func() bool { return len(shown()) == 2 }, waitTimeout, 5*time.Millisecond,
+			"the opponent sees the two messages allowed")
+		assert.NotContains(t, kokujo.Chats(), "You are posting too fast. Wait 60 seconds.", "only the sender is told")
+
+		kokujo.Say(map[string]any{"header": "chat", "message": "calm down"})
+		shobu.WaitForChat(t, "calm down")
+		assert.Len(t, shown(), 2, "the refused message never reached the opponent")
 	})
 }
 

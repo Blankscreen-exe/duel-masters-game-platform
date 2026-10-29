@@ -29,6 +29,12 @@ type Options struct {
 	// DisconnectGrace is how long a disconnected player has to come back
 	// before losing. It must be positive.
 	DisconnectGrace time.Duration
+	// ChatRefusal, when set, is asked about every chat message sent in the
+	// match, by the id of whoever sent it. A non-empty answer refuses the
+	// message: nobody sees it, and its sender alone is shown the answer. It
+	// is called on socket goroutines, so it must be safe for concurrent use,
+	// and must not block.
+	ChatRefusal func(userID string) string
 }
 
 // Ending is how a game ended. The values are part of the messages sent to the

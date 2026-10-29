@@ -10,12 +10,17 @@ import (
 	"time"
 )
 
+// Limits are how many attempts a limiter allows per key in each window.
+type Limits struct {
+	Attempts int
+	Window   time.Duration
+}
+
 // Limiter allows at most a number of attempts per key in each window. A key's
 // window starts with its first attempt. It is safe for concurrent use.
 type Limiter struct {
-	maxAttempts int
-	window      time.Duration
-	now         func() time.Time
+	limits func() Limits
+	now    func() time.Time
 
 	mu      sync.Mutex
 	windows map[string]*window
@@ -32,12 +37,19 @@ type window struct {
 // New returns a limiter allowing maxAttempts per window of the given length.
 // now is the clock; pass time.Now outside tests.
 func New(maxAttempts int, length time.Duration, now func() time.Time) *Limiter {
+	return NewLive(func() Limits { return Limits{Attempts: maxAttempts, Window: length} }, now)
+}
+
+// NewLive returns a limiter that asks limits for its limits at every attempt,
+// so a change, such as an admin changing a setting, applies at once. A window
+// already begun keeps its end, and counts against the new number of attempts.
+// limits must be safe for concurrent use and must not call the limiter.
+func NewLive(limits func() Limits, now func() time.Time) *Limiter {
 	return &Limiter{
-		maxAttempts: maxAttempts,
-		window:      length,
-		now:         now,
-		windows:     make(map[string]*window),
-		lastSweep:   now(),
+		limits:    limits,
+		now:       now,
+		windows:   make(map[string]*window),
+		lastSweep: now(),
 	}
 }
 
@@ -49,7 +61,7 @@ func (l *Limiter) Allowed(key string) (allowed bool, retryAfter time.Duration) {
 
 	now := l.now()
 	current := l.active(key, now)
-	if current == nil || current.attempts < l.maxAttempts {
+	if current == nil || current.attempts < l.limits().Attempts {
 		return true, 0
 	}
 
@@ -62,14 +74,15 @@ func (l *Limiter) Record(key string) {
 	defer l.mu.Unlock()
 
 	now := l.now()
-	l.sweep(now)
+	limits := l.limits()
+	l.sweep(now, limits.Window)
 
 	if current := l.active(key, now); current != nil {
 		current.attempts++
 		return
 	}
 
-	l.windows[key] = &window{attempts: 1, resetsAt: now.Add(l.window)}
+	l.windows[key] = &window{attempts: 1, resetsAt: now.Add(limits.Window)}
 }
 
 // Take counts an attempt by key if one is allowed, in one step, so attempts
@@ -80,14 +93,15 @@ func (l *Limiter) Take(key string) (allowed bool, retryAfter time.Duration) {
 	defer l.mu.Unlock()
 
 	now := l.now()
-	l.sweep(now)
+	limits := l.limits()
+	l.sweep(now, limits.Window)
 
 	current := l.active(key, now)
 	if current == nil {
-		l.windows[key] = &window{attempts: 1, resetsAt: now.Add(l.window)}
+		l.windows[key] = &window{attempts: 1, resetsAt: now.Add(limits.Window)}
 		return true, 0
 	}
-	if current.attempts >= l.maxAttempts {
+	if current.attempts >= limits.Attempts {
 		return false, current.resetsAt.Sub(now)
 	}
 
@@ -119,8 +133,8 @@ func (l *Limiter) active(key string, now time.Time) *window {
 
 // sweep removes ended windows at most once per window length, so memory stays
 // bounded by the keys attempted within one window. The caller holds mu.
-func (l *Limiter) sweep(now time.Time) {
-	if now.Sub(l.lastSweep) < l.window {
+func (l *Limiter) sweep(now time.Time, length time.Duration) {
+	if now.Sub(l.lastSweep) < length {
 		return
 	}
 

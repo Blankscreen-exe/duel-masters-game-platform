@@ -15,6 +15,7 @@ require (
 	github.com/ventu-io/go-shortid v0.0.0-20171029131806-771a37caa5cf
 	golang.org/x/crypto v0.58.0
 	golang.org/x/text v0.43.0
+	golang.org/x/time v0.16.0
 	gorm.io/driver/postgres v1.6.3
 	gorm.io/gorm v1.31.2
 )

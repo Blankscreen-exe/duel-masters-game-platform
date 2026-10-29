@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/clocktest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
@@ -116,7 +117,7 @@ func NewWorld(t *testing.T, db *gorm.DB, extra ...settings.Definition) *World {
 	ctx := context.Background()
 
 	catalogue, ids := gamestest.RealCards(t, db)
-	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), slices.Concat(lobby.Settings(), games.Settings(), decks.Settings(), ratings.Settings(), extra)...)
+	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), slices.Concat(lobby.Settings(), games.Settings(), chat.Settings(), decks.Settings(), ratings.Settings(), extra)...)
 	require.NoError(t, err)
 	formatService := formats.NewService(db)
 	list, err := formatService.List(ctx)

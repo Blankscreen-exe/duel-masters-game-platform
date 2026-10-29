@@ -141,7 +141,9 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 ### [x] 20. 512-byte websocket read limit (Verified)
 - **Status:** Fixed. The limit is 8 KB, above the largest real message: an action selecting every card in a game, about 80 ids of up to 36 characters. Test: `server/socket_test.go`.
 
-### [ ] 21. No per-socket rate limiting (Reported)
+### [x] 21. No per-socket rate limiting (Reported)
+- **Status:** Fixed in the server, before messages reach the engine. Each connection to a game passes its messages on at a steady pace (`internal/games/pace.go`): a burst at once, then a number a second, both admin settings (`games.message_burst`, `games.messages_per_second`). A message past the pace waits its turn rather than being dropped, so a flood slows down and nothing a player sends is lost. Chat in games is limited like the lobby chat, by the same settings (`chat.posts_allowed`, `chat.post_window_seconds`) but counted on its own: the engine asks `Options.ChatRefusal` about each message, and a refused one reaches nobody while its sender is told to wait. Tests: `internal/games/pace_test.go`, `TestChattingInAGameTooFastIsRefused`, `tests/chat_refusal_test.go`, `internal/chat`.
+- **Left:** the site's own live connection (`internal/realtime`) reads and discards what a browser sends, within 512 bytes a message, so it is not throttled.
 - **Where:** `Match.Parse` / `eventloop.schedule` spawns a goroutine per message. Chat is unthrottled.
 - **Fix:** Throttle per connection in the new server's `realtime/` layer, before messages reach the engine.
 

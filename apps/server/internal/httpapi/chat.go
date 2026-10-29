@@ -3,8 +3,6 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"fmt"
-	"math"
 	"time"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
@@ -43,9 +41,9 @@ func (h *handlers) PostChatMessage(ctx context.Context, request api.PostChatMess
 	}
 	var tooFast *chat.TooFastError
 	if errors.As(err, &tooFast) {
-		seconds := int(math.Ceil(tooFast.RetryAfter.Seconds()))
+		seconds := tooFast.Seconds()
 		return api.PostChatMessage429JSONResponse{TooFastJSONResponse: api.TooFastJSONResponse{
-			Body:    apiError(codeTooFast, fmt.Sprintf("You are posting too fast. Wait %d %s.", seconds, plural(seconds, "second", "seconds"))),
+			Body:    apiError(codeTooFast, tooFast.Refusal()),
 			Headers: api.TooFastResponseHeaders{RetryAfter: &seconds},
 		}}, nil
 	}

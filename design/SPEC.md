@@ -272,7 +272,8 @@ Every game, rematches included, starts with a coin toss that both players (and s
   the panel shows them grouped, checks values against their type and limits, and can reset one to
   its default. Changes apply without a restart. Starting settings: sign-ups open or closed, new
   games allowed or paused, rating speed, minimum game length for ratings, quick match rating range,
-  disconnect time limit, maximum decks per player.
+  disconnect time limit, maximum decks per player, how fast players may chat (lobby and games, each
+  counted on its own), and how fast a game connection may send moves (faster ones wait their turn).
 - **Backup**: export and import all data in one zip, as in Triple Triad, but with each table saved
   in a database-neutral format (not a SQLite file), so a backup from SQLite restores into
   PostgreSQL and the other way round.

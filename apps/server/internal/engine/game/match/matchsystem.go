@@ -144,6 +144,7 @@ func (s *MatchSystem) NewMatch(options Options) (*Match, error) {
 		tossCaller:             options.TossCaller,
 		minimumCountedDuration: options.MinimumCountedDuration,
 		disconnectGrace:        options.DisconnectGrace,
+		chatRefusal:            options.ChatRefusal,
 		disconnectTimers:       map[string]*time.Timer{},
 	}
 

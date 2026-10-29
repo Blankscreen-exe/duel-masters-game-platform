@@ -142,15 +142,35 @@ func (p *Pipe) WriteJSON(v any) error {
 // find returns the first message with the header, and a channel closed when
 // the next message arrives.
 func (p *Pipe) find(header string) (map[string]any, <-chan struct{}) {
+	return p.findWhere(func(message map[string]any) bool { return message["header"] == header })
+}
+
+// findWhere returns the first message matching, and a channel closed when the
+// next message arrives.
+func (p *Pipe) findWhere(matches func(map[string]any) bool) (map[string]any, <-chan struct{}) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	for _, message := range p.sent {
-		if message["header"] == header {
+		if matches(message) {
 			return message, nil
 		}
 	}
 	return nil, p.arrived
+}
+
+// Chats returns the text of every chat message the game has sent so far.
+func (p *Pipe) Chats() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var texts []string
+	for _, message := range p.sent {
+		if message["header"] == "chat" {
+			texts = append(texts, fmt.Sprint(message["message"]))
+		}
+	}
+	return texts
 }
 
 func (p *Pipe) Close() error {
@@ -181,9 +201,25 @@ func (p *Pipe) Say(message map[string]any) {
 func (p *Pipe) WaitFor(t *testing.T, header string) map[string]any {
 	t.Helper()
 
+	return p.waitWhere(t, fmt.Sprintf("a %q message", header), func(message map[string]any) bool { return message["header"] == header })
+}
+
+// WaitForChat waits for a chat message reading text and returns it.
+func (p *Pipe) WaitForChat(t *testing.T, text string) map[string]any {
+	t.Helper()
+
+	return p.waitWhere(t, fmt.Sprintf("the chat message %q", text), func(message map[string]any) bool {
+		return message["header"] == "chat" && message["message"] == text
+	})
+}
+
+// waitWhere waits for a message matching, described as what, and returns it.
+func (p *Pipe) waitWhere(t *testing.T, what string, matches func(map[string]any) bool) map[string]any {
+	t.Helper()
+
 	deadline := time.After(Timeout)
 	for {
-		message, arrived := p.find(header)
+		message, arrived := p.findWhere(matches)
 		if message != nil {
 			return message
 		}
@@ -191,7 +227,7 @@ func (p *Pipe) WaitFor(t *testing.T, header string) map[string]any {
 		select {
 		case <-arrived:
 		case <-deadline:
-			t.Fatalf("expected a %q message", header)
+			t.Fatalf("expected %s", what)
 			return nil
 		}
 	}

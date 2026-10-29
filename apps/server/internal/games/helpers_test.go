@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
@@ -135,7 +136,7 @@ func newFixture(t *testing.T, db *gorm.DB) fixture {
 
 	catalogue, ids := gamestest.RealCards(t, db)
 
-	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), slices.Concat(games.Settings(), decks.Settings(), ratings.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), slices.Concat(games.Settings(), chat.Settings(), decks.Settings(), ratings.Settings())...)
 	require.NoError(t, err)
 
 	list, err := formats.NewService(db).List(ctx)

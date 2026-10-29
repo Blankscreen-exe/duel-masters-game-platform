@@ -15,6 +15,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/clocktest"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
@@ -33,11 +34,12 @@ func (h *heard) MessagePosted(message chat.Message) {
 }
 
 type fixture struct {
-	chat   *chat.Service
-	heard  *heard
-	clock  *clocktest.Clock
-	shobu  users.User
-	kokujo users.User
+	chat     *chat.Service
+	settings *settings.Service
+	heard    *heard
+	clock    *clocktest.Clock
+	shobu    users.User
+	kokujo   users.User
 }
 
 func newFixture(t *testing.T, db *gorm.DB) fixture {
@@ -53,7 +55,10 @@ func newFixture(t *testing.T, db *gorm.DB) fixture {
 	listener := &heard{}
 	c := clocktest.New(time.Now())
 
-	return fixture{chat: chat.NewService(db, listener, c.Now), heard: listener, clock: c, shobu: shobu, kokujo: kokujo}
+	siteSettings, err := settings.NewService(ctx, db, storetest.Logger(), chat.Settings()...)
+	require.NoError(t, err)
+
+	return fixture{chat: chat.NewService(db, listener, siteSettings, c.Now), settings: siteSettings, heard: listener, clock: c, shobu: shobu, kokujo: kokujo}
 }
 
 func texts(messages []chat.Message) []string {
@@ -178,6 +183,7 @@ func TestPostingTooFastIsRefused(t *testing.T) {
 		var tooFast *chat.TooFastError
 		require.True(t, errors.As(err, &tooFast), "got %v", err)
 		assert.Equal(t, 6*time.Second, tooFast.RetryAfter)
+		assert.Equal(t, "You are posting too fast. Wait 6 seconds.", tooFast.Refusal())
 
 		_, err = f.chat.Post(ctx, f.kokujo, "my turn")
 		assert.NoError(t, err, "the limit is per player")
@@ -186,6 +192,44 @@ func TestPostingTooFastIsRefused(t *testing.T) {
 		_, err = f.chat.Post(ctx, f.shobu, "calm now")
 		assert.NoError(t, err, "allowed again once the window has passed")
 	})
+}
+
+func TestTheChatLimitFollowsTheSettings(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		_, err := f.settings.Set(ctx, chat.PostsAllowed.Key, "2")
+		require.NoError(t, err)
+		_, err = f.settings.Set(ctx, chat.PostWindow.Key, "60")
+		require.NoError(t, err)
+
+		for i := range 2 {
+			_, err := f.chat.Post(ctx, f.shobu, fmt.Sprintf("hello %d", i))
+			require.NoError(t, err)
+		}
+		_, err = f.chat.Post(ctx, f.shobu, "a third")
+		var tooFast *chat.TooFastError
+		require.True(t, errors.As(err, &tooFast), "got %v", err)
+		assert.Equal(t, time.Minute, tooFast.RetryAfter)
+
+		_, err = f.settings.Set(ctx, chat.PostsAllowed.Key, "3")
+		require.NoError(t, err)
+		_, err = f.chat.Post(ctx, f.shobu, "a third")
+		assert.NoError(t, err, "raising the limit applies at once")
+	})
+}
+
+func TestTheTooFastRefusalCountsWholeSeconds(t *testing.T) {
+	for _, tc := range []struct {
+		retryAfter time.Duration
+		want       string
+	}{
+		{retryAfter: 300 * time.Millisecond, want: "You are posting too fast. Wait 1 second."},
+		{retryAfter: time.Second, want: "You are posting too fast. Wait 1 second."},
+		{retryAfter: 1100 * time.Millisecond, want: "You are posting too fast. Wait 2 seconds."},
+	} {
+		assert.Equal(t, tc.want, (&chat.TooFastError{RetryAfter: tc.retryAfter}).Refusal(), "for %s", tc.retryAfter)
+	}
 }
 
 func TestAMutedPlayerCannotPostUntilTheMuteEnds(t *testing.T) {

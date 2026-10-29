@@ -138,3 +138,43 @@ func TestTakeAtTheSameMomentNeverPassesTheLimit(t *testing.T) {
 
 	assert.Equal(t, 3, taken)
 }
+
+func TestALiveLimiterAppliesNewLimitsAtOnce(t *testing.T) {
+	c := clocktest.New(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	var mu sync.Mutex
+	limits := Limits{Attempts: 2, Window: 10 * time.Second}
+	set := func(changed Limits) {
+		mu.Lock()
+		defer mu.Unlock()
+		limits = changed
+	}
+	limiter := NewLive(func() Limits {
+		mu.Lock()
+		defer mu.Unlock()
+		return limits
+	}, c.Now)
+
+	for range 2 {
+		allowed, _ := limiter.Take("alice")
+		assert.True(t, allowed)
+	}
+	allowed, _ := limiter.Take("alice")
+	assert.False(t, allowed, "two attempts are allowed")
+
+	set(Limits{Attempts: 3, Window: time.Minute})
+	allowed, _ = limiter.Take("alice")
+	assert.True(t, allowed, "a third attempt is allowed once the limit is raised")
+	allowed, retryAfter := limiter.Take("alice")
+	assert.False(t, allowed)
+	assert.Equal(t, 10*time.Second, retryAfter, "the window already begun keeps its end")
+
+	c.Advance(10 * time.Second)
+	limiter.Record("alice")
+	allowed, _ = limiter.Allowed("alice")
+	assert.True(t, allowed)
+	limiter.Record("alice")
+	limiter.Record("alice")
+	allowed, retryAfter = limiter.Allowed("alice")
+	assert.False(t, allowed)
+	assert.Equal(t, time.Minute, retryAfter, "a new window is as long as the window set now")
+}

@@ -63,6 +63,8 @@ type Match struct {
 	// back before losing.
 	minimumCountedDuration time.Duration
 	disconnectGrace        time.Duration
+	// chatRefusal is Options.ChatRefusal: nil lets every chat message through.
+	chatRefusal func(userID string) string
 
 	// setupMu guards the players taking their seats and changing sockets as
 	// they join, leave and come back, the coin toss, and disconnectTimers. It
@@ -1642,6 +1644,18 @@ func (m *Match) Parse(s *server.Socket, data []byte) {
 
 			if err := json.Unmarshal(data, &msg); err != nil {
 				return
+			}
+
+			if m.chatRefusal != nil {
+				if refusal := m.chatRefusal(s.User.UID); refusal != "" {
+					s.Send(&server.ChatMessage{
+						Header:  "chat",
+						Message: refusal,
+						Sender:  "Server",
+						Color:   "#ccc",
+					})
+					return
+				}
 			}
 
 			m.handleAdminMessages(msg.Message, s.User)

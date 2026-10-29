@@ -6,6 +6,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratelimit"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
 )
@@ -26,10 +28,45 @@ const (
 	MaxLength = 300
 	// HistoryLength is how many of the latest messages are shown.
 	HistoryLength = 100
-	// postsAllowed messages may be posted per postWindow, per player.
-	postsAllowed = 5
-	postWindow   = 10 * time.Second
 )
+
+// PostsAllowed and PostWindow are the admin settings for how fast a player
+// may chat: at most PostsAllowed messages in each PostWindow. They apply to
+// the lobby chat and, each counted on its own, to the chat in games.
+var (
+	PostsAllowed = settings.Number{
+		Key:         "chat.posts_allowed",
+		Group:       "Chat",
+		Description: "How many messages a player may post in the time below, in the lobby chat and, counted separately, in the chat of their games. Past it they are told to wait.",
+		Default:     5,
+		Min:         1,
+		Max:         100,
+	}
+	PostWindow = settings.Number{
+		Key:         "chat.post_window_seconds",
+		Group:       "Chat",
+		Description: "The time, in seconds, the number of messages above is counted over.",
+		Default:     10,
+		Min:         1,
+		Max:         600,
+	}
+)
+
+// Settings are the settings this feature declares.
+func Settings() []settings.Definition {
+	return []settings.Definition{PostsAllowed, PostWindow}
+}
+
+// PostLimits returns how fast a player may chat, as the settings say at the
+// moment it is called, for a ratelimit.NewLive limiter.
+func PostLimits(siteSettings *settings.Service) func() ratelimit.Limits {
+	return func() ratelimit.Limits {
+		return ratelimit.Limits{
+			Attempts: int(siteSettings.Number(PostsAllowed)),
+			Window:   time.Duration(siteSettings.Number(PostWindow)) * time.Second,
+		}
+	}
+}
 
 // Message is a message in the chat.
 type Message struct {
@@ -47,6 +84,21 @@ type TooFastError struct {
 
 func (e *TooFastError) Error() string {
 	return fmt.Sprintf("posting too fast; wait %s", e.RetryAfter.Round(time.Second))
+}
+
+// Seconds is how many whole seconds the player must wait, rounded up.
+func (e *TooFastError) Seconds() int {
+	return int(math.Ceil(e.RetryAfter.Seconds()))
+}
+
+// Refusal tells the player, in a sentence, to wait before posting again.
+func (e *TooFastError) Refusal() string {
+	seconds := e.Seconds()
+	unit := "seconds"
+	if seconds == 1 {
+		unit = "second"
+	}
+	return fmt.Sprintf("You are posting too fast. Wait %d %s.", seconds, unit)
 }
 
 // MutedError is returned to a player an admin has muted.
@@ -95,10 +147,11 @@ type Service struct {
 	now      func() time.Time
 }
 
-// NewService returns the chat, telling listener about every new message.
-// now is the clock; pass time.Now outside tests.
-func NewService(db *gorm.DB, listener Listener, now func() time.Time) *Service {
-	return &Service{db: db, listener: listener, posts: ratelimit.New(postsAllowed, postWindow, now), now: now}
+// NewService returns the chat, telling listener about every new message and
+// letting each player post as fast as the settings allow. now is the clock;
+// pass time.Now outside tests.
+func NewService(db *gorm.DB, listener Listener, siteSettings *settings.Service, now func() time.Time) *Service {
+	return &Service{db: db, listener: listener, posts: ratelimit.NewLive(PostLimits(siteSettings), now), now: now}
 }
 
 // Post adds a message from a player. Line breaks and tabs become spaces, and
