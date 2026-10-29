@@ -109,7 +109,7 @@ func BombazarDragonOfDestiny(c *match.Card) {
 					loseAfterExtraTurn = false
 
 					opponent := ctx.Match.Opponent(card.Player)
-					ctx.Match.End(opponent, fmt.Sprintf("%s won the game because of %s", ctx.Match.PlayerRef(opponent).Socket.User.Username, card.Name))
+					ctx.Match.End(opponent, fmt.Sprintf("%s won the game because of %s", ctx.Match.PlayerRef(opponent).Username, card.Name))
 				}
 			})
 		},

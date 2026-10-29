@@ -34,7 +34,7 @@ func (m *Match) Connected(uid string) bool {
 
 	for _, player := range []*PlayerReference{m.Player1, m.Player2} {
 		if player != nil && player.UID == uid {
-			return player.Socket != nil && !player.Socket.IsClosed()
+			return player.isConnected()
 		}
 	}
 
@@ -71,8 +71,7 @@ func (m *Match) join(s *server.Socket) {
 	var replaced *server.Socket
 	rejoining := *seat != nil
 	if rejoining {
-		replaced = (*seat).Socket
-		(*seat).Socket = s
+		replaced = (*seat).replaceSocket(s)
 		m.stopDisconnectTimer(uid)
 	} else {
 		*seat = NewPlayerReference(NewPlayer(m, turn), s)
@@ -90,8 +89,8 @@ func (m *Match) join(s *server.Socket) {
 	}
 
 	if rejoining {
-		if opponent != nil && opponent.Socket != nil {
-			opponent.Socket.Send(server.Message{Header: "opponent_reconnected"})
+		if opponent != nil {
+			opponent.send(server.Message{Header: "opponent_reconnected"})
 		}
 		m.Chat("Server", s.User.Username+" reconnected")
 
@@ -327,7 +326,7 @@ func (m *Match) broadcastTossStep() {
 
 	for _, player := range []*PlayerReference{player1, player2} {
 		if player != nil {
-			sendStep(player.Socket)
+			sendStep(player.Socket())
 		}
 	}
 	for _, spectator := range m.spectators.Iter() {
@@ -349,9 +348,9 @@ func (m *Match) leave(s *server.Socket) {
 	m.setupMu.Lock()
 	var player, opponent *PlayerReference
 	switch {
-	case m.Player1 != nil && m.Player1.Socket == s:
+	case m.Player1 != nil && m.Player1.Socket() == s:
 		player, opponent = m.Player1, m.Player2
-	case m.Player2 != nil && m.Player2.Socket == s:
+	case m.Player2 != nil && m.Player2.Socket() == s:
 		player, opponent = m.Player2, m.Player1
 	}
 	if player == nil {
@@ -360,7 +359,7 @@ func (m *Match) leave(s *server.Socket) {
 		return
 	}
 
-	opponentGone := opponent != nil && (opponent.Socket == nil || opponent.Socket.IsClosed())
+	opponentGone := opponent != nil && !opponent.isConnected()
 	uid := player.UID
 	if _, counting := m.disconnectTimers[uid]; !opponentGone && !counting {
 		m.disconnectTimers[uid] = time.AfterFunc(m.disconnectGrace, func() {
@@ -375,7 +374,7 @@ func (m *Match) leave(s *server.Socket) {
 	}
 
 	if opponent != nil {
-		opponent.Socket.Send(server.Message{Header: "opponent_disconnected"})
+		opponent.send(server.Message{Header: "opponent_disconnected"})
 	}
 	m.Chat("Server", fmt.Sprintf("%s disconnected and has %s to come back", player.Username, graceText(m.disconnectGrace)))
 }

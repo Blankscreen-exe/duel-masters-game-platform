@@ -20,7 +20,7 @@ func assertTurnNumber(t *testing.T, scn *scenario.TestScenario, want int) {
 	for _, viewer := range []*match.PlayerReference{scn.Match.Player1, scn.Match.Player2} {
 		state, err := scn.LatestState(viewer, 0)
 		require.NoError(t, err)
-		assert.Equal(t, want, state.Turn, "as seen by %s", viewer.Socket.User.Username)
+		assert.Equal(t, want, state.Turn, "as seen by %s", viewer.Username)
 	}
 }
 

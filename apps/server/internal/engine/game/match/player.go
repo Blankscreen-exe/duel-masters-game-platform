@@ -7,6 +7,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/server"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -30,8 +31,37 @@ type PlayerReference struct {
 	Username string
 	Color    string
 	Player   *Player
-	Socket   *server.Socket
+	// socket is the player's connection, replaced when they come back. A
+	// player comes back beside the event loop, which goes on sending to them
+	// meanwhile, so it is only read and written whole, through Socket.
+	socket   atomic.Pointer[server.Socket]
 	LastPong int64
+}
+
+// Socket returns the player's connection at the moment: the one they came
+// back on last. Read it again for every send rather than keep it, so a
+// player coming back is sent to on their new connection.
+func (pr *PlayerReference) Socket() *server.Socket {
+	return pr.socket.Load()
+}
+
+// isConnected reports whether the player's connection is open.
+func (pr *PlayerReference) isConnected() bool {
+	socket := pr.Socket()
+	return socket != nil && !socket.IsClosed()
+}
+
+// send sends v to the player on their connection at the moment, if any.
+func (pr *PlayerReference) send(v any) {
+	if socket := pr.Socket(); socket != nil {
+		socket.Send(v)
+	}
+}
+
+// replaceSocket gives the player a new connection, and returns the one it
+// replaces.
+func (pr *PlayerReference) replaceSocket(s *server.Socket) *server.Socket {
+	return pr.socket.Swap(s)
 }
 
 type Spectator struct {
@@ -59,9 +89,9 @@ func NewPlayerReference(p *Player, s *server.Socket) *PlayerReference {
 		Username: s.User.Username,
 		Color:    s.User.Color,
 		Player:   p,
-		Socket:   s,
 		LastPong: time.Now().Unix(),
 	}
+	pr.socket.Store(s)
 
 	return pr
 
@@ -328,9 +358,9 @@ func (p *Player) DrawCards(n int) []*Card {
 	}
 
 	if n == 1 {
-		p.match.ReportActionInChat(p, fmt.Sprintf("%s drew %v card", p.match.PlayerRef(p).Socket.User.Username, n))
+		p.match.ReportActionInChat(p, fmt.Sprintf("%s drew %v card", p.match.PlayerRef(p).Username, n))
 	} else {
-		p.match.ReportActionInChat(p, fmt.Sprintf("%s drew %v cards", p.match.PlayerRef(p).Socket.User.Username, n))
+		p.match.ReportActionInChat(p, fmt.Sprintf("%s drew %v cards", p.match.PlayerRef(p).Username, n))
 	}
 
 	if len(p.deck) <= 0 {
@@ -860,7 +890,7 @@ func denormalizeShields(cards []*Card) []server.ShieldState {
 
 // Username returns the username of the player
 func (p *Player) Username() string {
-	return p.match.PlayerRef(p).Socket.User.Username
+	return p.match.PlayerRef(p).Username
 }
 
 // matchDisposed aborts the effect in progress when the match is disposed while

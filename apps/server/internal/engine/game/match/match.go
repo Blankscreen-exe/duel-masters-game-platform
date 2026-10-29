@@ -234,11 +234,11 @@ func (m *Match) CurrentPlayer() *PlayerReference {
 // PlayerForSocket returns the player ref for a given socker or an error if the socket is not p1 or p2
 func (m *Match) PlayerForSocket(s *server.Socket) (*PlayerReference, error) {
 
-	if m.Player1.Socket == s {
+	if m.Player1.Socket() == s {
 		return m.Player1, nil
 	}
 
-	if m.Player2.Socket == s {
+	if m.Player2.Socket() == s {
 		return m.Player2, nil
 	}
 
@@ -411,7 +411,7 @@ func (m *Match) BreakShields(attemptedShields []*Card, source *Card) {
 		return
 	}
 
-	m.ReportActionInChat(shields[0].Player, fmt.Sprintf("%v of %v's shields were broken", len(shields), m.PlayerRef(shields[0].Player).Socket.User.Username))
+	m.ReportActionInChat(shields[0].Player, fmt.Sprintf("%v of %v's shields were broken", len(shields), m.PlayerRef(shields[0].Player).Username))
 
 	var shieldTriggers []*Card
 
@@ -682,8 +682,8 @@ func (m *Match) Broadcast(msg interface{}) {
 	m.setupMu.Unlock()
 
 	for _, player := range []*PlayerReference{player1, player2} {
-		if player != nil && player.Socket != nil {
-			player.Socket.Send(msg)
+		if player != nil {
+			player.send(msg)
 		}
 	}
 
@@ -910,8 +910,8 @@ func (m *Match) broadcastState(board boardReport, brokenShields []string, activa
 
 	m.keepStates(p1state, p2state, spectatorState)
 
-	m.Player1.Socket.Send(p1state)
-	m.Player2.Socket.Send(p2state)
+	m.Player1.Socket().Send(p1state)
+	m.Player2.Socket().Send(p2state)
 
 	// Iter returns a copy, so the spectators are not kept locked while sending.
 	// Spectators joining or leaving would otherwise wait on every slow socket.
@@ -927,7 +927,7 @@ func (m *Match) broadcastState(board boardReport, brokenShields []string, activa
 // Warn sends a warning to the specified player ref
 func Warn(p *PlayerReference, message string) {
 
-	p.Socket.Send(server.WarningMessage{
+	p.Socket().Send(server.WarningMessage{
 		Header:  "warn",
 		Message: message,
 	})
@@ -937,7 +937,7 @@ func Warn(p *PlayerReference, message string) {
 // WarnError sends an error message to the specified player ref
 func WarnError(p *PlayerReference, message string) {
 
-	p.Socket.Send(server.WarningMessage{
+	p.Socket().Send(server.WarningMessage{
 		Header:  "error",
 		Message: message,
 	})
@@ -947,7 +947,7 @@ func WarnError(p *PlayerReference, message string) {
 // WarnPlayer sends a warning to the specified player
 func (m *Match) WarnPlayer(p *Player, message string) {
 
-	m.PlayerRef(p).Socket.Send(server.WarningMessage{
+	m.PlayerRef(p).Socket().Send(server.WarningMessage{
 		Header:  "warn",
 		Message: message,
 	})
@@ -956,7 +956,7 @@ func (m *Match) WarnPlayer(p *Player, message string) {
 
 // ActionWarning adds an error message to the players current action popup
 func (m *Match) ActionWarning(p *Player, message string) {
-	m.PlayerRef(p).Socket.Send(server.ActionWarningMessage{
+	m.PlayerRef(p).Socket().Send(server.ActionWarningMessage{
 		Header:  "action_error",
 		Message: message,
 	})
@@ -964,7 +964,7 @@ func (m *Match) ActionWarning(p *Player, message string) {
 
 // DefaultActionWarning sends an action warning with a predefined message
 func (m *Match) DefaultActionWarning(p *Player) {
-	m.PlayerRef(p).Socket.Send(server.ActionWarningMessage{
+	m.PlayerRef(p).Socket().Send(server.ActionWarningMessage{
 		Header:  "action_error",
 		Message: "Your selection of cards does not fulfill the requirements",
 	})
@@ -1189,20 +1189,20 @@ func (m *Match) NewMultipleChoiceSearchableAction(player *Player, text string, c
 // sends it to them.
 func (m *Match) ask(player *Player, msg server.Prompting) {
 	player.prompt.ask(msg)
-	m.PlayerRef(player).Socket.Send(msg)
+	m.PlayerRef(player).Socket().Send(msg)
 }
 
 // CloseAction closes the card selection popup for the given player
 func (m *Match) CloseAction(p *Player) {
 	p.prompt.close()
-	m.PlayerRef(p).Socket.Send(server.Message{
+	m.PlayerRef(p).Socket().Send(server.Message{
 		Header: "close_action",
 	})
 }
 
 // Wait sends a waiting popup with a message to the specified player
 func (m *Match) Wait(p *Player, message string) {
-	m.PlayerRef(p).Socket.Send(server.WaitMessage{
+	m.PlayerRef(p).Socket().Send(server.WaitMessage{
 		Header:  "wait",
 		Message: message,
 	})
@@ -1210,14 +1210,14 @@ func (m *Match) Wait(p *Player, message string) {
 
 // EndWait closes the waiting popup for the specified player
 func (m *Match) EndWait(p *Player) {
-	m.PlayerRef(p).Socket.Send(server.Message{
+	m.PlayerRef(p).Socket().Send(server.Message{
 		Header: "end_wait",
 	})
 }
 
 // ShowCards shows the specified cards to the player with a message of why it is being shown
 func (m *Match) ShowCards(p *Player, message string, cards []string) {
-	m.PlayerRef(p).Socket.Send(server.ShowCardsMessage{
+	m.PlayerRef(p).Socket().Send(server.ShowCardsMessage{
 		Header:  "show_cards",
 		Message: message,
 		Cards:   cards,
@@ -1268,11 +1268,11 @@ func (m *Match) CoinToss() {
 
 	m.Chat("Server", fmt.Sprintf("Coin toss to be selected by %s", PlayerToChooseToss.Username))
 
-	PlayerToAwaitToss.Socket.Send(server.Message{
+	PlayerToAwaitToss.Socket().Send(server.Message{
 		Header: "toss_being_chosen",
 	})
 
-	PlayerToChooseToss.Socket.Send(server.Message{
+	PlayerToChooseToss.Socket().Send(server.Message{
 		Header: "choose_toss",
 	})
 }
@@ -1361,7 +1361,7 @@ func (m *Match) StartOfTurnStep() {
 
 	m.HandleFx(ctx)
 
-	m.ReportActionInChat(m.CurrentPlayer().Player, fmt.Sprintf("Your turn, %s", m.CurrentPlayer().Socket.User.Username))
+	m.ReportActionInChat(m.CurrentPlayer().Player, fmt.Sprintf("Your turn, %s", m.CurrentPlayer().Username))
 
 	m.DrawStep()
 
@@ -1410,7 +1410,7 @@ func (m *Match) EndStep() {
 
 	m.HandleFx(ctx)
 
-	m.ReportActionInChat(m.CurrentPlayer().Player, fmt.Sprintf("%s ended their turn", m.CurrentPlayer().Socket.User.Username))
+	m.ReportActionInChat(m.CurrentPlayer().Player, fmt.Sprintf("%s ended their turn", m.CurrentPlayer().Username))
 
 	m.EndOfTurnTriggers()
 
@@ -1458,7 +1458,7 @@ func (m *Match) ChargeMana(p *PlayerReference, cardID string) {
 	if card, err := p.Player.MoveCard(cardID, HAND, MANAZONE, cardID); err == nil {
 		p.Player.HasChargedMana = true
 		m.BroadcastState()
-		m.ReportActionInChat(p.Player, fmt.Sprintf("%s was added to %s's manazone", card.Name, p.Socket.User.Username))
+		m.ReportActionInChat(p.Player, fmt.Sprintf("%s was added to %s's manazone", card.Name, p.Username))
 	}
 
 }
@@ -1885,8 +1885,8 @@ func (p *PlayerReference) Dispose() {
 		p.Player.Dispose()
 	}
 
-	if p.Socket != nil {
-		p.Socket.Close()
+	if socket := p.Socket(); socket != nil {
+		socket.Close()
 	}
 }
 

@@ -145,15 +145,15 @@ func TestDisconnectDuringPromptStopsMatch(t *testing.T) {
 	start, err := scn.MessageCount(player)
 	require.NoError(t, err)
 
-	scn.Match.Parse(player.Socket, []byte(fmt.Sprintf(`{"header":"add_to_playzone","virtualId":%q}`, creature.ID)))
+	scn.Match.Parse(player.Socket(), []byte(fmt.Sprintf(`{"header":"add_to_playzone","virtualId":%q}`, creature.ID)))
 
 	// The match event loop is now blocked inside the mana payment prompt
 	require.NoError(t, scn.WaitForMessage(player, start, "action"))
 
 	// Both players disconnect while that prompt is still open, which disposes
 	// the match from the socket goroutine
-	player.Socket.Close()
-	opponent.Socket.Close()
+	player.Socket().Close()
+	opponent.Socket().Close()
 
 	require.Eventually(t, scn.Match.IsClosed, promptReturnTimeout, 10*time.Millisecond,
 		"the second disconnect should dispose the match")

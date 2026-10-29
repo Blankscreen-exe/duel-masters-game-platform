@@ -62,7 +62,7 @@ func TestStateReportsTheAttackingCreature(t *testing.T) {
 		for _, viewer := range []*match.PlayerReference{attacker, defender} {
 			state, err := scn.LatestState(viewer, 0)
 			require.NoError(t, err)
-			assert.Equal(t, creature.ID, state.Attacker, "as seen by %s", viewer.Socket.User.Username)
+			assert.Equal(t, creature.ID, state.Attacker, "as seen by %s", viewer.Username)
 		}
 	})
 

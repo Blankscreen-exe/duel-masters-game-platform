@@ -29,9 +29,9 @@ func TestResignWhileAPromptIsPending(t *testing.T) {
 				opponent = scn.Match.Player2
 			}
 
-			socket := prompted.Socket
+			socket := prompted.Socket()
 			if resigner == "the opponent" {
-				socket = opponent.Socket
+				socket = opponent.Socket()
 			}
 
 			scn.Match.Parse(socket, []byte(`{"header":"resign"}`))
@@ -50,7 +50,7 @@ func TestResignWhileAPromptIsPending(t *testing.T) {
 func TestResignEndsTheMatchWithNoPromptPending(t *testing.T) {
 	scn := scenario.New()
 
-	scn.Match.Parse(scn.Match.Player1.Socket, []byte(`{"header":"resign"}`))
+	scn.Match.Parse(scn.Match.Player1.Socket(), []byte(`{"header":"resign"}`))
 
 	require.Eventually(t, scn.Match.IsClosed, promptReturnTimeout, 10*time.Millisecond,
 		"resigning should end the match")
@@ -76,7 +76,7 @@ func scenarioWithPendingPrompt(t *testing.T) *scenario.TestScenario {
 	start, err := scn.MessageCount(player)
 	require.NoError(t, err)
 
-	scn.Match.Parse(player.Socket, []byte(fmt.Sprintf(`{"header":"add_to_playzone","virtualId":%q}`, creature.ID)))
+	scn.Match.Parse(player.Socket(), []byte(fmt.Sprintf(`{"header":"add_to_playzone","virtualId":%q}`, creature.ID)))
 
 	require.NoError(t, scn.WaitForMessage(player, start, "action"),
 		"the mana payment prompt should be open and holding the event loop")

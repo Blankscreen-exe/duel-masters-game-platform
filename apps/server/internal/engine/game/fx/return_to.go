@@ -116,7 +116,7 @@ func ReturnCreatureFromManazoneToHand(card *match.Card, ctx *match.Context) {
 		1, 1, false, func(x *match.Card) bool { return x.HasCondition(cnd.Creature) }, false,
 	).Map(func(x *match.Card) {
 		card.Player.MoveCard(x.ID, match.MANAZONE, match.HAND, card.ID)
-		ctx.Match.ReportActionInChat(card.Player, fmt.Sprintf("%s was moved to %s's hand from their mana zone", x.Name, ctx.Match.PlayerRef(card.Player).Socket.User.Username))
+		ctx.Match.ReportActionInChat(card.Player, fmt.Sprintf("%s was moved to %s's hand from their mana zone", x.Name, ctx.Match.PlayerRef(card.Player).Username))
 	})
 }
 

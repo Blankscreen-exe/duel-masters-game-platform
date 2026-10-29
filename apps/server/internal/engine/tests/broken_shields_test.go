@@ -58,7 +58,7 @@ func TestStateReportsBrokenShields(t *testing.T) {
 					}
 				}
 			}
-			assert.Equal(t, 1, reported, "the broken shield is reported in exactly one state for %s", viewer.Socket.User.Username)
+			assert.Equal(t, 1, reported, "the broken shield is reported in exactly one state for %s", viewer.Username)
 		}
 	})
 

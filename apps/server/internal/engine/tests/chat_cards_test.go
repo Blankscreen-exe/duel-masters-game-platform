@@ -35,7 +35,7 @@ func TestSummonLogNamesTheSummonedCard(t *testing.T) {
 
 	var summon *server.ChatMessage
 	for i := range log {
-		if log[i].Message == player.Socket.User.Username+" summoned "+creature.Name+" to the battle zone" {
+		if log[i].Message == player.Username+" summoned "+creature.Name+" to the battle zone" {
 			summon = &log[i]
 		}
 	}
@@ -44,7 +44,7 @@ func TestSummonLogNamesTheSummonedCard(t *testing.T) {
 	assert.Equal(t, []server.ChatCard{{
 		Name:    creature.Name,
 		ImageID: turnStepCreatureUID,
-		Owner:   player.Socket.User.Username,
+		Owner:   player.Username,
 		CardID:  creature.ID,
 	}}, summon.Cards)
 }

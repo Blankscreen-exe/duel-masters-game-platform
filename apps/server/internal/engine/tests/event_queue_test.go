@@ -23,7 +23,7 @@ func TestAMoveSentWhileTheEngineIsBusyWaitsItsTurn(t *testing.T) {
 	// Ending the turn while the mana question is still open.
 	endTurn, err := json.Marshal(map[string]any{"header": "end_turn"})
 	require.NoError(t, err)
-	scn.Match.Parse(player.Socket, endTurn)
+	scn.Match.Parse(player.Socket(), endTurn)
 	require.True(t, scn.Match.HasPendingEvents())
 
 	require.NoError(t, scn.SubmitAction(player, mana...))

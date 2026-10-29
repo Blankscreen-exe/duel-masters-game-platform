@@ -23,7 +23,7 @@ func TestStateReportsTheTurnStep(t *testing.T) {
 		for _, viewer := range []*match.PlayerReference{player, opponent} {
 			state, err := scn.LatestState(viewer, 0)
 			require.NoError(t, err)
-			assert.Equal(t, expected, state.Step, "%s, as seen by %s", message, viewer.Socket.User.Username)
+			assert.Equal(t, expected, state.Step, "%s, as seen by %s", message, viewer.Username)
 		}
 	}
 
@@ -104,7 +104,7 @@ func TestStateReportsTheAttackStepWhileAnAttackResolves(t *testing.T) {
 	for _, viewer := range []*match.PlayerReference{attacker, defender} {
 		state, err := scn.LatestState(viewer, 0)
 		require.NoError(t, err)
-		assert.Equal(t, "attack", state.Step, "an attack is in the attack step before it resolves, as seen by %s", viewer.Socket.User.Username)
+		assert.Equal(t, "attack", state.Step, "an attack is in the attack step before it resolves, as seen by %s", viewer.Username)
 	}
 
 	// Declining to block lets the attack through to the shield.
@@ -126,7 +126,7 @@ func TestStateReportsWhetherTheTurnPlayerChargedMana(t *testing.T) {
 		for _, viewer := range []*match.PlayerReference{player, opponent} {
 			state, err := scn.LatestState(viewer, 0)
 			require.NoError(t, err)
-			assert.Equal(t, expected, state.TurnManaCharged, "%s, as seen by %s", message, viewer.Socket.User.Username)
+			assert.Equal(t, expected, state.TurnManaCharged, "%s, as seen by %s", message, viewer.Username)
 		}
 	}
 

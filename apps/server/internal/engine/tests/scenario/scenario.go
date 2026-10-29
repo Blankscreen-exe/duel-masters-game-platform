@@ -874,7 +874,7 @@ func (s *TestScenario) LatestState(player *match.PlayerReference, since int) (*s
 	}
 
 	if len(states) == 0 {
-		return nil, fmt.Errorf("no state_update sent to %s since message %d", player.Socket.User.Username, since)
+		return nil, fmt.Errorf("no state_update sent to %s since message %d", player.Username, since)
 	}
 
 	return &states[len(states)-1], nil
@@ -1086,7 +1086,7 @@ func (s *TestScenario) send(player *match.PlayerReference, payload interface{}) 
 		return err
 	}
 
-	s.Match.Parse(player.Socket, data)
+	s.Match.Parse(player.Socket(), data)
 	return nil
 }
 

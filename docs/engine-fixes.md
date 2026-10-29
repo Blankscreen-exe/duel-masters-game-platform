@@ -152,7 +152,8 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 - **Problem:** Deck size and card IDs are not checked.
 - **Fix:** The new server checks decks with its single legality check (`decks/`) before creating a game; the engine still rejects unknown card IDs instead of building a partial deck.
 
-### [ ] 24. A player's socket is swapped while the game reads it (Verified)
+### [x] 24. A player's socket is swapped while the game reads it (Verified)
+- **Status:** Fixed. A seat keeps its socket in an `atomic.Pointer`, read through `PlayerReference.Socket()` and replaced in one step when the player comes back (`replaceSocket`). What only needs the player's name reads the name kept on the seat (`PlayerReference.Username`, `Player.Username`) instead of the socket's user, so card effects no longer touch the socket at all. Test: `TestComingBackWhileTheGameIsBusy` (`tests/reconnect_test.go`), which raced on the old code under `-race`.
 - **Where:** `game/match/lifecycle.go` (`join` sets `PlayerReference.Socket` under `setupMu`); readers across the engine, card effects included, use `PlayerRef(...).Socket` without the lock.
 - **Problem:** when a player comes back during a game, their new socket is written while the event loop may be sending to, or reading the user from, the old one. `Broadcast` now reads the seats under the lock, but the many direct readers do not. The tests do not show it, since they reconnect while the event loop is idle, but it is a real race in play.
 - **Fix idea:** keep the socket behind a method on `PlayerReference` that reads it under a lock (or an `atomic.Pointer`), and move every reader to it. It touches many card files, so it is its own change.
@@ -183,6 +184,7 @@ which was not copied here. They are not engine fixes, but the new server must no
 ## Not a fix, but tracked
 
 - **Running race tests on Windows without a C compiler:** run them in Docker with the host module cache (mount `go env GOMODCACHE` to `/go/pkg/mod`, `GOPROXY=off`, `GOFLAGS=-mod=mod`). Check `git status` afterwards: `go.mod` and `go.sum` must not change.
+- **`PlayerReference.LastPong`:** written by every `mpong` message, beside the event loop, and never read. Remove it, or guard it, when the pong handling is next touched.
 - **Card test coverage gaps:** DM07 0/60, DM06 9/117, DM09 12/60, DM02–05 and DM08 have only a handful each.
 - **`HandleFx` cost:** runs every handler of every card in every zone, decks included, for every event, including the `GetPowerEvent` fired by each `GetPower` call. Profile before changing anything.
 - **Possible fx helpers:** "until end of turn" persistent effects (about 22 copies), the "would be destroyed → move elsewhere instead" replacement, and the copied `Wait`/`EndWait` block in the select helpers.
