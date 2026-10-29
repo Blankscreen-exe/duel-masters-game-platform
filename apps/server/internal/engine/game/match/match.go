@@ -32,9 +32,12 @@ type Match struct {
 	Player2           *PlayerReference                         `json:"-"`
 	spectators        internal.ConcurrentDictionary[Spectator] `json:"-"`
 	persistentEffects map[int]PersistentEffect
-	Turn              byte `json:"-"`
-	Visible           bool `json:"visible"`
-	Step              interface{}
+	// lastPersistentEffectID is the key of the persistent effect added last.
+	// Like persistentEffects, it is only used on the match's event loop.
+	lastPersistentEffectID int
+	Turn                   byte `json:"-"`
+	Visible                bool `json:"visible"`
+	Step                   interface{}
 
 	// started is set once the coin toss is settled and the game begins. It is
 	// read from socket goroutines and the match system's ticker, so it must be

@@ -25,7 +25,8 @@ go test -race ./... -count=1 -timeout 180s   # for concurrency/engine items
 - **Problem:** `m.spectators.RLock()` was followed by `m.spectators.Iter()`, which calls `RLock()` again. Go's `RWMutex` does not allow a goroutine to take a read lock it already holds. If `Add`/`Remove` (a spectator joining or leaving) asked for the write lock between the two calls, the event loop deadlocked. The lock was also held during `Socket.Send` (network I/O, up to a 10s write deadline).
 - **Fix:** Removed the outer `RLock`/`RUnlock`. `Iter()` already returns a copy.
 
-### [ ] 2. Global `seqID` shared by all matches (Verified)
+### [x] 2. Global `seqID` shared by all matches (Verified)
+- **Status:** Fixed. Each match numbers its own persistent effects (`Match.lastPersistentEffectID`), used only on its event loop like the effects themselves. Under `-race` the old counter also lost effects outright: two effects given the same number, the second replacing the first. Test: `game/match/persistenteffect_test.go`.
 - **Where:** `game/match/persistenteffect.go:3,13,22`
 - **Problem:** A package-level `var seqID` is read and incremented without synchronization from every match's event loop goroutine. That is a data race.
 - **Fix:** Make it a per-match counter field (for example `nextPersistentEffectID int` on `Match`). It is only touched from that match's event loop.
