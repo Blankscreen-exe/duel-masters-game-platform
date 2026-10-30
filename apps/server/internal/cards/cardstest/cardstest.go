@@ -6,10 +6,28 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+// RealDatabase returns the folder of the card database linked into the
+// repository, as a git submodule, skipping the test where it is not checked
+// out; on CI it must be.
+func RealDatabase(t *testing.T) string {
+	t.Helper()
+
+	_, here, _, _ := runtime.Caller(0)
+	dir := filepath.Join(filepath.Dir(here), "..", "..", "..", "..", "..", "resources", "duelmasters_db")
+	if _, err := os.Stat(dir); err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("the card database must be checked out on CI (git submodule update --init): %v", err)
+		}
+		t.Skip("the card database is not checked out; run git submodule update --init")
+	}
+	return dir
+}
 
 // Printing is a card database entry with every field the catalogue reads
 // filled in. Tests change the fields that matter to them.

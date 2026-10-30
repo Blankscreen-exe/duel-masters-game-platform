@@ -167,6 +167,23 @@ var startingStarters = []starterList{
 	},
 }
 
+// StarterList is a starter deck a site begins with: its name and its cards
+// by name, MaxCopies of each.
+type StarterList struct {
+	Name  string
+	Cards []string
+}
+
+// StartingStarters returns the starter decks a site begins with, in order,
+// such as for tests that play them.
+func StartingStarters() []StarterList {
+	lists := make([]StarterList, 0, len(startingStarters))
+	for _, list := range startingStarters {
+		lists = append(lists, StarterList{Name: list.name, Cards: slices.Clone(list.cards)})
+	}
+	return lists
+}
+
 // Seeds are the decks feature's starting data, for store.RunSeeds. A
 // starter deck naming a card the card catalogue does not have, as another
 // card database may not, is left out and logged.

@@ -6,7 +6,6 @@ package cards_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -15,26 +14,16 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 )
 
-// realCardDatabase is the card database linked into the repository.
-const realCardDatabase = "../../../../resources/duelmasters_db"
-
-// readRealCardDatabase reads it, skipping the test where it is not checked
-// out; on CI it must be.
+// readRealCardDatabase reads the card database linked into the repository.
 func readRealCardDatabase(t *testing.T) cards.Source {
 	t.Helper()
 
-	if _, err := os.Stat(realCardDatabase); err != nil {
-		if os.Getenv("CI") != "" {
-			t.Fatalf("the card database must be checked out on CI (git submodule update --init): %v", err)
-		}
-		t.Skip("the card database is not checked out; run git submodule update --init")
-	}
-
-	source, err := cards.ReadSource(realCardDatabase)
+	source, err := cards.ReadSource(cardstest.RealDatabase(t))
 	require.NoError(t, err)
 	return source
 }
@@ -71,7 +60,7 @@ func TestSyncCopiesTheRealCardDatabase(t *testing.T) {
 		assert.Empty(t, result.Problems)
 		assert.Equal(t, len(playable), result.Playable)
 
-		catalogue := cards.NewCatalogue(db, realCardDatabase)
+		catalogue := cards.NewCatalogue(db, cardstest.RealDatabase(t))
 		page, err := catalogue.Search(ctx, cards.Filter{Query: "bolshack dragon", PlayableOnly: true})
 		require.NoError(t, err)
 		require.NotEmpty(t, page.Cards)
