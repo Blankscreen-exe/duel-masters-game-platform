@@ -371,6 +371,7 @@ Chosen 2026-10-24. Reference mockup: `design/themes/theme-battle-zone.html` (the
 | decks / deck_cards                 | player's decks, cover card, the 40 cards                          |
 | formats / format_sets / format_cards | formats, their allowed sets, banned and limited cards           |
 | starter_decks / starter_deck_cards | admin-built starter decks                                         |
+| computer_opponents / computer_opponent_cards | computer opponents: account, description, play style, strength, format, deck rules (civilizations, card types), deck |
 | games                              | players, decks, format, options, state, winner, how it ended, turns, length, rating changes |
 | chat_messages                      | lobby chat, with moderation state                                 |
 | blocks                             | who blocked whom                                                  |

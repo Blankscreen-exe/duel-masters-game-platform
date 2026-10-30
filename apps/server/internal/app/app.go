@@ -28,6 +28,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
@@ -118,7 +119,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	if _, err := cards.Sync(ctx, db, source, games.PlayableCards(), logger.With("component", "cards")); err != nil {
 		return nil, err
 	}
-	if err := store.RunSeeds(db, decks.Seeds(logger.With("component", "decks"))...); err != nil {
+	if err := store.RunSeeds(db, slices.Concat(decks.Seeds(logger.With("component", "decks")), opponents.Seeds(logger.With("component", "opponents")))...); err != nil {
 		return nil, err
 	}
 	catalogue := cards.NewCatalogue(db, cfg.CardDatabaseDir)

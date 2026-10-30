@@ -298,6 +298,17 @@ func (s *Service) CreateComputer(ctx context.Context, username string) (User, er
 	return CreateComputerIn(s.db.WithContext(ctx), username)
 }
 
+// TakenIn reports whether an account has the name, in any case, inside the
+// transaction tx: checking first rather than meeting the duplicate keeps a
+// PostgreSQL transaction usable.
+func TakenIn(tx *gorm.DB, username string) (bool, error) {
+	var count int64
+	if err := tx.Model(&User{}).Where("username_key = ?", Key(username)).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("looking for account %q: %w", username, err)
+	}
+	return count > 0, nil
+}
+
 // CreateComputerIn is CreateComputer inside the transaction tx, such as a
 // seed adding computer opponents with their accounts.
 func CreateComputerIn(tx *gorm.DB, username string) (User, error) {

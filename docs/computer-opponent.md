@@ -74,19 +74,23 @@ Each has:
 The player picks a personality and one of their own decks that is legal in the personality's format.
 Rematches work as for other games, with deck switching; the computer always accepts.
 
-### Starting set (proposal, to confirm)
+### Starting set
 
-| Personality theme | Plays like                                                        | Deck rules            |
-| ----------------- | ----------------------------------------------------------------- | --------------------- |
-| Hand discard      | makes you discard, then grinds you down                           | one civilization      |
-| Rapid summon      | many cheap creatures, attacks every turn                          | one civilization      |
-| Defensive wall    | blockers first, attacks only when it is safe                      | one civilization      |
-| Tapper            | taps your creatures so they cannot block, then attacks            | up to two             |
-| Bounce            | sends your creatures back to your hand to slow you down           | one civilization      |
-| Big creatures     | charges mana fast and plays the largest creatures it can          | up to two             |
+Confirmed, and seeded at startup (`internal/opponents`): each plays at Normal strength, in the
+Open format, with creatures, evolution creatures and spells, and four copies of each card listed.
 
-Names, descriptions and deck lists come with the deck building, using cards that are implemented
-and tested, so the computer plays them correctly.
+| Name        | Theme and style                                           | Deck rules              | Deck                                                                                                                                                     |
+| ----------- | --------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Grimwhisper | Hand discard (`discard`): empties your hand first         | one civilization        | Ghost Touch, Horrid Worm, Cloned Nightmare, Windmill Mutant, Gigabalza, Locomotiver, Masked Horror, Jagila, Zero Nemesis, Gigavrand                       |
+| Blazerush   | Rapid summon (`rush`): cheap creatures, attacks every turn | one civilization        | Deadly Fighter Braid Claw, Brawler Zyler, Immortal Baron Vorg, Mini Titan Gett, Crimson Hammer, Explosive Dude Joe, Pyrofighter Magnus, Rikabu, Fatal Attacker Horvath, Twin-Cannon Skyterror |
+| Aegis       | Defensive wall (`wall`): blockers, attacks when safe      | one civilization        | La Ura Giga, Emerald Grass, Iocant, Senatine Jade Tree, Bex, Dia Nork, Engbelt, Szubs Kin, Syforce, Sasha                                                 |
+| Stormbinder | Tapper (`tapper`): taps your creatures, then attacks      | up to two civilizations | Solar Ray, Aqua Trickster, Miele, Larba Geer, Mizoy, Moonlight Flash, Flohdani, Rom, Holy Awe, Craze Valkyrie                                             |
+| Tidecaller  | Bounce (`bounce`): sends your creatures back to your hand | one civilization        | Spiral Gate, Stained Glass, Wave Lance, Emperor Maroll, Unicorn Fish, Cloned Spiral, Crystal Paladin, Saucer-Head Shark, Aqua Surfer, King Mazelan        |
+| Titangrove  | Big creatures (`giant`): ramps mana, then giants          | up to two civilizations | Poisonous Mushroom, Faerie Life, Bronze-Arm Tribe, Ultimate Force, Bolshack Dragon, Carnival Totem, Roaring Great-Horn, Gatling Skyterror, Dawn Giant, Bodacious Giant |
+
+Each plays under a computer account of its own (a `computer` flag on the account, which nobody
+logs in to and admins cannot change), so its games are recorded like anyone's. A name an account
+already has is left out of the seed rather than taken.
 
 ## Settings
 
@@ -106,8 +110,9 @@ computer running at once, so a busy evening cannot overload the server.
    engine will not end its turn, and as a last resort gives up the game rather than leave its
    opponent waiting.
 3. **Personalities.** Stored in the database with their rules and decks, the starting set seeded,
-   their play styles, and games against them started, recorded in the match history and kept out
-   of ratings.
+   their play styles (done: accounts, `internal/opponents`, the styles and strengths in
+   `internal/computer`, tested by the six playing whole games in their styles), and games against
+   them started, recorded in the match history and kept out of ratings (next).
 4. **The "Vs computer" tab** on the play page.
 5. **Admin panel:** the computer opponents page and the two settings.
 6. **Later:** the look-ahead and a Hard strength.
