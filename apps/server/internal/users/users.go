@@ -58,6 +58,9 @@ type User struct {
 	UsernameKey  string
 	PasswordHash string
 	Role         Role
+	// Computer marks the account of a computer opponent: it has no
+	// password, so nobody logs in to it, and admins cannot change it.
+	Computer bool
 	Moderation
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -188,8 +191,9 @@ func NewService(db *gorm.DB, logger *slog.Logger) *Service {
 	return &Service{db: db, logger: logger}
 }
 
-// Create adds an account with an already hashed password. The first account
-// ever created becomes an admin; every later one is a player. It returns a
+// Create adds an account with an already hashed password. The first person's
+// account ever created becomes an admin, computer opponents' not counting;
+// every later one is a player. It returns a
 // *validation.Error for a name breaking the rules and ErrUsernameTaken for a
 // name already in use.
 func (s *Service) Create(ctx context.Context, username, passwordHash string) (User, error) {
@@ -209,7 +213,7 @@ func (s *Service) Create(ctx context.Context, username, passwordHash string) (Us
 	user := User{ID: id.String(), Username: name, UsernameKey: key, PasswordHash: passwordHash, Role: RolePlayer}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing int64
-		if err := tx.Model(&User{}).Limit(1).Count(&existing).Error; err != nil {
+		if err := people(tx.Model(&User{})).Limit(1).Count(&existing).Error; err != nil {
 			return err
 		}
 		if existing == 0 {
@@ -269,14 +273,53 @@ func SetPasswordHashIn(tx *gorm.DB, id, passwordHash string) error {
 	return update(tx, id, "changing a password", map[string]any{"password_hash": passwordHash})
 }
 
-// AnyExist reports whether at least one account exists.
+// AnyExist reports whether at least one person's account exists; computer
+// opponents' do not count.
 func (s *Service) AnyExist(ctx context.Context) (bool, error) {
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&User{}).Limit(1).Count(&count).Error; err != nil {
+	if err := people(s.db.WithContext(ctx).Model(&User{})).Limit(1).Count(&count).Error; err != nil {
 		return false, fmt.Errorf("counting accounts: %w", err)
 	}
 
 	return count > 0, nil
+}
+
+// people narrows a query to the accounts of people, leaving out computer
+// opponents'.
+func people(query *gorm.DB) *gorm.DB {
+	return query.Where("computer = ?", false)
+}
+
+// CreateComputer adds the account of a computer opponent, with the name
+// given: an account with no password, which nobody can log in to. It returns
+// a *validation.Error for a name breaking the rules and ErrUsernameTaken for
+// a name already in use.
+func (s *Service) CreateComputer(ctx context.Context, username string) (User, error) {
+	return CreateComputerIn(s.db.WithContext(ctx), username)
+}
+
+// CreateComputerIn is CreateComputer inside the transaction tx, such as a
+// seed adding computer opponents with their accounts.
+func CreateComputerIn(tx *gorm.DB, username string) (User, error) {
+	name, key, err := NormalizeUsername(username)
+	if err != nil {
+		return User{}, err
+	}
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		return User{}, fmt.Errorf("making an account id: %w", err)
+	}
+
+	user := User{ID: id.String(), Username: name, UsernameKey: key, Role: RolePlayer, Computer: true}
+	err = tx.Create(&user).Error
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return User{}, ErrUsernameTaken
+	}
+	if err != nil {
+		return User{}, fmt.Errorf("creating computer account %q: %w", name, err)
+	}
+	return user, nil
 }
 
 // Account search limits.

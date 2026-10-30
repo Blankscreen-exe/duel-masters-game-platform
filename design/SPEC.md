@@ -259,6 +259,8 @@ Every game, rematches included, starts with a coin toss that both players (and s
 
 - **Dashboard**: players online, games running, server status.
 - **Users**: search, ban/unban, mute/unmute, reset password, make admin or player (section 3).
+  Computer opponents' accounts are listed, marked as computer, and cannot be changed: nobody logs
+  in to them.
 - **Games**: watch or end a running game (no winner, no rating change); recent results.
 - **Formats**: create and edit formats, their sets and their banned/limited cards, and their
   order. A format no deck or game has used can be deleted; one in use can only be **retired**:
@@ -360,7 +362,7 @@ Chosen 2026-10-24. Reference mockup: `design/themes/theme-battle-zone.html` (the
 
 | Table                              | Contents                                                          |
 | ---------------------------------- | ----------------------------------------------------------------- |
-| users                              | name, password hash, role, rating, streaks, ban (since, until, reason) and mute (since, until), settings |
+| users                              | name, password hash, role, rating, streaks, ban (since, until, reason) and mute (since, until), settings; a computer flag for computer opponents' accounts, which have no password |
 | sessions                           | user, token hash, expiry                                          |
 | card_sets                          | sets in release order, with their icons                           |
 | cards / card_printings             | the card catalogue copied from the card database: one row per card (engine id, details, search text, name order, whether still in the card database) and one per printing (set, collector number, rarity, picture) |

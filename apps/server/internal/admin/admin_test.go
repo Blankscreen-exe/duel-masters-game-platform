@@ -464,3 +464,27 @@ func TestSetPasswordGivesAPlayerANewOne(t *testing.T) {
 		assert.Equal(t, "Shobu", entries[0].Subject)
 	})
 }
+
+func TestAdminsCannotChangeAComputerOpponentsAccount(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		boss, _ := f.signUp(t, "Boss")
+		computer, err := f.users.CreateComputer(ctx, "Grimwhisper")
+		require.NoError(t, err)
+
+		_, err = f.admin.Ban(ctx, boss, computer.ID, admin.BanInput{Reason: "Too good"})
+		assert.ErrorIs(t, err, admin.ErrComputerAccount)
+		_, err = f.admin.Mute(ctx, boss, computer.ID, time.Hour)
+		assert.ErrorIs(t, err, admin.ErrComputerAccount)
+		_, err = f.admin.SetRole(ctx, boss, computer.ID, users.RoleAdmin)
+		assert.ErrorIs(t, err, admin.ErrComputerAccount)
+		_, err = f.admin.SetPassword(ctx, boss, computer.ID, "another long password")
+		assert.ErrorIs(t, err, admin.ErrComputerAccount)
+
+		assert.Empty(t, f.logEntries(t))
+		stored, err := f.users.ByID(ctx, computer.ID)
+		require.NoError(t, err)
+		assert.Empty(t, stored.PasswordHash, "still nobody can log in to it")
+	})
+}

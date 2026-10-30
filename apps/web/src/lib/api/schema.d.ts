@@ -912,6 +912,8 @@ export interface components {
             id: string;
             username: string;
             role: components["schemas"]["Role"];
+            /** @description Whether the account is a computer opponent's, which nobody logs in to and admins cannot change. */
+            computer: boolean;
             /** Format: date-time */
             joinedAt: string;
             rank: components["schemas"]["Rank"];
@@ -1537,7 +1539,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description The guards forbid it: admins cannot act on their own account (code "own_account"), an admin cannot be banned until made a player (code "admin_ban"), a banned player cannot be made an admin (code "banned_admin"), and the last admin cannot be made a player (code "last_admin"). */
+        /** @description The guards forbid it: admins cannot act on their own account (code "own_account"), an admin cannot be banned until made a player (code "admin_ban"), a banned player cannot be made an admin (code "banned_admin"), the last admin cannot be made a player (code "last_admin"), and a computer opponent's account cannot be changed (code "computer_account"). */
         AdminConflict: {
             headers: {
                 [name: string]: unknown;

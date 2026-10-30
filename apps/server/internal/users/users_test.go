@@ -321,3 +321,33 @@ func TestLockInReadsTheAccountsAndTheAdmins(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestComputerAccountsAreNotPeople(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		service := newService(db)
+
+		computer, err := service.CreateComputer(ctx, "Grimwhisper")
+		require.NoError(t, err)
+		assert.True(t, computer.Computer)
+		assert.Empty(t, computer.PasswordHash, "nobody can log in to it")
+		assert.Equal(t, users.RolePlayer, computer.Role)
+
+		exist, err := service.AnyExist(ctx)
+		require.NoError(t, err)
+		assert.False(t, exist, "a computer opponent's account is not a person's")
+
+		first, err := service.Create(ctx, "Shobu", "hash")
+		require.NoError(t, err)
+		assert.True(t, first.IsAdmin(), "the first person to sign up is still the admin")
+
+		_, err = service.CreateComputer(ctx, "SHOBU")
+		assert.ErrorIs(t, err, users.ErrUsernameTaken, "a computer opponent's name is a name like any other")
+		_, err = service.Create(ctx, "grimwhisper", "hash")
+		assert.ErrorIs(t, err, users.ErrUsernameTaken, "and nobody can sign up as one")
+
+		stored, err := service.ByID(ctx, computer.ID)
+		require.NoError(t, err)
+		assert.True(t, stored.Computer)
+	})
+}

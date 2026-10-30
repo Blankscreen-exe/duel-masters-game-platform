@@ -1497,8 +1497,9 @@ components:
       description: >-
         The guards forbid it: admins cannot act on their own account (code "own_account"), an
         admin cannot be banned until made a player (code "admin_ban"), a banned player cannot be
-        made an admin (code "banned_admin"), and the last admin cannot be made a player (code
-        "last_admin").
+        made an admin (code "banned_admin"), the last admin cannot be made a player (code
+        "last_admin"), and a computer opponent's account cannot be changed (code
+        "computer_account").
       content:
         application/json:
           schema:
@@ -1666,7 +1667,7 @@ components:
     AdminUser:
       description: An account as the admin panel shows it.
       type: object
-      required: [id, username, role, joinedAt, rank, wins, losses, online]
+      required: [id, username, role, computer, joinedAt, rank, wins, losses, online]
       properties:
         id:
           type: string
@@ -1674,6 +1675,11 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/Role"
+        computer:
+          description: >-
+            Whether the account is a computer opponent's, which nobody logs in to and admins
+            cannot change.
+          type: boolean
         joinedAt:
           type: string
           format: date-time

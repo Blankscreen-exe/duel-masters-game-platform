@@ -478,7 +478,10 @@ type AdminLogPage struct {
 
 // AdminUser An account as the admin panel shows it.
 type AdminUser struct {
-	Ban      *Ban      `json:"ban,omitempty"`
+	Ban *Ban `json:"ban,omitempty"`
+
+	// Computer Whether the account is a computer opponent's, which nobody logs in to and admins cannot change.
+	Computer bool      `json:"computer"`
 	Id       string    `json:"id"`
 	JoinedAt time.Time `json:"joinedAt"`
 	Losses   int       `json:"losses"`

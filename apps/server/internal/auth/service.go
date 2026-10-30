@@ -196,11 +196,13 @@ func (s *Service) checkPassword(ctx context.Context, username, password string) 
 	}
 
 	user, err = s.users.ByUsername(ctx, username)
-	if errors.Is(err, users.ErrNotFound) {
-		return users.User{}, false, s.hasher.VerifyNothing(ctx, password)
-	}
-	if err != nil {
+	if err != nil && !errors.Is(err, users.ErrNotFound) {
 		return users.User{}, false, err
+	}
+	// Nobody logs in to a computer opponent's account, which has no
+	// password: it is refused as an unknown account is, taking as long.
+	if errors.Is(err, users.ErrNotFound) || user.Computer {
+		return users.User{}, false, s.hasher.VerifyNothing(ctx, password)
 	}
 
 	ok, err = s.hasher.Verify(ctx, user.PasswordHash, password)

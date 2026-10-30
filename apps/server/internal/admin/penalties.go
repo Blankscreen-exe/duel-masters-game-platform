@@ -39,7 +39,7 @@ type BanInput struct {
 // stopping the game they play in. A ban replaces the player's earlier one.
 // It returns a *validation.Error for a duration or reason breaking the
 // limits and ErrAdminBan for an admin, besides the errors every action
-// returns: ErrNotAdmin, ErrOwnAccount and users.ErrNotFound.
+// returns: ErrNotAdmin, ErrOwnAccount, ErrComputerAccount and users.ErrNotFound.
 func (s *Service) Ban(ctx context.Context, actor users.User, playerID string, input BanInput) (users.User, error) {
 	if err := checkDuration(input.Duration); err != nil {
 		return users.User{}, err
@@ -75,7 +75,7 @@ func (s *Service) Ban(ctx context.Context, actor users.User, playerID string, in
 
 // Unban lifts a player's ban. Lifting a ban that is over, or that never was,
 // changes nothing. It returns the errors every action returns: ErrNotAdmin,
-// ErrOwnAccount and users.ErrNotFound.
+// ErrOwnAccount, ErrComputerAccount and users.ErrNotFound.
 func (s *Service) Unban(ctx context.Context, actor users.User, playerID string) (users.User, error) {
 	player, changed, err := s.changeAccount(ctx, actor, playerID, false, func(tx *gorm.DB, admin, player users.User, _ map[string]users.User) (bool, error) {
 		if _, banned := player.BanAt(s.timestamp()); !banned {
@@ -99,7 +99,7 @@ func (s *Service) Unban(ctx context.Context, actor users.User, playerID string) 
 // Mute keeps a player out of the lobby chat for duration, or for good when
 // it is 0. A mute replaces the player's earlier one. It returns a
 // *validation.Error for a duration breaking the limits, besides the errors
-// every action returns: ErrNotAdmin, ErrOwnAccount and users.ErrNotFound.
+// every action returns: ErrNotAdmin, ErrOwnAccount, ErrComputerAccount and users.ErrNotFound.
 func (s *Service) Mute(ctx context.Context, actor users.User, playerID string, duration time.Duration) (users.User, error) {
 	if err := checkDuration(duration); err != nil {
 		return users.User{}, err
@@ -122,7 +122,7 @@ func (s *Service) Mute(ctx context.Context, actor users.User, playerID string, d
 
 // Unmute lifts a player's mute. Lifting a mute that is over, or that never
 // was, changes nothing. It returns the errors every action returns:
-// ErrNotAdmin, ErrOwnAccount and users.ErrNotFound.
+// ErrNotAdmin, ErrOwnAccount, ErrComputerAccount and users.ErrNotFound.
 func (s *Service) Unmute(ctx context.Context, actor users.User, playerID string) (users.User, error) {
 	player, changed, err := s.changeAccount(ctx, actor, playerID, false, func(tx *gorm.DB, admin, player users.User, _ map[string]users.User) (bool, error) {
 		if _, muted := player.MuteAt(s.timestamp()); !muted {

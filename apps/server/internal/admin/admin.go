@@ -33,6 +33,9 @@ var (
 	ErrBannedAdmin = errors.New("a banned player cannot be made an admin")
 	// ErrLastAdmin is returned for making the last admin a player.
 	ErrLastAdmin = errors.New("the last admin cannot be made a player")
+	// ErrComputerAccount is returned for acting on a computer opponent's
+	// account, which nobody logs in to.
+	ErrComputerAccount = errors.New("a computer opponent's account cannot be changed")
 )
 
 // Connections are the players' live connections to the site.
@@ -133,6 +136,9 @@ func (s *Service) changeAccount(ctx context.Context, actor users.User, playerID 
 		if !found {
 			return users.ErrNotFound
 		}
+		if player.Computer {
+			return ErrComputerAccount
+		}
 
 		if changed, err = change(tx, admin, player, locked); err != nil || !changed {
 			return err
@@ -168,7 +174,7 @@ func countAdmins(locked map[string]users.User) int {
 // SetRole makes a player an admin or an admin a player. It returns
 // ErrBannedAdmin for making a banned player an admin and ErrLastAdmin for
 // making the last admin a player, besides the errors every action returns:
-// ErrNotAdmin, ErrOwnAccount and users.ErrNotFound.
+// ErrNotAdmin, ErrOwnAccount, ErrComputerAccount and users.ErrNotFound.
 func (s *Service) SetRole(ctx context.Context, actor users.User, playerID string, role users.Role) (users.User, error) {
 	if role != users.RolePlayer && role != users.RoleAdmin {
 		return users.User{}, fmt.Errorf("setting a role: unknown role %q", role)
@@ -208,7 +214,7 @@ func (s *Service) SetRole(ctx context.Context, actor users.User, playerID string
 // SetPassword gives a player a new password, as an admin does for one who
 // has forgotten theirs, and ends the player's sessions. It returns a
 // *validation.Error for a password breaking the rules, besides the errors
-// every action returns: ErrNotAdmin, ErrOwnAccount and users.ErrNotFound.
+// every action returns: ErrNotAdmin, ErrOwnAccount, ErrComputerAccount and users.ErrNotFound.
 func (s *Service) SetPassword(ctx context.Context, actor users.User, playerID, password string) (users.User, error) {
 	if playerID == actor.ID {
 		return users.User{}, ErrOwnAccount

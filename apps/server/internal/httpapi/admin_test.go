@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
 
 // adminUser finds a player's account as the admin panel lists it.
@@ -219,6 +222,31 @@ func TestTheGuardsAreAnsweredAsConflicts(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, site.call(http.MethodPost, "/api/admin/users/no-such-account/mute", api.MuteInput{}, boss).Code)
 	assert.Equal(t, http.StatusBadRequest, site.call(http.MethodPut, "/api/admin/users/"+target.Id+"/role", map[string]string{"role": "owner"}, boss).Code)
+}
+
+func TestAComputerOpponentsAccountIsShownButCannotBeChanged(t *testing.T) {
+	site := newTestServer(t, false)
+	boss := site.signUp(t, "Boss")
+	_, err := users.NewService(site.db, storetest.Logger()).CreateComputer(context.Background(), "Grimwhisper")
+	require.NoError(t, err)
+
+	computer := site.adminUser(t, boss, "Grimwhisper")
+	assert.True(t, computer.Computer)
+	assert.False(t, site.adminUser(t, boss, "Boss").Computer)
+
+	for _, change := range []struct {
+		method, path string
+		body         any
+	}{
+		{http.MethodPost, "/ban", api.BanInput{Reason: "Too good"}},
+		{http.MethodPost, "/mute", api.MuteInput{}},
+		{http.MethodPut, "/role", api.RoleInput{Role: api.RoleAdmin}},
+		{http.MethodPut, "/password", api.NewPassword{Password: "another long password"}},
+	} {
+		response := site.call(change.method, "/api/admin/users/"+computer.Id+change.path, change.body, boss)
+		require.Equal(t, http.StatusConflict, response.Code, "%s: %s", change.path, response.Body.String())
+		assert.Equal(t, codeComputer, decode[api.Error](t, response).Code, change.path)
+	}
 }
 
 func TestAnAdminGivesAPlayerANewPassword(t *testing.T) {

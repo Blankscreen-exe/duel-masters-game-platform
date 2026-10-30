@@ -136,6 +136,11 @@ function UserRow({ user, isYou }: { readonly user: AdminUser; readonly isYou: bo
             Admin
           </span>
         )}
+        {user.computer && (
+          <span className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-sky-300 uppercase ring-1 ring-sky-400/50 ring-inset">
+            Computer
+          </span>
+        )}
         {isYou && <span className="text-xs text-accent">(you)</span>}
       </div>
       <div>
@@ -152,7 +157,9 @@ function UserRow({ user, isYou }: { readonly user: AdminUser; readonly isYou: bo
       <div className="min-w-0 basis-full text-xs md:basis-auto">
         <Penalties user={user} />
       </div>
-      <div className="ml-auto md:ml-0 md:text-right">{!isYou && <UserManager user={user} />}</div>
+      <div className="ml-auto md:ml-0 md:text-right">
+        {!isYou && !user.computer && <UserManager user={user} />}
+      </div>
     </li>
   );
 }

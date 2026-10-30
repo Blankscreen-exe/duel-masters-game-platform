@@ -501,3 +501,17 @@ func TestForgetWrongPasswordsLetsAPlayerLogInAgainAtOnce(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestNobodyLogsInToAComputerOpponentsAccount(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		_, err := users.NewService(db, storetest.Logger()).CreateComputer(ctx, "Grimwhisper")
+		require.NoError(t, err)
+
+		for _, attempt := range []string{"", password} {
+			_, _, err := f.auth.LogIn(ctx, "Grimwhisper", attempt)
+			assert.ErrorIs(t, err, auth.ErrInvalidCredentials, "with %q", attempt)
+		}
+	})
+}

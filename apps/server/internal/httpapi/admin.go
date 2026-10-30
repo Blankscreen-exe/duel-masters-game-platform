@@ -93,6 +93,8 @@ func adminConflict(err error) (api.Error, bool) {
 		return apiError(codeBannedAdmin, "A banned player cannot be made an admin. Lift the ban first."), true
 	case errors.Is(err, admin.ErrLastAdmin):
 		return apiError(codeLastAdmin, "The last admin cannot be made a player."), true
+	case errors.Is(err, admin.ErrComputerAccount):
+		return apiError(codeComputer, "A computer opponent's account cannot be changed."), true
 	default:
 		return api.Error{}, false
 	}
@@ -360,6 +362,7 @@ func (h *handlers) adminUsers(ctx context.Context, accounts []users.User) ([]api
 			Id:       account.ID,
 			Username: account.Username,
 			Role:     api.Role(account.Role),
+			Computer: account.Computer,
 			JoinedAt: account.CreatedAt.UTC(),
 			Rank:     apiRank(standing.Rank),
 			Wins:     standing.Wins,

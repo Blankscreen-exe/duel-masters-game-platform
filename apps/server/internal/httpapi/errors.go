@@ -43,6 +43,7 @@ const (
 	codeAdminBan    = "admin_ban"
 	codeBannedAdmin = "banned_admin"
 	codeLastAdmin   = "last_admin"
+	codeComputer    = "computer_account"
 )
 
 // apiError is the contract's Error body.

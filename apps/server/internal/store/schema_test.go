@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 )
 
@@ -204,5 +205,32 @@ func TestSchemaKeepsTheAdminLogOnceAnAdminIsGone(t *testing.T) {
 		require.NoError(t, db.Raw("SELECT admin_id, admin_name FROM admin_actions WHERE id = ?", "a1").Scan(&kept).Error)
 		assert.Nil(t, kept.AdminID)
 		assert.Equal(t, "Alice", kept.AdminName)
+	})
+}
+
+func TestSchemaStartsAccountsAsPeople(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Shobu", "player"))
+
+		var computer bool
+		require.NoError(t, db.Raw("SELECT computer FROM users WHERE id = ?", "u1").Scan(&computer).Error)
+		assert.False(t, computer)
+	})
+}
+
+func TestUndoingComputerAccountsKeepsEveryonesSessions(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Shobu", "player"))
+		require.NoError(t, insertSession(db, "s1", "u1"))
+
+		require.NoError(t, store.RollbackTo(db, "0011_create_starter_decks"))
+		var sessions int64
+		require.NoError(t, db.Table("sessions").Count(&sessions).Error)
+		assert.Equal(t, int64(1), sessions, "undoing the migration takes nobody's sessions")
+
+		require.NoError(t, store.Migrate(db), "and it can run again")
+		var computer bool
+		require.NoError(t, db.Raw("SELECT computer FROM users WHERE id = ?", "u1").Scan(&computer).Error)
+		assert.False(t, computer)
 	})
 }

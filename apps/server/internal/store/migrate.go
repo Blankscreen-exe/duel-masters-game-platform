@@ -28,6 +28,7 @@ func migrations() []*gormigrate.Migration {
 		migration0009SQLiteTimesAsNumbers(),
 		migration0010Moderation(),
 		migration0011StarterDecks(),
+		migration0012ComputerAccounts(),
 	}
 }
 
