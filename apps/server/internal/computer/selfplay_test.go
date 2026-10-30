@@ -19,6 +19,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/server"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/tests/scenario"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents"
 )
 
 // gameTimeout bounds a whole game between two computer players, which takes
@@ -41,13 +42,13 @@ func realLibrary(t *testing.T) *computer.Library {
 	return computer.NewLibrary(built)
 }
 
-// deckOf is a starter deck as the engine takes it: four of each card, by the
-// engine's id.
-func deckOf(t *testing.T, library *computer.Library, list decks.StarterList) []string {
+// deckOf is a deck of four of each card named, as the engine takes it: by
+// the engine's id.
+func deckOf(t *testing.T, library *computer.Library, names []string) []string {
 	t.Helper()
 
-	deck := make([]string, 0, len(list.Cards)*decks.MaxCopies)
-	for _, name := range list.Cards {
+	deck := make([]string, 0, len(names)*decks.MaxCopies)
+	for _, name := range names {
 		card, ok := library.Named(name)
 		require.True(t, ok, "the engine plays %s", name)
 		for range decks.MaxCopies {
@@ -95,16 +96,23 @@ func (r *results) MatchClosed(string) {
 	r.once.Do(func() { close(r.closed) })
 }
 
+// seat is a computer player's side of a game: its deck, as the engine takes
+// it, and how it plays.
+type seat struct {
+	deck  []string
+	style computer.Style
+}
+
 // playGame has two computer players play a whole game with the decks, and
 // returns how it ended once both have stopped playing.
-func playGame(t *testing.T, library *computer.Library, hostDeck, guestDeck []string, seed uint64) match.Result {
+func playGame(t *testing.T, library *computer.Library, host, guest seat, seed uint64) match.Result {
 	t.Helper()
 
 	reported := &results{closed: make(chan struct{})}
 	m, err := match.NewSystem(match.SystemOptions{Observer: reported}).NewMatch(match.Options{
 		Name:            "Computer against computer",
-		Host:            match.Seat{ID: "host", Username: "Host", Deck: hostDeck},
-		Guest:           match.Seat{ID: "guest", Username: "Guest", Deck: guestDeck},
+		Host:            match.Seat{ID: "host", Username: "Host", Deck: host.deck},
+		Guest:           match.Seat{ID: "guest", Username: "Guest", Deck: guest.deck},
 		TossCaller:      "host",
 		DisconnectGrace: time.Hour,
 	})
@@ -114,10 +122,13 @@ func playGame(t *testing.T, library *computer.Library, hostDeck, guestDeck []str
 	// What the players did, shown if the game gets stuck.
 	var log lockedBuffer
 	var playing sync.WaitGroup
-	for i, seat := range []match.Seat{{ID: "host", Username: "Host"}, {ID: "guest", Username: "Guest"}} {
+	for i, seat := range []struct {
+		match.Seat
+		style computer.Style
+	}{{match.Seat{ID: "host", Username: "Host"}, host.style}, {match.Seat{ID: "guest", Username: "Guest"}, guest.style}} {
 		player := computer.New(computer.Options{
 			Library: library,
-			Style:   computer.Balanced,
+			Style:   seat.style,
 			Seed:    seed + uint64(i),
 			Logger:  slog.New(slog.NewTextHandler(&log, &slog.HandlerOptions{Level: slog.LevelDebug})).With("seat", seat.ID),
 		})
@@ -155,7 +166,11 @@ func playGame(t *testing.T, library *computer.Library, hostDeck, guestDeck []str
 	reported.mu.Lock()
 	defer reported.mu.Unlock()
 	require.Len(t, reported.finished, 1, "the game reported its end")
-	return reported.finished[0]
+	result := reported.finished[0]
+	if result.Ending != match.EndingPlay {
+		t.Logf("the game ended by %s; the last the players did:\n%s", result.Ending, log.tail(80))
+	}
+	return result
 }
 
 func TestTheComputerPlaysWholeGamesWithEveryStarterDeck(t *testing.T) {
@@ -168,10 +183,39 @@ func TestTheComputerPlaysWholeGamesWithEveryStarterDeck(t *testing.T) {
 			t.Run(fmt.Sprintf("%s against %s, game %d", host.Name, guest.Name, seed), func(t *testing.T) {
 				t.Parallel()
 
-				result := playGame(t, library, deckOf(t, library, host), deckOf(t, library, guest), seed*100)
+				result := playGame(t, library,
+					seat{deck: deckOf(t, library, host.Cards), style: computer.Balanced},
+					seat{deck: deckOf(t, library, guest.Cards), style: computer.Balanced}, seed*100)
 
 				assert.Equal(t, match.EndingPlay, result.Ending, "won by the game's rules, nobody giving up")
 				assert.NotEmpty(t, result.WinnerID)
+				assert.Greater(t, result.Turns, 4, "a whole game, not one lost at once")
+				t.Logf("%s won after %d turns", result.WinnerID, result.Turns)
+			})
+		}
+	}
+}
+
+func TestEveryStartingOpponentPlaysWholeGamesInItsStyle(t *testing.T) {
+	library := realLibrary(t)
+	starting := opponents.StartingOpponents()
+
+	for i, host := range starting {
+		guest := starting[(i+1)%len(starting)]
+		hostStyle, ok := computer.StyleNamed(host.Style)
+		require.True(t, ok, host.Name)
+		guestStyle, ok := computer.StyleNamed(guest.Style)
+		require.True(t, ok, guest.Name)
+
+		for seed := uint64(1); seed <= 2; seed++ {
+			t.Run(fmt.Sprintf("%s against %s, game %d", host.Name, guest.Name, seed), func(t *testing.T) {
+				t.Parallel()
+
+				result := playGame(t, library,
+					seat{deck: deckOf(t, library, host.Cards), style: hostStyle},
+					seat{deck: deckOf(t, library, guest.Cards), style: guestStyle}, seed*100)
+
+				assert.Equal(t, match.EndingPlay, result.Ending, "won by the game's rules, nobody giving up")
 				assert.Greater(t, result.Turns, 4, "a whole game, not one lost at once")
 				t.Logf("%s won after %d turns", result.WinnerID, result.Turns)
 			})

@@ -11,6 +11,7 @@
 package computer
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"math/rand/v2"
@@ -40,6 +41,8 @@ const (
 type Options struct {
 	Library *Library
 	Style   Style
+	// Strength is how well it plays; Normal unless set.
+	Strength Strength
 	// Pause is how long it waits before each move, so a person playing it
 	// can follow what it does.
 	Pause time.Duration
@@ -53,12 +56,13 @@ type Options struct {
 
 // Player is a computer player in one game.
 type Player struct {
-	conn    *connection
-	library *Library
-	style   Style
-	pause   time.Duration
-	rand    *rand.Rand
-	logger  *slog.Logger
+	conn     *connection
+	library  *Library
+	style    Style
+	strength Strength
+	pause    time.Duration
+	rand     *rand.Rand
+	logger   *slog.Logger
 
 	// view and plan are only used by Play.
 	view view
@@ -76,12 +80,13 @@ func New(options Options) *Player {
 		seed = rand.Uint64()
 	}
 	return &Player{
-		conn:    newConnection(),
-		library: options.Library,
-		style:   options.Style,
-		pause:   options.Pause,
-		rand:    rand.New(rand.NewPCG(seed, seed>>1|1)),
-		logger:  logger,
+		conn:     newConnection(),
+		library:  options.Library,
+		style:    options.Style,
+		strength: cmp.Or(options.Strength, Normal),
+		pause:    options.Pause,
+		rand:     rand.New(rand.NewPCG(seed, seed>>1|1)),
+		logger:   logger,
 	}
 }
 

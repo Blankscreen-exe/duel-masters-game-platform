@@ -21,9 +21,9 @@ func testCard(id, cardType string, cost, power int, civilizations []string, keyw
 	}
 }
 
-// testPlayer is a computer player with a library of a few made-up cards.
-func testPlayer() *Player {
-	library := NewLibrary([]cards.Card{
+// testLibrary is a library of a few made-up cards.
+func testLibrary() *Library {
+	return NewLibrary([]cards.Card{
 		testCard("fire-small", typeCreature, 2, 2000, []string{"Fire"}, nil, nil),
 		testCard("fire-big", typeCreature, 7, 9000, []string{"Fire"}, []string{"double_break"}, nil),
 		testCard("fire-rusher", typeCreature, 3, 3000, []string{"Fire"}, nil, []string{"must_attack"}),
@@ -33,8 +33,17 @@ func testPlayer() *Player {
 		testCard("nature-mana", typeCreature, 2, 1000, []string{"Nature"}, nil, nil),
 		testCard("discard-own", typeSpell, 2, 0, []string{"Darkness"}, nil, []string{"discard_own"}),
 		testCard("removal", typeSpell, 4, 0, []string{"Darkness"}, nil, []string{"removal"}),
+		testCard("discard-opp", typeSpell, 4, 0, []string{"Darkness"}, nil, []string{"discard_opp"}),
 	})
-	return New(Options{Library: library, Style: Balanced, Seed: 7})
+}
+
+// testPlayer is a computer player with a library of a few made-up cards.
+func testPlayer() *Player {
+	return testPlayerWith(Balanced, Normal)
+}
+
+func testPlayerWith(style Style, strength Strength) *Player {
+	return New(Options{Library: testLibrary(), Style: style, Strength: strength, Seed: 7})
 }
 
 // in is a card as the engine sends it: a virtualId and the engine's id.
@@ -247,4 +256,73 @@ func TestTheViewReadsQuestionsInParts(t *testing.T) {
 	v.take([]byte(`{"header":"end_wait"}`))
 	assert.Nil(t, v.question)
 	assert.False(t, v.waiting)
+}
+
+func TestAStylePlaysWhatItFavoursFirst(t *testing.T) {
+	state := &server.MatchState{
+		MyTurn:   true,
+		Me:       server.PlayerState{Hand: []server.CardState{in("blocker", "water-blocker", match.PlayableFlag), in("discard", "discard-opp", match.PlayableFlag)}},
+		Opponent: server.PlayerState{HandCount: 5},
+	}
+
+	balanced, _ := testPlayerWith(Balanced, Normal).cardToPlay(state)
+	assert.Equal(t, "blocker", balanced)
+
+	discard, ok := StyleNamed("discard")
+	require.True(t, ok)
+	favoured, _ := testPlayerWith(discard, Normal).cardToPlay(state)
+	assert.Equal(t, "discard", favoured, "a discard style empties the opponent's hand first")
+
+	state.Opponent.HandCount = 0
+	idle, _ := testPlayerWith(discard, Normal).cardToPlay(state)
+	assert.Equal(t, "blocker", idle, "but not when there is no hand to empty")
+}
+
+func TestOnlyAnEasyPlayerMakesMistakes(t *testing.T) {
+	normal, easy := testPlayerWith(Balanced, Normal), testPlayerWith(Balanced, Easy)
+	mistakes := 0
+	for range 1000 {
+		assert.False(t, normal.errs())
+		if easy.errs() {
+			mistakes++
+		}
+	}
+	assert.InDelta(t, mistakeChance*1000, mistakes, 60, "about %v of the time", mistakeChance)
+}
+
+func TestEveryStyleHasAName(t *testing.T) {
+	names := StyleNames()
+	assert.Equal(t, []string{"balanced", "bounce", "discard", "giant", "rush", "tapper", "wall"}, names)
+	for _, name := range names {
+		_, ok := StyleNamed(name)
+		assert.True(t, ok, name)
+	}
+	_, ok := StyleNamed("chaos")
+	assert.False(t, ok)
+}
+
+func TestACreatureThatHasToAttackTriesEveryAttack(t *testing.T) {
+	pl := testPlayer()
+	state := &server.MatchState{MyTurn: true, Turn: 3, TurnManaCharged: true, Opponent: server.PlayerState{Shieldzone: make([]server.ShieldState, 5)}}
+	creatures(&state.Me, creature{card: in("rusher", "fire-rusher"), power: 3000})
+	creatures(&state.Opponent, creature{card: in("giant", "fire-big", match.TappedFlag), power: 9000})
+
+	// It must attack, and cannot beat the giant, so it attacks the shields;
+	// an effect may insist it attacks the giant instead, so refused, it
+	// attacks the giant, taking any target.
+	assert.Equal(t, cardMove{Header: "attack_player", ID: "rusher"}, pl.nextMove(state))
+	assert.Equal(t, cardMove{Header: "attack_creature", ID: "rusher"}, pl.nextMove(state))
+	assert.True(t, pl.plan.anyTarget["rusher"])
+
+	target := &question{min: 1, max: 1, cancellable: true, cards: state.Opponent.Battlezone, about: server.PromptAbout{
+		Kind: string(match.PromptAttackTarget), Source: &server.PromptSource{CardID: "rusher", ImageID: "fire-rusher"},
+	}}
+	pl.view.question = target
+	pl.view.take([]byte(`{"header":"action_error","message":"Your selection of cards does not fulfill the requirements"}`))
+	reply, ok := pl.answerTo(target, state)
+	require.True(t, ok)
+	assert.False(t, reply.Cancel, "a target refused, it tries another rather than give up its attack")
+	assert.Equal(t, []string{"giant"}, reply.Cards)
+
+	assert.Equal(t, headerOnly{Header: "end_turn"}, pl.nextMove(state), "with every attack tried, it ends the turn")
 }

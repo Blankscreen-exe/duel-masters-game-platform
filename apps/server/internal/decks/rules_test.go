@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 )
@@ -96,6 +97,9 @@ func TestProblemMessages(t *testing.T) {
 		{Kind: decks.ProblemBanned, CardName: "Bolshack Dragon"}:                                   "Bolshack Dragon is banned in this format.",
 		{Kind: decks.ProblemOverLimit, CardName: "Aqua Hulcus", Count: 2, Limit: 1}:                "Aqua Hulcus: 2 copies, but at most 1 is allowed.",
 		{Kind: decks.ProblemTooManyCopies, CardName: "Basic 01", Count: 5, Limit: decks.MaxCopies}: "Basic 01: 5 copies, but at most 4 are allowed.",
+		{Kind: decks.ProblemTooManyCivilizations, Count: 3, Limit: 1}:                              "The deck's cards have 3 civilizations, but at most 1 is allowed.",
+		{Kind: decks.ProblemTooManyCivilizations, Count: 3, Limit: 2}:                              "The deck's cards have 3 civilizations, but at most 2 are allowed.",
+		{Kind: decks.ProblemCardType, CardName: "Castle of Doom"}:                                  "Castle of Doom is a type of card this deck may not have.",
 	} {
 		assert.Equal(t, message, problem.Message())
 	}
@@ -130,4 +134,26 @@ func TestSortForDisplayOrdersByCostThenName(t *testing.T) {
 		ids = append(ids, entry.CardID)
 	}
 	assert.Equal(t, []string{basic01, hulcus, basic03, man750, revolver, "gone"}, ids)
+}
+
+func TestRulesLimitCivilizationsAndCardTypes(t *testing.T) {
+	known := map[string]cards.Card{
+		"fire":   {ID: "fire", Name: "Fire Creature", Type: "Creature", Civilizations: []string{"Fire"}},
+		"dual":   {ID: "dual", Name: "Fire Nature Creature", Type: "Creature", Civilizations: []string{"Fire", "Nature"}},
+		"spell":  {ID: "spell", Name: "Water Spell", Type: "Spell", Civilizations: []string{"Water"}},
+		"castle": {ID: "castle", Name: "Fire Castle", Type: "Castle", Civilizations: []string{"Fire"}},
+	}
+	creaturesAndSpells := []string{"Creature", "Evolution Creature", "Spell"}
+
+	assert.Empty(t, decks.CheckRules([]decks.Entry{{CardID: "fire", Count: 4}}, known, decks.Rules{MaxCivilizations: 1, CardTypes: creaturesAndSpells}))
+	assert.Empty(t, decks.CheckRules([]decks.Entry{{CardID: "dual", Count: 4}, {CardID: "spell", Count: 4}}, known, decks.Rules{}),
+		"no rules, no problems")
+
+	problems := decks.CheckRules([]decks.Entry{{CardID: "dual", Count: 4}, {CardID: "castle", Count: 2}}, known, decks.Rules{MaxCivilizations: 1, CardTypes: creaturesAndSpells})
+	assert.Equal(t, []decks.Problem{
+		{Kind: decks.ProblemTooManyCivilizations, Count: 2, Limit: 1},
+		{Kind: decks.ProblemCardType, CardID: "castle", CardName: "Fire Castle", Count: 2},
+	}, problems, "a multicoloured card counts each of its civilizations")
+
+	assert.Empty(t, decks.CheckRules([]decks.Entry{{CardID: "dual", Count: 4}, {CardID: "fire", Count: 4}}, known, decks.Rules{MaxCivilizations: 2}))
 }

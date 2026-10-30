@@ -37,9 +37,10 @@ func (pl *Player) answerTo(q *question, state *server.MatchState) (answer, bool)
 	reply := answer{Header: "action", Prompt: q.id, Cards: []string{}}
 
 	// A refused answer is tried again differently: by cancelling, when
-	// that is allowed, or else by other choices, at random.
+	// that is allowed, or else by other choices, at random. A creature that
+	// has to attack tries other targets rather than cancel.
 	if q.refusals > 0 {
-		if q.cancellable {
+		if q.cancellable && !pl.mustAnswer(q) {
 			reply.Cancel = true
 		} else {
 			pl.anyAnswer(q, &reply)
@@ -65,6 +66,13 @@ func (pl *Player) answerTo(q *question, state *server.MatchState) (answer, bool)
 		reply.Cards, reply.Cancel = cards, cancel
 	}
 	return reply, true
+}
+
+// mustAnswer reports whether a question the computer may cancel is one it
+// must answer all the same: choosing the target of an attack it has to make.
+func (pl *Player) mustAnswer(q *question) bool {
+	return match.PromptKind(q.about.Kind) == match.PromptAttackTarget && q.about.Source != nil &&
+		pl.plan.anyTarget[q.about.Source.CardID]
 }
 
 // anyAnswer fills reply with an answer chosen at random within what the
@@ -296,11 +304,14 @@ func (pl *Player) block(q *question, offered []server.CardState, state *server.M
 			winners = append(winners, blocker)
 		}
 	}
+	shields := len(state.Me.Shieldzone)
+	if shields > 0 && pl.errs() {
+		return nil, true
+	}
 	if len(winners) > 0 {
 		return pl.least(winners, 1, state), false
 	}
 
-	shields := len(state.Me.Shieldzone)
 	if shields == 0 || (breaksMore && shields <= 2) || (pl.style.Aggression < 0.5 && shields <= 1) {
 		return pl.least(offered, 1, state), false
 	}

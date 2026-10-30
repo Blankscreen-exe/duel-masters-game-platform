@@ -45,6 +45,11 @@ const (
 	ProblemOverLimit ProblemKind = "over_limit"
 	// ProblemTooManyCopies: more than MaxCopies copies of the card.
 	ProblemTooManyCopies ProblemKind = "too_many_copies"
+	// ProblemTooManyCivilizations: the deck's cards have more civilizations
+	// than its Rules allow.
+	ProblemTooManyCivilizations ProblemKind = "too_many_civilizations"
+	// ProblemCardType: the deck's Rules do not allow the card's type.
+	ProblemCardType ProblemKind = "card_type"
 )
 
 // Problem is one way a deck breaks a format's rules.
@@ -54,11 +59,12 @@ type Problem struct {
 	// CardName is empty for a card that has left the card database.
 	CardID   string
 	CardName string
-	// Count is how many there are: cards in the deck for ProblemSize, copies
-	// of the card otherwise.
+	// Count is how many there are: cards in the deck for ProblemSize,
+	// civilizations for ProblemTooManyCivilizations, copies of the card
+	// otherwise.
 	Count int
-	// Limit is how many are allowed, for ProblemSize, ProblemOverLimit and
-	// ProblemTooManyCopies.
+	// Limit is how many are allowed, for ProblemSize, ProblemOverLimit,
+	// ProblemTooManyCopies and ProblemTooManyCivilizations.
 	Limit int
 }
 
@@ -80,6 +86,10 @@ func (p Problem) Message() string {
 		return fmt.Sprintf("%s is banned in this format.", name)
 	case ProblemOverLimit, ProblemTooManyCopies:
 		return fmt.Sprintf("%s: %d copies, but at most %d %s allowed.", name, p.Count, p.Limit, plural(p.Limit, "is", "are"))
+	case ProblemTooManyCivilizations:
+		return fmt.Sprintf("The deck's cards have %d civilizations, but at most %d %s allowed.", p.Count, p.Limit, plural(p.Limit, "is", "are"))
+	case ProblemCardType:
+		return fmt.Sprintf("%s is a type of card this deck may not have.", name)
 	default:
 		return string(p.Kind)
 	}
@@ -123,6 +133,37 @@ func Check(entries []Entry, known map[string]cards.Card, format formats.Format) 
 		}
 
 		problems = append(problems, problem)
+	}
+
+	return problems
+}
+
+// Rules are limits a deck may be held to beyond its format's, such as a
+// computer opponent's deck.
+type Rules struct {
+	// MaxCivilizations is the most civilizations the deck's cards may have,
+	// 0 for any number.
+	MaxCivilizations int
+	// CardTypes are the types of card the deck may have, by the card
+	// database's names for them; empty allows every type.
+	CardTypes []string
+}
+
+// CheckRules lists every way a deck breaks the rules, or nothing for a deck
+// keeping to them. known holds the deck's cards from the catalogue; a card
+// missing from it is left to Check. Problems come with the civilizations
+// first, then in the deck's order.
+func CheckRules(entries []Entry, known map[string]cards.Card, rules Rules) []Problem {
+	var problems []Problem
+	if civilizations := len(Civilizations(entries, known)); rules.MaxCivilizations > 0 && civilizations > rules.MaxCivilizations {
+		problems = append(problems, Problem{Kind: ProblemTooManyCivilizations, Count: civilizations, Limit: rules.MaxCivilizations})
+	}
+
+	for _, entry := range entries {
+		card, found := known[entry.CardID]
+		if found && len(rules.CardTypes) > 0 && !slices.Contains(rules.CardTypes, card.Type) {
+			problems = append(problems, Problem{Kind: ProblemCardType, CardID: entry.CardID, CardName: card.Name, Count: entry.Count})
+		}
 	}
 
 	return problems

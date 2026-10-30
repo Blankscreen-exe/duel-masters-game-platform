@@ -23,12 +23,14 @@ type headerOnly struct {
 // tried once: a move the engine refuses, such as an evolution with nothing
 // to evolve from, is not tried again that turn.
 type turnPlan struct {
-	turn     int
-	charged  bool
-	played   map[string]bool
-	attacked map[string]bool
+	turn    int
+	charged bool
+	played  map[string]bool
+	// attacks are the attacks made with each creature, by its virtualId.
+	attacks map[string]attacks
 	// anyTarget are the creatures attacking a creature because they have to,
-	// which take any target rather than only one they beat.
+	// which take any target rather than only one they beat, and try another
+	// when the engine refuses one.
 	anyTarget map[string]bool
 	// ending is set once it has tried to end the turn, when the engine had
 	// sent warningsAtEnd warnings; another since is the engine refusing.
@@ -40,6 +42,21 @@ type turnPlan struct {
 	refusedEndings int
 }
 
+// attacks are the kinds of attack a creature has made this turn.
+type attacks struct {
+	player, creature bool
+}
+
+// tried records an attack made.
+func (a *attacks) tried(move cardMove) {
+	switch move.Header {
+	case "attack_player":
+		a.player = true
+	case "attack_creature":
+		a.creature = true
+	}
+}
+
 // maxRefusedEndings is how many times the engine may refuse to end the
 // computer's turn before it gives up the game, the engine refusing however
 // it plays.
@@ -49,7 +66,7 @@ func (p *turnPlan) startTurn(turn int) {
 	if p.turn == turn && p.played != nil {
 		return
 	}
-	*p = turnPlan{turn: turn, played: map[string]bool{}, attacked: map[string]bool{}, anyTarget: map[string]bool{}}
+	*p = turnPlan{turn: turn, played: map[string]bool{}, attacks: map[string]attacks{}, anyTarget: map[string]bool{}}
 }
 
 // nextMove is the computer's next move in its own turn: charging mana, then
@@ -77,7 +94,9 @@ func (pl *Player) nextMove(state *server.MatchState) any {
 	}
 
 	if attack, ok := pl.attack(state, me, opponent, pl.plan.refusedEndings > 0); ok {
-		pl.plan.attacked[attack.ID] = true
+		made := pl.plan.attacks[attack.ID]
+		made.tried(attack)
+		pl.plan.attacks[attack.ID] = made
 		return attack
 	}
 
@@ -154,6 +173,7 @@ func (pl *Player) manaToCharge(state *server.MatchState) (string, bool) {
 // cardToPlay picks the card to play from its hand, if any: the most worth
 // among those it can pay for, leaving out spells with nothing to do.
 func (pl *Player) cardToPlay(state *server.MatchState) (string, bool) {
+	var playable []string
 	best, bestScore := "", 0.0
 	for _, card := range state.Me.Hand {
 		if card.Flags&uint8(match.PlayableFlag) == 0 || pl.plan.played[card.CardID] {
@@ -164,11 +184,16 @@ func (pl *Player) cardToPlay(state *server.MatchState) (string, bool) {
 			continue
 		}
 
-		// Cost first, so the mana goes as far as it can.
-		score := float64(known.Cost)*2 + worth(known)
+		// Cost first, so the mana goes as far as it can, then what its
+		// style favours.
+		playable = append(playable, card.CardID)
+		score := float64(known.Cost)*2 + worth(known) + pl.style.favours(known)
 		if best == "" || score > bestScore {
 			best, bestScore = card.CardID, score
 		}
+	}
+	if len(playable) > 1 && pl.errs() {
+		return playable[pl.rand.IntN(len(playable))], true
 	}
 	return best, best != ""
 }
@@ -188,12 +213,13 @@ func spellHasUse(spell Card, state *server.MatchState) bool {
 
 // attack picks an attack to make, if any: first on a creature it can beat,
 // then on the opponent. A creature that must attack attacks whatever the
-// risk, and when forced, so does every creature that can.
+// risk, and when forced, so does every creature that can, each trying every
+// attack it may make until the engine takes one.
 func (pl *Player) attack(state *server.MatchState, me, opponent board, forced bool) (cardMove, bool) {
 	ready := make([]server.CardState, 0)
 	for _, creature := range state.Me.Battlezone {
 		sick := me.has(creature.CardID, cnd.SummoningSickness) && !me.has(creature.CardID, cnd.SpeedAttacker)
-		if creature.Flags&uint8(match.TappedFlag) == 0 && !sick && !pl.plan.attacked[creature.CardID] {
+		if creature.Flags&uint8(match.TappedFlag) == 0 && !sick {
 			ready = append(ready, creature)
 		}
 	}
@@ -201,9 +227,17 @@ func (pl *Player) attack(state *server.MatchState, me, opponent board, forced bo
 	for _, attacker := range ready {
 		known, _ := pl.library.Card(attacker.ImageID)
 		if forced || known.Does("must_attack") {
-			return pl.anyAttack(attacker, me, opponent), true
+			if move, ok := pl.anyAttack(attacker, me, opponent); ok {
+				return move, true
+			}
 		}
 	}
+
+	// Otherwise each creature attacks once a turn at most.
+	ready = slices.DeleteFunc(ready, func(creature server.CardState) bool {
+		_, made := pl.plan.attacks[creature.CardID]
+		return made
+	})
 
 	// A creature that beats one the opponent can be attacked with attacks it.
 	for _, attacker := range ready {
@@ -244,7 +278,7 @@ func (pl *Player) attack(state *server.MatchState, me, opponent board, forced bo
 
 		// Holding back, it attacks only while ahead on the battle zone.
 		ahead := len(state.Me.Battlezone) >= len(state.Opponent.Battlezone)
-		if pl.style.Aggression >= 0.5 || ahead {
+		if (pl.style.Aggression >= 0.5 || ahead) && !pl.errs() {
 			return cardMove{Header: "attack_player", ID: attacker.CardID}, true
 		}
 	}
@@ -252,20 +286,29 @@ func (pl *Player) attack(state *server.MatchState, me, opponent board, forced bo
 	return cardMove{}, false
 }
 
-// anyAttack is the attack a creature that has to attack makes: on a creature
-// it can beat if there is one, or else on the opponent, or else on any
-// creature it may attack.
-func (pl *Player) anyAttack(attacker server.CardState, me, opponent board) cardMove {
-	if !me.has(attacker.CardID, cnd.CantAttackCreatures) {
+// anyAttack is the next attack a creature that has to attack makes, if it
+// has one left to try: on a creature it can beat, then on the opponent, then
+// on any creature it may attack. Its attacks on creatures take any target.
+func (pl *Player) anyAttack(attacker server.CardState, me, opponent board) (cardMove, bool) {
+	made := pl.plan.attacks[attacker.CardID]
+	creatures := !made.creature && !me.has(attacker.CardID, cnd.CantAttackCreatures)
+	attackCreature := func() (cardMove, bool) {
+		pl.plan.anyTarget[attacker.CardID] = true
+		return cardMove{Header: "attack_creature", ID: attacker.CardID}, true
+	}
+
+	if creatures {
 		if _, ok := pl.targetFor(attacker, me, opponent); ok {
-			return cardMove{Header: "attack_creature", ID: attacker.CardID}
+			return attackCreature()
 		}
 	}
-	if !me.has(attacker.CardID, cnd.CantAttackPlayers) {
-		return cardMove{Header: "attack_player", ID: attacker.CardID}
+	if !made.player && !me.has(attacker.CardID, cnd.CantAttackPlayers) {
+		return cardMove{Header: "attack_player", ID: attacker.CardID}, true
 	}
-	pl.plan.anyTarget[attacker.CardID] = true
-	return cardMove{Header: "attack_creature", ID: attacker.CardID}
+	if creatures && len(opponent.side.Battlezone) > 0 {
+		return attackCreature()
+	}
+	return cardMove{}, false
 }
 
 // targetFor picks the opponent's creature the attacker is best off
