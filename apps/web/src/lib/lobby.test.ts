@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { DeckSummary } from './api/client';
 import {
   activityOf,
+  deckForFormat,
   decksForFormat,
   defaultDeck,
   describeActivity,
   inviteLink,
+  opponentFacts,
   waitingIn,
 } from './lobby';
 
@@ -33,6 +35,40 @@ function deck(id: string, name: string, legalFormatIds: string[]): DeckSummary {
     updatedAt: '2026-10-25T00:00:00Z',
   };
 }
+
+describe('deckForFormat', () => {
+  const decks = {
+    starters: [deck('starter', 'Fire', ['open', 'classic'])],
+    own: [deck('mine', 'Mine', ['open'])],
+  };
+
+  it('keeps the deck chosen when it can be played', () => {
+    expect(deckForFormat(decks, 'open', 'mine')).toBe('mine');
+  });
+
+  it('goes back to the default when it cannot', () => {
+    expect(deckForFormat(decks, 'classic', 'mine')).toBe('starter');
+    expect(deckForFormat(decks, 'none', 'mine')).toBe('');
+  });
+});
+
+describe('opponentFacts', () => {
+  it('says how strong a computer opponent is and in which format it plays', () => {
+    const opponent = {
+      id: 'o1',
+      name: 'Blazerush',
+      description: 'Attacks every turn.',
+      style: 'rush',
+      strength: 'normal' as const,
+      formatId: 'open',
+      formatName: 'Open',
+      civilizations: ['Fire'],
+    };
+
+    expect(opponentFacts(opponent)).toBe('Normal · Open format');
+    expect(opponentFacts({ ...opponent, strength: 'easy' })).toBe('Easy · Open format');
+  });
+});
 
 describe('activityOf', () => {
   it('finds what the player is doing', () => {

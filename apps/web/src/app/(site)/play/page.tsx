@@ -9,15 +9,16 @@ export const metadata: Metadata = { title: 'Play' };
 export default async function PlayPage() {
   const account = await requireAccount('/play');
   const api = await serverApi();
-  const [lobby, quickMatch, decks, formats, chat] = await Promise.all([
+  const [lobby, quickMatch, decks, formats, opponents, chat] = await Promise.all([
     api.GET('/lobby'),
     api.GET('/quick-match'),
     getPlayableDecks(),
     api.GET('/formats'),
+    api.GET('/computer-opponents'),
     api.GET('/chat'),
   ]);
 
-  if (!lobby.data || !quickMatch.data || !formats.data || !chat.data) {
+  if (!lobby.data || !quickMatch.data || !formats.data || !opponents.data || !chat.data) {
     throw new Error('The lobby could not be loaded');
   }
 
@@ -28,6 +29,7 @@ export default async function PlayPage() {
       quickMatch={quickMatch.data}
       decks={decks}
       formats={formats.data}
+      opponents={opponents.data}
       chat={chat.data}
     />
   );

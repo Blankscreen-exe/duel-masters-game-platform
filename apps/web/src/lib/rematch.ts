@@ -15,12 +15,17 @@ export function rematchStep(rematch: Rematch): RematchStep {
   return 'offer';
 }
 
-/** The words on the button that agrees, for each step. */
-export const AGREE_LABEL: Readonly<Record<RematchStep, string>> = {
-  offer: 'Offer a rematch',
-  waiting: 'Waiting for your opponent…',
-  accept: 'Accept the rematch',
-};
+/** The words on the button that agrees: the computer has always agreed, so nothing is accepted. */
+export function agreeLabel(rematch: Rematch): string {
+  switch (rematchStep(rematch)) {
+    case 'offer':
+      return 'Offer a rematch';
+    case 'waiting':
+      return 'Waiting for your opponent…';
+    default:
+      return rematch.opponent.computer ? 'Play again' : 'Accept the rematch';
+  }
+}
 
 /** Who calls the new game's coin toss, in words for the player. */
 export function tossCallerText(rematch: Rematch): string {

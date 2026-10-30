@@ -58,12 +58,21 @@ export function MatchList({ matches, playerId, empty }: MatchListProps) {
             <div className="min-w-0 space-y-1">
               <p className="truncate text-sm text-slate-300">
                 vs{' '}
-                <Link
-                  href={profileHref(opponent.username)}
-                  className="font-semibold text-slate-100 hover:text-accent"
-                >
-                  {opponent.username}
-                </Link>
+                {opponent.computer ? (
+                  <>
+                    <span className="font-semibold text-slate-100">{opponent.username}</span>
+                    <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300 uppercase ring-1 ring-slate-600/60 ring-inset">
+                      Computer
+                    </span>
+                  </>
+                ) : (
+                  <Link
+                    href={profileHref(opponent.username)}
+                    className="font-semibold text-slate-100 hover:text-accent"
+                  >
+                    {opponent.username}
+                  </Link>
+                )}
                 <span className="text-slate-500"> · {match.name}</span>
               </p>
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
@@ -79,7 +88,11 @@ export function MatchList({ matches, playerId, empty }: MatchListProps) {
             </div>
 
             <div className="text-sm sm:text-right">
-              <RatingChange player={player} />
+              {opponent.computer ? (
+                <span className="text-xs text-slate-500">Practice</span>
+              ) : (
+                <RatingChange player={player} />
+              )}
             </div>
           </li>
         );

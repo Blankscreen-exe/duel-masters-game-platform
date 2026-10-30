@@ -9,10 +9,11 @@ import type { Account, Format } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { FILL_SCREEN } from '@/lib/fill-screen';
 import { activityOf, type PlayableDecks } from '@/lib/lobby';
-import type { Lobby, QueueCount, QuickMatchStatus } from '@/lib/lobby-actions';
+import type { ComputerOpponent, Lobby, QueueCount, QuickMatchStatus } from '@/lib/lobby-actions';
 import { GamesList, OnlinePlayers } from './game-lists';
 import { OpenGameForm } from './open-game-form';
 import { QuickMatchPanel } from './quick-match-panel';
+import { VsComputerPanel } from './vs-computer-panel';
 import { YourActivity } from './your-activity';
 
 interface LobbyViewProps {
@@ -21,6 +22,7 @@ interface LobbyViewProps {
   readonly quickMatch: QuickMatchStatus;
   readonly decks: PlayableDecks;
   readonly formats: readonly Format[];
+  readonly opponents: readonly ComputerOpponent[];
   readonly chat: readonly components['schemas']['ChatMessage'][];
 }
 
@@ -29,8 +31,9 @@ interface LobbyViewProps {
  * Everything on it stays up to date over the live connection.
  *
  * On a wide screen the whole page fits the screen, without scrolling, in four columns. Three hold
- * the title, starting a game, a tab each for quick match and opening a game, and under it the
- * games, open and running in one list that takes the height left and scrolls inside. The fourth
+ * the title, starting a game, a tab each for quick match, opening a game and playing the computer,
+ * and under it the games, open and running in one list that takes the height left and scrolls
+ * inside. The fourth
  * holds the chat and who is online, a tab each, the full height. A little narrower, the fourth
  * keeps a fixed width; on a phone everything stacks and the page scrolls, the chat as tall as the
  * screen.
@@ -41,6 +44,7 @@ export function LobbyView({
   quickMatch,
   decks,
   formats,
+  opponents,
   chat,
 }: LobbyViewProps) {
   const [lobby, setLobby] = useState(initialLobby);
@@ -109,6 +113,17 @@ export function LobbyView({
               label: 'Open a game',
               content: (
                 <OpenGameForm decks={decks} formats={formats} disabled={lobby.paused || busy} />
+              ),
+            },
+            {
+              id: 'computer',
+              label: 'Vs computer',
+              content: (
+                <VsComputerPanel
+                  opponents={opponents}
+                  decks={decks}
+                  disabled={lobby.paused || busy}
+                />
               ),
             },
           ]}

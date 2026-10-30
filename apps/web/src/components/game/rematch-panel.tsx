@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { agreeToRematch, chooseRematchDeck, declineRematch, getRematch } from '@/lib/lobby-actions';
 import { notify } from '@/lib/notifications';
 import {
-  AGREE_LABEL,
+  agreeLabel,
   endedText,
   rematchStep,
   secondsLeft,
@@ -117,7 +117,7 @@ export function RematchPanel({ gameId, viewerName, decks }: RematchPanelProps) {
         </span>
       </div>
 
-      {step === 'accept' && (
+      {step === 'accept' && !rematch.opponent.computer && (
         <p role="status" className="text-sm font-semibold text-accent">
           {rematch.opponent.username} offers a rematch.
         </p>
@@ -153,7 +153,7 @@ export function RematchPanel({ gameId, viewerName, decks }: RematchPanelProps) {
         disabled={pending || step === 'waiting'}
         onClick={() => void agree()}
       >
-        {AGREE_LABEL[step]}
+        {agreeLabel(rematch)}
       </Button>
     </section>
   );

@@ -126,6 +126,7 @@ cannot overload the server.
    start through `opponents.Challenges` and the API's `/computer-opponents`, run by the games
    service like any other, and end in the match history, marked, without touching ratings
    (`match.Options.Practice`).
-4. **The "Vs computer" tab** on the play page.
+4. **The "Vs computer" tab** on the play page (done). Pick a personality and a deck legal in its
+   format, in a row like the other tabs', so the page still fits the screen.
 5. **Admin panel:** the computer opponents page and the two settings.
 6. **Later:** the look-ahead and a Hard strength.

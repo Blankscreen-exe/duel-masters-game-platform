@@ -4,6 +4,7 @@ import type { components } from './api/schema';
 type Lobby = components['schemas']['Lobby'];
 type PlayerActivity = components['schemas']['PlayerActivity'];
 type QueueCount = components['schemas']['QueueCount'];
+type ComputerOpponent = components['schemas']['ComputerOpponent'];
 
 /** What the player is doing, as the lobby says, or null for nothing in particular. */
 export function activityOf(lobby: Lobby, userId: string): PlayerActivity | null {
@@ -60,6 +61,20 @@ export function decksForFormat(decks: PlayableDecks, formatId: string): DecksFor
 export function defaultDeck(decks: PlayableDecks, formatId: string): string {
   const { starters, legal } = decksForFormat(decks, formatId);
   return (starters[0] ?? legal[0])?.id ?? '';
+}
+
+/** The deck to keep when the format changes: the one chosen if it can be played, or the default. */
+export function deckForFormat(decks: PlayableDecks, formatId: string, deckId: string): string {
+  const { starters, legal } = decksForFormat(decks, formatId);
+  return [...starters, ...legal].some((deck) => deck.id === deckId)
+    ? deckId
+    : defaultDeck(decks, formatId);
+}
+
+/** A computer opponent's strength and format, in a few words. */
+export function opponentFacts(opponent: ComputerOpponent): string {
+  const strength = opponent.strength === 'easy' ? 'Easy' : 'Normal';
+  return `${strength} · ${opponent.formatName} format`;
 }
 
 /** How many players wait for a quick match in a format. */

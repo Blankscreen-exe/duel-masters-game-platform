@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { endedText, rematchStep, secondsLeft, tossCallerText, type Rematch } from './rematch';
+import {
+  agreeLabel,
+  endedText,
+  rematchStep,
+  secondsLeft,
+  tossCallerText,
+  type Rematch,
+} from './rematch';
 
 function rematch(
   overrides: { youReady?: boolean; opponentReady?: boolean; tossCallerId?: string } = {},
@@ -27,6 +34,22 @@ function rematch(
     expiresAt: '2026-10-25T12:02:00Z',
   };
 }
+
+describe('agreeLabel', () => {
+  it('says what agreeing does at each step', () => {
+    expect(agreeLabel(rematch())).toBe('Offer a rematch');
+    expect(agreeLabel(rematch({ youReady: true }))).toBe('Waiting for your opponent…');
+    expect(agreeLabel(rematch({ opponentReady: true }))).toBe('Accept the rematch');
+  });
+
+  it('just plays again against the computer, which has always agreed', () => {
+    const offered = rematch({ opponentReady: true });
+
+    expect(agreeLabel({ ...offered, opponent: { ...offered.opponent, computer: true } })).toBe(
+      'Play again',
+    );
+  });
+});
 
 describe('rematchStep', () => {
   it('lets a player offer when nobody has agreed', () => {

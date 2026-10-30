@@ -13,6 +13,7 @@ export type OnlinePlayer = Schemas['OnlinePlayer'];
 export type QuickMatchStatus = Schemas['QuickMatchStatus'];
 export type QuickMatchEntered = Schemas['QuickMatchEntered'];
 export type QueueCount = Schemas['QueueCount'];
+export type ComputerOpponent = Schemas['ComputerOpponent'];
 
 export function openGame(body: OpenGameInput): Promise<Outcome<OpenGame>> {
   return attempt(() => api.POST('/lobby/games', { body }));
@@ -32,6 +33,19 @@ export function joinOpenGame(
   return attempt(() =>
     api.POST('/lobby/games/{openGameId}/join', {
       params: { path: { openGameId } },
+      body: { deckId },
+    }),
+  );
+}
+
+/** Starts a game against a computer opponent; the player goes to it, as nothing else says so. */
+export function playComputerOpponent(
+  opponentId: string,
+  deckId: string,
+): Promise<Outcome<{ gameId: string }>> {
+  return attempt(() =>
+    api.POST('/computer-opponents/{opponentId}/games', {
+      params: { path: { opponentId } },
       body: { deckId },
     }),
   );
