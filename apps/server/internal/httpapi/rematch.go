@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
@@ -77,6 +78,8 @@ func (h *handlers) AgreeToRematch(ctx context.Context, request api.AgreeToRematc
 		return api.AgreeToRematch403JSONResponse{GamesPausedJSONResponse: gamesPaused()}, nil
 	case errors.Is(err, rematch.ErrOpponentDeckIllegal):
 		return api.AgreeToRematch409JSONResponse(apiError(codeOpponentDeckNotLegal, "Your opponent's deck no longer keeps to the format. Once they choose another, agree again.")), nil
+	case errors.Is(err, games.ErrComputerGamesFull):
+		return api.AgreeToRematch409JSONResponse(computerGamesFull()), nil
 	case err != nil:
 		return nil, err
 	case started != nil:
@@ -135,5 +138,6 @@ func apiRematchSeat(seat rematch.Seat) api.RematchSeat {
 		Username: seat.Username,
 		Deck:     api.RematchDeck{Name: seat.Deck.Name, Civilizations: seat.Deck.Civilizations},
 		Ready:    seat.Ready,
+		Computer: seat.Computer,
 	}
 }

@@ -81,6 +81,24 @@ func (e AdminUserStatus) Valid() bool {
 	}
 }
 
+// Defines values for ComputerOpponentStrength.
+const (
+	ComputerOpponentStrengthEasy   ComputerOpponentStrength = "easy"
+	ComputerOpponentStrengthNormal ComputerOpponentStrength = "normal"
+)
+
+// Valid indicates whether the value is a known member of the ComputerOpponentStrength enum.
+func (e ComputerOpponentStrength) Valid() bool {
+	switch e {
+	case ComputerOpponentStrengthEasy:
+		return true
+	case ComputerOpponentStrengthNormal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeckProblemCode.
 const (
 	DeckProblemCodeBanned        DeckProblemCode = "banned"
@@ -635,6 +653,26 @@ type CivilizationPlayed struct {
 	Games        int    `json:"games"`
 }
 
+// ComputerOpponent A personality a player can practise against, with its own play style and deck.
+type ComputerOpponent struct {
+	// Civilizations The civilizations of its deck, in the game's order.
+	Civilizations []string `json:"civilizations"`
+	Description   string   `json:"description"`
+
+	// FormatId The format its deck keeps to, and the player's deck must.
+	FormatId   string                   `json:"formatId"`
+	FormatName string                   `json:"formatName"`
+	Id         string                   `json:"id"`
+	Name       string                   `json:"name"`
+	Strength   ComputerOpponentStrength `json:"strength"`
+
+	// Style How it plays, such as "rush" or "wall".
+	Style string `json:"style"`
+}
+
+// ComputerOpponentStrength defines model for ComputerOpponent.Strength.
+type ComputerOpponentStrength string
+
 // Credentials defines model for Credentials.
 type Credentials struct {
 	// Password 8 to 128 characters.
@@ -807,6 +845,8 @@ type FormatCardLimit struct {
 
 // GamePlayer defines model for GamePlayer.
 type GamePlayer struct {
+	// Computer The computer plays this seat.
+	Computer bool   `json:"computer"`
 	DeckName string `json:"deckName"`
 	Id       string `json:"id"`
 
@@ -914,8 +954,11 @@ type MatchPage struct {
 type MatchPlayer struct {
 	// Civilizations The civilizations of the deck as played; empty for the oldest games.
 	Civilizations []string `json:"civilizations"`
-	DeckName      string   `json:"deckName"`
-	Id            string   `json:"id"`
+
+	// Computer The computer played this seat, so the game never changed ratings.
+	Computer bool   `json:"computer"`
+	DeckName string `json:"deckName"`
+	Id       string `json:"id"`
 
 	// Rating The player's rating after the game; absent if it did not count.
 	Rating *int `json:"rating,omitempty"`
@@ -996,6 +1039,8 @@ type Penalty struct {
 
 // PlayerActivity What a player is doing: hosting an open game (with its id), waiting for a quick match (with the format's name), playing (with the game's id) or deciding on a rematch (with the id of the game that ended).
 type PlayerActivity struct {
+	// Computer The player is playing against the computer, in a game nobody else can watch.
+	Computer   bool               `json:"computer"`
 	FormatName *string            `json:"formatName,omitempty"`
 	GameId     *string            `json:"gameId,omitempty"`
 	Kind       PlayerActivityKind `json:"kind"`
@@ -1244,6 +1289,9 @@ type RematchDeckInput struct {
 
 // RematchSeat defines model for RematchSeat.
 type RematchSeat struct {
+	// Computer The computer plays this seat, and is always ready.
+	Computer bool `json:"computer"`
+
 	// Deck A deck chosen for a rematch, shown by name and civilizations only.
 	Deck RematchDeck `json:"deck"`
 	Id   string      `json:"id"`
@@ -1402,6 +1450,9 @@ type SignUpJSONRequestBody = Credentials
 
 // PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
 type PostChatMessageJSONRequestBody = ChatPost
+
+// PlayComputerOpponentJSONRequestBody defines body for PlayComputerOpponent for application/json ContentType.
+type PlayComputerOpponentJSONRequestBody = JoinGameInput
 
 // CreateDeckJSONRequestBody defines body for CreateDeck for application/json ContentType.
 type CreateDeckJSONRequestBody = DeckInput
@@ -1875,6 +1926,12 @@ type ServerInterface interface {
 	// PostChatMessage Post to the lobby chat
 	// (POST /chat)
 	PostChatMessage(w http.ResponseWriter, r *http.Request)
+	// ListComputerOpponents The computer opponents a player can practise against
+	// (GET /computer-opponents)
+	ListComputerOpponents(w http.ResponseWriter, r *http.Request)
+	// PlayComputerOpponent Start a game against a computer opponent
+	// (POST /computer-opponents/{opponentId}/games)
+	PlayComputerOpponent(w http.ResponseWriter, r *http.Request, opponentId string)
 	// ListDecks The player's decks, the most recently changed first
 	// (GET /decks)
 	ListDecks(w http.ResponseWriter, r *http.Request)
@@ -2610,6 +2667,46 @@ func (siw *ServerInterfaceWrapper) PostChatMessage(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostChatMessage(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListComputerOpponents operation middleware
+func (siw *ServerInterfaceWrapper) ListComputerOpponents(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListComputerOpponents(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PlayComputerOpponent operation middleware
+func (siw *ServerInterfaceWrapper) PlayComputerOpponent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "opponentId" -------------
+	var opponentId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "opponentId", r.PathValue("opponentId"), &opponentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "opponentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PlayComputerOpponent(w, r, opponentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3474,6 +3571,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/quick-match", wrapper.LeaveQuickMatch)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/quick-match", wrapper.GetQuickMatch)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/quick-match", wrapper.EnterQuickMatch)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/computer-opponents", wrapper.ListComputerOpponents)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/computer-opponents/{opponentId}/games", wrapper.PlayComputerOpponent)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/rematches/{gameId}", wrapper.DeclineRematch)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rematches/{gameId}", wrapper.GetRematch)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/rematches/{gameId}/deck", wrapper.ChooseRematchDeck)
@@ -4781,6 +4880,134 @@ func (response PostChatMessage429JSONResponse) VisitPostChatMessageResponse(w ht
 		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
 	}
 	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListComputerOpponentsRequestObject struct {
+}
+
+type ListComputerOpponentsResponseObject interface {
+	VisitListComputerOpponentsResponse(w http.ResponseWriter) error
+}
+
+type ListComputerOpponents200JSONResponse []ComputerOpponent
+
+func (response ListComputerOpponents200JSONResponse) VisitListComputerOpponentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListComputerOpponents401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ListComputerOpponents401JSONResponse) VisitListComputerOpponentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlayComputerOpponentRequestObject struct {
+	OpponentId string `json:"opponentId"`
+	Body       *PlayComputerOpponentJSONRequestBody
+}
+
+type PlayComputerOpponentResponseObject interface {
+	VisitPlayComputerOpponentResponse(w http.ResponseWriter) error
+}
+
+type PlayComputerOpponent201JSONResponse GameStarted
+
+func (response PlayComputerOpponent201JSONResponse) VisitPlayComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlayComputerOpponent400JSONResponse struct{ InvalidDeckOrInputJSONResponse }
+
+func (response PlayComputerOpponent400JSONResponse) VisitPlayComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlayComputerOpponent401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response PlayComputerOpponent401JSONResponse) VisitPlayComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlayComputerOpponent403JSONResponse struct{ GamesPausedJSONResponse }
+
+func (response PlayComputerOpponent403JSONResponse) VisitPlayComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlayComputerOpponent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PlayComputerOpponent404JSONResponse) VisitPlayComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlayComputerOpponent409JSONResponse Error
+
+func (response PlayComputerOpponent409JSONResponse) VisitPlayComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6467,6 +6694,12 @@ type StrictServerInterface interface {
 	// PostChatMessage Post to the lobby chat
 	// (POST /chat)
 	PostChatMessage(ctx context.Context, request PostChatMessageRequestObject) (PostChatMessageResponseObject, error)
+	// ListComputerOpponents The computer opponents a player can practise against
+	// (GET /computer-opponents)
+	ListComputerOpponents(ctx context.Context, request ListComputerOpponentsRequestObject) (ListComputerOpponentsResponseObject, error)
+	// PlayComputerOpponent Start a game against a computer opponent
+	// (POST /computer-opponents/{opponentId}/games)
+	PlayComputerOpponent(ctx context.Context, request PlayComputerOpponentRequestObject) (PlayComputerOpponentResponseObject, error)
 	// ListDecks The player's decks, the most recently changed first
 	// (GET /decks)
 	ListDecks(ctx context.Context, request ListDecksRequestObject) (ListDecksResponseObject, error)
@@ -7154,6 +7387,63 @@ func (sh *strictHandler) PostChatMessage(w http.ResponseWriter, r *http.Request)
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostChatMessageResponseObject); ok {
 		if err := validResponse.VisitPostChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListComputerOpponents operation middleware
+func (sh *strictHandler) ListComputerOpponents(w http.ResponseWriter, r *http.Request) {
+	var request ListComputerOpponentsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListComputerOpponents(ctx, request.(ListComputerOpponentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListComputerOpponents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListComputerOpponentsResponseObject); ok {
+		if err := validResponse.VisitListComputerOpponentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PlayComputerOpponent operation middleware
+func (sh *strictHandler) PlayComputerOpponent(w http.ResponseWriter, r *http.Request, opponentId string) {
+	var request PlayComputerOpponentRequestObject
+
+	request.OpponentId = opponentId
+
+	var body PlayComputerOpponentJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PlayComputerOpponent(ctx, request.(PlayComputerOpponentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PlayComputerOpponent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PlayComputerOpponentResponseObject); ok {
+		if err := validResponse.VisitPlayComputerOpponentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

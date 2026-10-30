@@ -251,6 +251,9 @@ Every game, rematches included, starts with a coin toss that both players (and s
 - **Rankings** list the players who have finished a game that counted, the best rated first;
   players level on rating share a place.
 - Games shorter than **60 seconds (default)** do not count, so instant leaves cannot farm rating.
+- **Games against the computer** are kept in the match history, marked as such, and never change
+  ratings; a computer opponent has no profile page or place in the rankings (see
+  `docs/computer-opponent.md`).
 - **Match history** keeps every finished game: players, decks, format, winner, how it ended,
   turns, length and rating changes. Private (invite-only) games are listed like every other game:
   nothing shows which games were private.

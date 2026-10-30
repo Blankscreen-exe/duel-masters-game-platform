@@ -19,6 +19,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/clocktest"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/computer"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
@@ -26,6 +27,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
@@ -85,7 +87,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), chat.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), matchmaking.Settings(), ratings.Settings(), rematch.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger, slices.Concat(auth.Settings(), chat.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), matchmaking.Settings(), opponents.Settings(), ratings.Settings(), rematch.Settings())...)
 	require.NoError(t, err)
 
 	clock := clocktest.New(time.Now())
@@ -112,8 +114,12 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 		Lobby: lobbyService, Games: gameService, Ratings: ratingService, Directory: live, Settings: siteSettings,
 		Listener: live, Logger: logger, Now: clock.Now,
 	})
+	challenges := opponents.NewChallenges(opponents.ChallengeDependencies{
+		Opponents: opponents.NewService(db, catalogue, formatService), Formats: formatService, Lobby: lobbyService, Games: gameService,
+		Library: computer.NewLibrary(nil), Settings: siteSettings, Logger: logger,
+	})
 	rematches := rematch.NewService(rematch.Dependencies{
-		Lobby: lobbyService, Games: gameService, Directory: live, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
+		Lobby: lobbyService, Games: gameService, Challenges: challenges, Directory: live, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
 	})
 	adminService := admin.NewService(admin.Dependencies{
 		DB: db, Auth: authService, Connections: hub, Games: gameService, Listener: live, Logger: logger, Now: clock.Now,
@@ -133,6 +139,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 			Lobby:         lobbyService,
 			QuickMatch:    quickMatch,
 			Rematches:     rematches,
+			Challenges:    challenges,
 			Admin:         adminService,
 			AdminLog:      adminlog.NewService(db),
 			Hub:           hub,

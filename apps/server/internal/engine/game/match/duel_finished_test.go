@@ -72,6 +72,21 @@ func TestAGameShorterThanTheMinimumDoesNotCount(t *testing.T) {
 	}
 }
 
+func TestAPracticeGameNeverCounts(t *testing.T) {
+	m := finishedTestMatch(time.Minute)
+	m.practice = true
+
+	result := m.result(m.Player1.Player, EndingPlay, time.Unix(1000, 0))
+	if result.Counted || !result.Practice {
+		t.Fatalf("a practice game of any length must not count, got counted %v practice %v", result.Counted, result.Practice)
+	}
+
+	message := m.duelFinishedMessage(result)
+	if message.Counted || !message.Practice {
+		t.Fatalf("the players must be told it was practice, got %+v", message)
+	}
+}
+
 func TestDuelFinishedMessageTellsHowTheGameEnded(t *testing.T) {
 	m := finishedTestMatch(time.Minute)
 

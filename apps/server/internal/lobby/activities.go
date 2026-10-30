@@ -27,6 +27,8 @@ type Activity struct {
 	GameID string
 	// FormatName is the format waited for in quick match.
 	FormatName string
+	// Computer marks playing against the computer.
+	Computer bool
 }
 
 // BusyError is returned to a player starting something while already doing

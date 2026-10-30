@@ -375,6 +375,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/computer-opponents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The computer opponents a player can practise against */
+        get: operations["listComputerOpponents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/computer-opponents/{opponentId}/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a game against a computer opponent
+         * @description The game is not listed and cannot be watched. It is kept in the player's match history but never changes ratings. The answer gives the game to go to; no live message follows.
+         */
+        post: operations["playComputerOpponent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rematches/{gameId}": {
         parameters: {
             query?: never;
@@ -1170,6 +1207,8 @@ export interface components {
             kind: "hosting" | "queued" | "playing" | "rematch";
             gameId?: string;
             formatName?: string;
+            /** @description The player is playing against the computer, in a game nobody else can watch. */
+            computer: boolean;
         };
         OnlinePlayer: {
             id: string;
@@ -1193,10 +1232,27 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        /** @description A personality a player can practise against, with its own play style and deck. */
+        ComputerOpponent: {
+            id: string;
+            name: string;
+            description: string;
+            /** @description How it plays, such as "rush" or "wall". */
+            style: string;
+            /** @enum {string} */
+            strength: "easy" | "normal";
+            /** @description The format its deck keeps to, and the player's deck must. */
+            formatId: string;
+            formatName: string;
+            /** @description The civilizations of its deck, in the game's order. */
+            civilizations: string[];
+        };
         GamePlayer: {
             id: string;
             username: string;
             deckName: string;
+            /** @description The computer plays this seat. */
+            computer: boolean;
             /** @description The player's rank, where the lobby and games show it; absent elsewhere, and if it could not be read for a live update. */
             rank?: components["schemas"]["Rank"];
         };
@@ -1342,6 +1398,8 @@ export interface components {
             deck: components["schemas"]["RematchDeck"];
             /** @description The player agrees to play the decks shown. */
             ready: boolean;
+            /** @description The computer plays this seat, and is always ready. */
+            computer: boolean;
         };
         /** @description A deck chosen for a rematch, shown by name and civilizations only. */
         RematchDeck: {
@@ -1460,6 +1518,8 @@ export interface components {
             id: string;
             username: string;
             deckName: string;
+            /** @description The computer played this seat, so the game never changed ratings. */
+            computer: boolean;
             /** @description The civilizations of the deck as played; empty for the oldest games. */
             civilizations: string[];
             /** @description The points the game won, above zero, or lost, below; absent if it did not count. */
@@ -2298,6 +2358,66 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthenticated"];
+        };
+    };
+    listComputerOpponents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The opponents, in order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputerOpponent"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    playComputerOpponent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                opponentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinGameInput"];
+            };
+        };
+        responses: {
+            /** @description The game started. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameStarted"];
+                };
+            };
+            400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["GamesPaused"];
+            404: components["responses"]["NotFound"];
+            /** @description The player is busy (code "busy"), as many games against the computer as allowed are running (code "computer_games_full"), or the opponent's deck cannot be played just now (code "computer_unavailable"). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getRematch: {

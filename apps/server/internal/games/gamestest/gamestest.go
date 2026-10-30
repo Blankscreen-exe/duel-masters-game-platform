@@ -268,6 +268,38 @@ func Play(t *testing.T, service *games.Service, game games.Game) (host, guest *P
 	return host, guest
 }
 
+// SettleToss answers the coin toss for a player against the computer, which
+// answers for itself: the pipe calls heads if asked and plays first if it
+// wins, until play has begun.
+func (p *Pipe) SettleToss(t *testing.T) {
+	t.Helper()
+
+	called, chose := false, false
+	deadline := time.After(Timeout)
+	for {
+		// Taken first, so a message arriving during these looks still wakes it.
+		begun, arrived := p.find("state_update")
+		if begun != nil {
+			return
+		}
+		if asked, _ := p.find("choose_toss"); asked != nil && !called {
+			called = true
+			p.Say(map[string]any{"header": "toss_chosen", "prediction": 1})
+		}
+		if asked, _ := p.find("choose_turn"); asked != nil && !chose {
+			chose = true
+			p.Say(map[string]any{"header": "turn_chosen", "player": 1})
+		}
+
+		select {
+		case <-arrived:
+		case <-deadline:
+			t.Fatal("expected the coin toss to settle")
+			return
+		}
+	}
+}
+
 // callerOf waits until one of the players is asked to call the coin toss,
 // and returns them.
 func callerOf(t *testing.T, host, guest *Pipe) *Pipe {

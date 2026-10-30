@@ -205,8 +205,10 @@ export interface DuelFinishedMessage {
   /** Absent when there is none. */
   winner?: DuelFinishedPlayer;
   ending: DuelEnding;
-  /** False for a game too short to count, or stopped. */
+  /** False for a game too short to count, stopped, or practice. */
   counted: boolean;
+  /** Set for a game that never counts, such as one against the computer. */
+  practice: boolean;
   turns: number;
   durationSeconds: number;
 }

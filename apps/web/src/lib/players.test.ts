@@ -25,8 +25,20 @@ function match(winnerId?: string): Match {
     startedAt: '2026-10-25T11:50:00Z',
     endedAt: '2026-10-25T12:00:00Z',
     ...(winnerId === undefined ? {} : { winnerId }),
-    host: { id: 'u1', username: 'Shobu', deckName: 'Fire Rush', civilizations: ['Fire'] },
-    guest: { id: 'u2', username: 'Kokujo', deckName: 'Dark Tide', civilizations: ['Darkness'] },
+    host: {
+      id: 'u1',
+      username: 'Shobu',
+      deckName: 'Fire Rush',
+      civilizations: ['Fire'],
+      computer: false,
+    },
+    guest: {
+      id: 'u2',
+      username: 'Kokujo',
+      deckName: 'Dark Tide',
+      civilizations: ['Darkness'],
+      computer: false,
+    },
   };
 }
 

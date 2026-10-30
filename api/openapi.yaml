@@ -647,6 +647,70 @@ paths:
           description: No longer waiting.
         "401":
           $ref: "#/components/responses/Unauthenticated"
+  /computer-opponents:
+    get:
+      operationId: listComputerOpponents
+      summary: The computer opponents a player can practise against
+      tags: [computer]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The opponents, in order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComputerOpponent"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /computer-opponents/{opponentId}/games:
+    post:
+      operationId: playComputerOpponent
+      summary: Start a game against a computer opponent
+      description: >-
+        The game is not listed and cannot be watched. It is kept in the player's match history but
+        never changes ratings. The answer gives the game to go to; no live message follows.
+      tags: [computer]
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: opponentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinGameInput"
+      responses:
+        "201":
+          description: The game started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameStarted"
+        "400":
+          $ref: "#/components/responses/InvalidDeckOrInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/GamesPaused"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            The player is busy (code "busy"), as many games against the computer as allowed are
+            running (code "computer_games_full"), or the opponent's deck cannot be played just now
+            (code "computer_unavailable").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /rematches/{gameId}:
     parameters:
       - name: gameId
@@ -2197,7 +2261,7 @@ components:
         the format's name), playing (with the game's id) or deciding on a rematch (with the id of the
         game that ended).
       type: object
-      required: [kind]
+      required: [kind, computer]
       properties:
         kind:
           type: string
@@ -2206,6 +2270,9 @@ components:
           type: string
         formatName:
           type: string
+        computer:
+          description: The player is playing against the computer, in a game nobody else can watch.
+          type: boolean
     OnlinePlayer:
       type: object
       required: [id, username]
@@ -2246,9 +2313,36 @@ components:
         createdAt:
           type: string
           format: date-time
+    ComputerOpponent:
+      description: A personality a player can practise against, with its own play style and deck.
+      type: object
+      required: [id, name, description, style, strength, formatId, formatName, civilizations]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        style:
+          description: How it plays, such as "rush" or "wall".
+          type: string
+        strength:
+          type: string
+          enum: [easy, normal]
+        formatId:
+          description: The format its deck keeps to, and the player's deck must.
+          type: string
+        formatName:
+          type: string
+        civilizations:
+          description: The civilizations of its deck, in the game's order.
+          type: array
+          items:
+            type: string
     GamePlayer:
       type: object
-      required: [id, username, deckName]
+      required: [id, username, deckName, computer]
       properties:
         id:
           type: string
@@ -2256,6 +2350,9 @@ components:
           type: string
         deckName:
           type: string
+        computer:
+          description: The computer plays this seat.
+          type: boolean
         rank:
           description: >-
             The player's rank, where the lobby and games show it; absent elsewhere, and if it could
@@ -2513,7 +2610,7 @@ components:
           format: date-time
     RematchSeat:
       type: object
-      required: [id, username, deck, ready]
+      required: [id, username, deck, ready, computer]
       properties:
         id:
           type: string
@@ -2523,6 +2620,9 @@ components:
           $ref: "#/components/schemas/RematchDeck"
         ready:
           description: The player agrees to play the decks shown.
+          type: boolean
+        computer:
+          description: The computer plays this seat, and is always ready.
           type: boolean
     RematchDeck:
       description: A deck chosen for a rematch, shown by name and civilizations only.
@@ -2704,7 +2804,7 @@ components:
       enum: [play, surrender, disconnect, aborted]
     MatchPlayer:
       type: object
-      required: [id, username, deckName, civilizations]
+      required: [id, username, deckName, civilizations, computer]
       properties:
         id:
           type: string
@@ -2712,6 +2812,9 @@ components:
           type: string
         deckName:
           type: string
+        computer:
+          description: The computer played this seat, so the game never changed ratings.
+          type: boolean
         civilizations:
           description: The civilizations of the deck as played; empty for the oldest games.
           type: array

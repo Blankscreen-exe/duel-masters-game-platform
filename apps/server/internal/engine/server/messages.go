@@ -163,8 +163,11 @@ type DuelFinishedMessage struct {
 	// Ending is "play" (won by the game's rules), "surrender" or
 	// "disconnect".
 	Ending string `json:"ending"`
-	// Counted is false for a game too short to count.
-	Counted         bool  `json:"counted"`
+	// Counted is false for a game too short to count, or a practice game.
+	Counted bool `json:"counted"`
+	// Practice is set for a game that never counts, such as one against the
+	// computer.
+	Practice        bool  `json:"practice"`
 	Turns           int   `json:"turns"`
 	DurationSeconds int64 `json:"durationSeconds"`
 }

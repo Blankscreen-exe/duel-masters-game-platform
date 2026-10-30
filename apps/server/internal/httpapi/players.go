@@ -71,7 +71,7 @@ func (h *handlers) GetPlayer(ctx context.Context, request api.GetPlayerRequestOb
 		return nil, err
 	}
 
-	player, err := h.users.ByUsername(ctx, request.Username)
+	player, err := h.person(ctx, request.Username)
 	if errors.Is(err, users.ErrNotFound) {
 		return api.GetPlayer404JSONResponse{NotFoundJSONResponse: notFound(playerGone)}, nil
 	}
@@ -124,7 +124,7 @@ func (h *handlers) GetPlayerMatches(ctx context.Context, request api.GetPlayerMa
 		return nil, err
 	}
 
-	player, err := h.users.ByUsername(ctx, request.Username)
+	player, err := h.person(ctx, request.Username)
 	if errors.Is(err, users.ErrNotFound) {
 		return api.GetPlayerMatches404JSONResponse{NotFoundJSONResponse: notFound(playerGone)}, nil
 	}
@@ -238,6 +238,17 @@ func apiRankedPlayer(player ratings.Placed) api.RankedPlayer {
 	}
 }
 
+// person finds a player by name. Computer opponents have no page of their
+// own, as it would show the games of everyone who practised against them, so
+// it returns users.ErrNotFound for them too.
+func (h *handlers) person(ctx context.Context, username string) (users.User, error) {
+	player, err := h.users.ByUsername(ctx, username)
+	if err == nil && player.Computer {
+		return users.User{}, users.ErrNotFound
+	}
+	return player, err
+}
+
 func apiMatches(records []games.Record) []api.Match {
 	matches := make([]api.Match, 0, len(records))
 	for _, finished := range records {
@@ -269,7 +280,7 @@ func apiMatch(finished games.Record) api.Match {
 }
 
 func apiMatchPlayer(player games.RecordPlayer) api.MatchPlayer {
-	shown := api.MatchPlayer{Id: player.ID, Username: player.Username, DeckName: player.DeckName, Civilizations: player.Civilizations}
+	shown := api.MatchPlayer{Id: player.ID, Username: player.Username, DeckName: player.DeckName, Civilizations: player.Civilizations, Computer: player.Computer}
 	if shown.Civilizations == nil {
 		shown.Civilizations = []string{}
 	}

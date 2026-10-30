@@ -34,6 +34,8 @@ type RecordPlayer struct {
 	// the game's order.
 	Deck          []decks.Entry
 	Civilizations []string
+	// Computer marks a seat the computer played.
+	Computer bool
 	// Rating is what the game did to the player's rating: nil for a game
 	// that did not count.
 	Rating *RatingChange
@@ -70,7 +72,8 @@ type Record struct {
 	// StartedAt is when the coin toss was settled and play began.
 	StartedAt time.Time
 	EndedAt   time.Time
-	// Counted is false for a game too short to count, or aborted.
+	// Counted is false for a game too short to count, aborted, or against the
+	// computer.
 	Counted     bool
 	Visible     bool
 	Matchmaking bool
@@ -164,6 +167,7 @@ func recordPlayer(player Player, deck []decks.Entry) RecordPlayer {
 		DeckName:      player.DeckName,
 		Deck:          deck,
 		Civilizations: player.Civilizations,
+		Computer:      player.Computer,
 	}
 }
 

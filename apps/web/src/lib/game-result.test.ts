@@ -9,6 +9,7 @@ function finished(overrides: Partial<DuelFinishedMessage> = {}): DuelFinishedMes
     winner: { uid: 'u1', username: 'Shobu' },
     ending: 'play',
     counted: true,
+    practice: false,
     turns: 12,
     durationSeconds: 754,
     ...overrides,
@@ -16,6 +17,17 @@ function finished(overrides: Partial<DuelFinishedMessage> = {}): DuelFinishedMes
 }
 
 describe('describeResult', () => {
+  it('says a game against the computer was practice, not too short', () => {
+    const details = describeResult(
+      finished({ counted: false, practice: true }),
+      'u1',
+      true,
+    ).details;
+
+    expect(details).toContain('A practice game: it does not count towards ratings.');
+    expect(details).not.toContain('Too short to count towards ratings.');
+  });
+
   it('tells the winner they won', () => {
     expect(describeResult(finished(), 'u1', true)).toEqual({
       headline: 'You won',

@@ -13,6 +13,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/computer"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/match"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/server"
@@ -43,10 +44,21 @@ var MinimumCountedDuration = settings.Number{
 	Max:         1800,
 }
 
+// MaxComputerGames is the admin setting for how many games against the
+// computer may run at once.
+var MaxComputerGames = settings.Number{
+	Key:         "computer.max_games",
+	Group:       "Computer opponents",
+	Description: "The most games against the computer running at once, so a busy evening cannot overload the server. At 0, nobody can start one.",
+	Default:     100,
+	Min:         0,
+	Max:         1000,
+}
+
 // Settings are the settings this feature declares. The chat in games also
 // follows the chat's own settings (chat.Settings), which must be declared too.
 func Settings() []settings.Definition {
-	return []settings.Definition{DisconnectGrace, MinimumCountedDuration, MessagesPerSecond, MessageBurst}
+	return []settings.Definition{DisconnectGrace, MinimumCountedDuration, MessagesPerSecond, MessageBurst, MaxComputerGames}
 }
 
 // Why a game ended without a winner, as its players are told.
@@ -63,6 +75,9 @@ var (
 	ErrNotWatchable = errors.New("this game cannot be watched")
 	// ErrClosed is returned once the server has started stopping.
 	ErrClosed = errors.New("the server is stopping")
+	// ErrComputerGamesFull is returned for a game against the computer while
+	// as many as the settings allow are running.
+	ErrComputerGamesFull = errors.New("too many games against the computer are running")
 )
 
 // IllegalDeckError is returned when a player's deck breaks the format, or,
@@ -83,6 +98,9 @@ func (e *IllegalDeckError) Error() string {
 type Entrant struct {
 	User users.User
 	Deck decks.Deck
+	// Computer, when set, is how the computer plays this seat, which the
+	// service then seats itself. A game against the computer never counts.
+	Computer *computer.Options
 }
 
 // StartInput is a game to start.
@@ -110,6 +128,8 @@ type Player struct {
 	DeckName string
 	// Civilizations are those of the deck's cards, in the game's order.
 	Civilizations []string
+	// Computer marks a seat the computer plays.
+	Computer bool
 }
 
 // Game is a running game.
@@ -129,6 +149,11 @@ type Game struct {
 // Has reports whether a user plays in the game.
 func (g Game) Has(userID string) bool {
 	return g.Host.ID == userID || g.Guest.ID == userID
+}
+
+// AgainstComputer reports whether the computer plays one of the seats.
+func (g Game) AgainstComputer() bool {
+	return g.Host.Computer || g.Guest.Computer
 }
 
 // Watchable reports whether players other than its own may watch the game.
@@ -214,11 +239,17 @@ type Service struct {
 	live      map[string]*liveGame
 	listeners []Listener
 	closing   bool
+	// computerGames counts the games against the computer running or being
+	// started, for the setting that limits them.
+	computerGames int
 	// connections are the open connections to games, by user, so a player
 	// put out of the site loses those they watch.
 	connections map[string]map[*connection]struct{}
 
 	results chan finished
+	// computers are the goroutines of the computer players, which Close waits
+	// for. They are added to under mu, and never once closing is set.
+	computers sync.WaitGroup
 }
 
 var _ match.Observer = (*Service)(nil)
@@ -315,17 +346,37 @@ func (s *Service) Civilizations(ctx context.Context, deck decks.Deck) ([]string,
 }
 
 // Start checks both decks against the format and starts the game. Players
-// then connect to it, and it begins with the coin toss. It returns an
-// *IllegalDeckError for a deck breaking the format, and ErrClosed once the
-// server is stopping.
+// then connect to it, the computer at once for a seat it plays, and it begins
+// with the coin toss. It returns an *IllegalDeckError for a deck breaking the
+// format, ErrClosed once the server is stopping, and ErrComputerGamesFull for
+// a game against the computer while as many as the settings allow are running.
 func (s *Service) Start(ctx context.Context, input StartInput) (Game, error) {
-	s.mu.Lock()
-	closing := s.closing
-	s.mu.Unlock()
-	if closing {
-		return Game{}, ErrClosed
-	}
+	againstComputer := input.Host.Computer != nil || input.Guest.Computer != nil
 
+	s.mu.Lock()
+	switch {
+	case s.closing:
+		s.mu.Unlock()
+		return Game{}, ErrClosed
+	case againstComputer && int64(s.computerGames) >= s.settings.Number(MaxComputerGames):
+		s.mu.Unlock()
+		return Game{}, ErrComputerGamesFull
+	case againstComputer:
+		s.computerGames++
+	}
+	s.mu.Unlock()
+
+	game, err := s.start(ctx, input, againstComputer)
+	if err != nil && againstComputer {
+		s.mu.Lock()
+		s.computerGames--
+		s.mu.Unlock()
+	}
+	return game, err
+}
+
+// start starts a game Start has let through.
+func (s *Service) start(ctx context.Context, input StartInput, againstComputer bool) (Game, error) {
 	ids := slices.Concat(cardIDs(input.Host.Deck.Cards), cardIDs(input.Guest.Deck.Cards))
 	known, err := s.catalogue.Cards(ctx, ids)
 	if err != nil {
@@ -345,6 +396,7 @@ func (s *Service) Start(ctx context.Context, input StartInput) (Game, error) {
 			DeckID:        entrant.Deck.ID,
 			DeckName:      entrant.Deck.Name,
 			Civilizations: decks.Civilizations(entrant.Deck.Cards, known),
+			Computer:      entrant.Computer != nil,
 		})
 	}
 
@@ -357,6 +409,7 @@ func (s *Service) Start(ctx context.Context, input StartInput) (Game, error) {
 		Matchmaking:            input.Matchmaking,
 		TossCaller:             input.TossCaller,
 		MinimumCountedDuration: time.Duration(s.settings.Number(MinimumCountedDuration)) * time.Second,
+		Practice:               againstComputer,
 		DisconnectGrace:        time.Duration(s.settings.Number(DisconnectGrace)) * time.Second,
 		ChatRefusal:            s.chatRefusal,
 	})
@@ -378,12 +431,40 @@ func (s *Service) Start(ctx context.Context, input StartInput) (Game, error) {
 	}
 
 	s.mu.Lock()
+	if s.closing {
+		// Close did not see this game, so it would not stop it.
+		s.mu.Unlock()
+		m.Dispose()
+		return Game{}, ErrClosed
+	}
 	s.live[m.ID] = &liveGame{game: game, match: m, hostDeck: input.Host.Deck.Cards, guestDeck: input.Guest.Deck.Cards}
+	for _, entrant := range []Entrant{input.Host, input.Guest} {
+		if entrant.Computer != nil {
+			s.seatComputer(entrant, m.ID)
+		}
+	}
 	s.mu.Unlock()
 
 	s.logger.InfoContext(ctx, "started a game", "game", game.ID, "host", game.Host.Username, "guest", game.Guest.Username, "format", game.FormatName)
 
 	return game, nil
+}
+
+// seatComputer has the computer play a seat of a game, joining it as a
+// browser would, until the game closes its connection. s.mu must be held.
+func (s *Service) seatComputer(entrant Entrant, gameID string) {
+	logger := s.logger.With("game", gameID, "computer", entrant.User.Username)
+
+	options := *entrant.Computer
+	options.Logger = logger
+	player := computer.New(options)
+
+	s.computers.Go(player.Play)
+	s.computers.Go(func() {
+		if err := s.Connect(player.Connection(), entrant.User, gameID); err != nil {
+			logger.Warn("the computer could not take its seat", "error", err)
+		}
+	})
 }
 
 // Game returns a running game.
@@ -553,7 +634,8 @@ func (s *Service) Expel(userID string) {
 }
 
 // Close stops every running game without a winner and refuses new ones,
-// waiting until they have gone or ctx ends. Run then saves them.
+// waiting until they have gone, with the computer players in them, or ctx
+// ends. Run then saves them.
 func (s *Service) Close(ctx context.Context) error {
 	s.mu.Lock()
 	s.closing = true
@@ -574,7 +656,7 @@ func (s *Service) Close(ctx context.Context) error {
 		left := len(s.live)
 		s.mu.Unlock()
 		if left == 0 {
-			return nil
+			break
 		}
 
 		select {
@@ -582,6 +664,18 @@ func (s *Service) Close(ctx context.Context) error {
 			return fmt.Errorf("stopping games: %d still running: %w", left, ctx.Err())
 		case <-ticker.C:
 		}
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		s.computers.Wait()
+	}()
+	select {
+	case <-stopped:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("stopping the computer players: %w", ctx.Err())
 	}
 }
 
@@ -607,6 +701,9 @@ func (s *Service) MatchClosed(matchID string) {
 	s.mu.Lock()
 	live, ok := s.live[matchID]
 	delete(s.live, matchID)
+	if ok && live.game.AgainstComputer() {
+		s.computerGames--
+	}
 	s.mu.Unlock()
 
 	if ok {

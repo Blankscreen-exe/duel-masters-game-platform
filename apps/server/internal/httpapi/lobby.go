@@ -292,7 +292,7 @@ func apiLobby(snapshot lobby.Snapshot, shownRanks ranks) api.Lobby {
 	for _, player := range snapshot.Online {
 		shown := api.OnlinePlayer{Id: player.ID, Username: player.Username, Rank: shownRanks.of(player.ID)}
 		if activity := player.Activity; activity != nil {
-			shown.Activity = &api.PlayerActivity{Kind: api.PlayerActivityKind(activity.Kind)}
+			shown.Activity = &api.PlayerActivity{Kind: api.PlayerActivityKind(activity.Kind), Computer: activity.Computer}
 			if activity.GameID != "" {
 				shown.Activity.GameId = &activity.GameID
 			}
@@ -322,7 +322,7 @@ func apiOpenGame(open lobby.OpenGame, shownRanks ranks) api.OpenGame {
 }
 
 func apiGamePlayer(player games.Player, shownRanks ranks) api.GamePlayer {
-	return api.GamePlayer{Id: player.ID, Username: player.Username, DeckName: player.DeckName, Rank: shownRanks.of(player.ID)}
+	return api.GamePlayer{Id: player.ID, Username: player.Username, DeckName: player.DeckName, Computer: player.Computer, Rank: shownRanks.of(player.ID)}
 }
 
 // lobbyPlayers are the ids of every player a lobby snapshot shows.

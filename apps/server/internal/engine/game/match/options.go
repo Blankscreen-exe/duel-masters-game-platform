@@ -26,6 +26,9 @@ type Options struct {
 	// MinimumCountedDuration is how long a game must last for its result to
 	// count (Result.Counted). Shorter games are still reported.
 	MinimumCountedDuration time.Duration
+	// Practice marks a game that never counts, however long it lasts, such as
+	// one against the computer.
+	Practice bool
 	// DisconnectGrace is how long a disconnected player has to come back
 	// before losing. It must be positive.
 	DisconnectGrace time.Duration
@@ -78,9 +81,11 @@ type Result struct {
 	EndedAt   time.Time
 	// Turns counts the turns played, extra turns left out.
 	Turns int
-	// Counted is false for a game shorter than MinimumCountedDuration, and for
-	// an aborted game.
+	// Counted is false for a game shorter than MinimumCountedDuration, for an
+	// aborted game, and for a practice game.
 	Counted bool
+	// Practice is set for a practice game.
+	Practice bool
 }
 
 // Duration is how long the game lasted.

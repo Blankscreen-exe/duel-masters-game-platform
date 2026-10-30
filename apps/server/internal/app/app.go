@@ -21,6 +21,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/computer"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/config"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
@@ -98,7 +99,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		return nil, err
 	}
 
-	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), chat.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), matchmaking.Settings(), ratings.Settings(), rematch.Settings())...)
+	siteSettings, err := settings.NewService(ctx, db, logger.With("component", "settings"), slices.Concat(auth.Settings(), chat.Settings(), decks.Settings(), games.Settings(), lobby.Settings(), matchmaking.Settings(), opponents.Settings(), ratings.Settings(), rematch.Settings())...)
 	if err != nil {
 		return nil, err
 	}
@@ -153,14 +154,25 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		Logger:    logger.With("component", "matchmaking"),
 		Now:       time.Now,
 	})
-	rematches := rematch.NewService(rematch.Dependencies{
+	builtCards, _ := cards.Build(source, games.PlayableCards())
+	challenges := opponents.NewChallenges(opponents.ChallengeDependencies{
+		Opponents: opponents.NewService(db, catalogue, formatService),
+		Formats:   formatService,
 		Lobby:     lobbyService,
 		Games:     gameService,
-		Directory: live,
+		Library:   computer.NewLibrary(builtCards),
 		Settings:  siteSettings,
-		Listener:  live,
-		Logger:    logger.With("component", "rematch"),
-		Now:       time.Now,
+		Logger:    logger.With("component", "opponents"),
+	})
+	rematches := rematch.NewService(rematch.Dependencies{
+		Lobby:      lobbyService,
+		Games:      gameService,
+		Challenges: challenges,
+		Directory:  live,
+		Settings:   siteSettings,
+		Listener:   live,
+		Logger:     logger.With("component", "rematch"),
+		Now:        time.Now,
 	})
 	hub.Watch(presence{lobby: lobbyService, quickMatch: quickMatch, rematches: rematches})
 	adminService := admin.NewService(admin.Dependencies{
@@ -196,6 +208,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 				Lobby:         lobbyService,
 				QuickMatch:    quickMatch,
 				Rematches:     rematches,
+				Challenges:    challenges,
 				Admin:         adminService,
 				AdminLog:      adminlog.NewService(db),
 				Hub:           hub,

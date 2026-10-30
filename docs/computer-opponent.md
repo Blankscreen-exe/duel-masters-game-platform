@@ -94,8 +94,19 @@ already has is left out of the seed rather than taken.
 
 ## Settings
 
-Admin settings: how long the computer pauses before each move, and the most games against the
-computer running at once, so a busy evening cannot overload the server.
+Admin settings: how long the computer pauses before each move (`computer.pause_milliseconds`), and
+the most games against the computer running at once (`computer.max_games`), so a busy evening
+cannot overload the server.
+
+## Details settled while building
+
+- **Seats:** the player hosts; the computer takes the guest's seat at once, over the same path a
+  browser's connection comes in by. It is not held to one game at a time: every personality can
+  play any number of players at once, up to the limit.
+- **No profile page:** a computer opponent has none, as it would show the games of everyone who
+  practised against it. The history shows its name without a link.
+- **Rematch:** the computer has always agreed. If its opponent is retired, or its deck stops being
+  legal, while a player decides, the rematch ends as if it had declined.
 
 ## Build order
 
@@ -109,10 +120,12 @@ computer running at once, so a busy evening cannot overload the server.
    refuses is not repeated: it cancels, tries other choices, attacks with whatever can when the
    engine will not end its turn, and as a last resort gives up the game rather than leave its
    opponent waiting.
-3. **Personalities.** Stored in the database with their rules and decks, the starting set seeded,
-   their play styles (done: accounts, `internal/opponents`, the styles and strengths in
-   `internal/computer`, tested by the six playing whole games in their styles), and games against
-   them started, recorded in the match history and kept out of ratings (next).
+3. **Personalities** (done). Stored in the database with their rules and decks, the starting set
+   seeded, their play styles (`internal/opponents`, and the styles and strengths in
+   `internal/computer`, tested by the six playing whole games in their styles). Games against them
+   start through `opponents.Challenges` and the API's `/computer-opponents`, run by the games
+   service like any other, and end in the match history, marked, without touching ratings
+   (`match.Options.Practice`).
 4. **The "Vs computer" tab** on the play page.
 5. **Admin panel:** the computer opponents page and the two settings.
 6. **Later:** the look-ahead and a Hard strength.

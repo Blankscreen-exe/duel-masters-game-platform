@@ -34,6 +34,8 @@ const (
 	codeHostDeckNotLegal     = "host_deck_not_legal"
 	codeOpponentDeckNotLegal = "opponent_deck_not_legal"
 	codeNotWatchable         = "not_watchable"
+	codeComputerGamesFull    = "computer_games_full"
+	codeComputerUnavailable  = "computer_unavailable"
 
 	codeBanned = "banned"
 	codeMuted  = "muted"

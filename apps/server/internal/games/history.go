@@ -119,7 +119,8 @@ func (s *Service) FavouriteCivilizations(ctx context.Context, userID string) ([]
 	return favourites, nil
 }
 
-// withNames is the finished games rows keep, with their players' names.
+// withNames is the finished games rows keep, with their players' names and
+// which of them are the computer.
 func (s *Service) withNames(ctx context.Context, rows []gameRow) ([]Record, error) {
 	ids := make([]string, 0, 2*len(rows))
 	for _, row := range rows {
@@ -127,18 +128,20 @@ func (s *Service) withNames(ctx context.Context, rows []gameRow) ([]Record, erro
 	}
 
 	var players []users.User
-	if err := s.db.WithContext(ctx).Select("id", "username").Where("id IN ?", slices.Compact(slices.Sorted(slices.Values(ids)))).Find(&players).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("id", "username", "computer").Where("id IN ?", slices.Compact(slices.Sorted(slices.Values(ids)))).Find(&players).Error; err != nil {
 		return nil, fmt.Errorf("reading the names of a game's players: %w", err)
 	}
-	names := make(map[string]string, len(players))
+	byID := make(map[string]users.User, len(players))
 	for _, player := range players {
-		names[player.ID] = player.Username
+		byID[player.ID] = player
 	}
 
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {
 		finished := row.record()
-		finished.Host.Username, finished.Guest.Username = names[row.HostID], names[row.GuestID]
+		host, guest := byID[row.HostID], byID[row.GuestID]
+		finished.Host.Username, finished.Host.Computer = host.Username, host.Computer
+		finished.Guest.Username, finished.Guest.Computer = guest.Username, guest.Computer
 		records = append(records, finished)
 	}
 	return records, nil

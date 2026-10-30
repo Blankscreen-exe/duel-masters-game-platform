@@ -16,6 +16,8 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby/lobbytest"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents/opponentstest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -79,17 +81,19 @@ func (h *heard) startedGames() []games.Game {
 // set.
 type fixture struct {
 	*lobbytest.World
-	rematches *rematch.Service
-	heard     *heard
+	rematches  *rematch.Service
+	challenges *opponents.Challenges
+	heard      *heard
 }
 
 func newFixture(t *testing.T, db *gorm.DB, run bool) fixture {
 	t.Helper()
 
-	w := lobbytest.NewWorld(t, db, rematch.Settings()...)
+	w := lobbytest.NewWorld(t, db, slices.Concat(rematch.Settings(), opponents.Settings())...)
 	listener := &heard{}
+	challenges := opponentstest.NewChallenges(t, w)
 	service := rematch.NewService(rematch.Dependencies{
-		Lobby: w.Lobby, Games: w.Games, Directory: w.Directory, Settings: w.Settings, Listener: listener,
+		Lobby: w.Lobby, Games: w.Games, Challenges: challenges, Directory: w.Directory, Settings: w.Settings, Listener: listener,
 		Logger: storetest.Logger(), Now: w.Clock.Now, SweepEvery: 10 * time.Millisecond,
 	})
 
@@ -106,7 +110,7 @@ func newFixture(t *testing.T, db *gorm.DB, run bool) fixture {
 		})
 	}
 
-	return fixture{World: w, rematches: service, heard: listener}
+	return fixture{World: w, rematches: service, challenges: challenges, heard: listener}
 }
 
 // playAndSurrender plays a game Shobu hosts against Kokujo, each with their
@@ -520,5 +524,123 @@ func TestADeckDeletedSinceItWasChosen(t *testing.T) {
 		require.ErrorAs(t, err, &illegal, "Kokujo is told his deck can no longer be played")
 		assert.Empty(t, illegal.Problems)
 		assert.Empty(t, f.heard.startedGames())
+	})
+}
+
+// playTheComputer plays a game Shobu starts against a computer opponent, until
+// he surrenders, and returns the opponent and the game.
+func (f fixture) playTheComputer(t *testing.T) (opponentstest.Added, games.Game) {
+	t.Helper()
+
+	opponent := opponentstest.Add(t, f.DB, "Grim", f.Open.ID, gamestest.LegalDeck(f.CardIDs))
+	game, err := f.challenges.Start(context.Background(), f.Shobu, opponent.ID, f.Legal[f.Shobu.ID].ID)
+	require.NoError(t, err)
+
+	shobu, _ := gamestest.Connect(f.Games, f.Shobu, game.ID)
+	shobu.SettleToss(t)
+	shobu.Say(map[string]any{"header": "resign"})
+	shobu.WaitFor(t, "duel_finished")
+	require.Eventually(t, func() bool { _, running := f.Games.Game(game.ID); return !running }, waitTimeout, 5*time.Millisecond)
+	return opponent, game
+}
+
+func TestTheComputerAgreesToARematchAtOnce(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db, true)
+		opponent, game := f.playTheComputer(t)
+
+		offered, err := f.rematches.Get(f.Shobu.ID, game.ID)
+		require.NoError(t, err, "offered though the computer is never online")
+		assert.True(t, offered.Guest.Computer)
+		assert.True(t, offered.Guest.Ready, "the computer has agreed already")
+		assert.False(t, offered.Host.Ready)
+		assert.Equal(t, f.Shobu.ID, offered.CallerID, "the loser calls the toss")
+		assert.Equal(t, lobby.Rematching, f.Doing(f.Shobu))
+		_, busy := f.Lobby.Activities().Of(opponent.Account.ID)
+		assert.False(t, busy, "the computer is free for other games meanwhile")
+
+		// Switching decks changes nothing for the computer.
+		another := f.anotherDeck(t, f.Shobu, "Another")
+		switched, err := f.rematches.ChooseDeck(ctx, f.Shobu, game.ID, another.ID)
+		require.NoError(t, err)
+		assert.True(t, switched.Guest.Ready)
+
+		// A person's agreement is all it takes, and the sweeps do not end it
+		// for the computer not being online.
+		time.Sleep(50 * time.Millisecond)
+		started, _, err := f.rematches.Ready(ctx, f.Shobu, game.ID)
+		require.NoError(t, err)
+		require.NotNil(t, started, "the game starts")
+
+		assert.True(t, started.AgainstComputer())
+		assert.False(t, started.Visible)
+		assert.Equal(t, "Another", started.Host.DeckName)
+		assert.Equal(t, opponent.Account.ID, started.Guest.ID)
+		activity, _ := f.Lobby.Activities().Of(f.Shobu.ID)
+		assert.Equal(t, lobby.Activity{Kind: lobby.Playing, GameID: started.ID, Computer: true}, activity)
+
+		// The computer really takes its seat again: the game gets past the toss.
+		shobu, _ := gamestest.Connect(f.Games, f.Shobu, started.ID)
+		shobu.SettleToss(t)
+	})
+}
+
+func TestARematchEndsWhenTheComputerOpponentIsRetired(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db, false)
+		opponent, game := f.playTheComputer(t)
+
+		opponentstest.Retire(t, db, opponent.ID)
+
+		_, _, err := f.rematches.Ready(ctx, f.Shobu, game.ID)
+		assert.ErrorIs(t, err, rematch.ErrNotFound)
+
+		endings := f.heard.endings()
+		require.Len(t, endings, 1)
+		assert.Equal(t, rematch.Declined, endings[0].reason)
+		assert.Equal(t, opponent.Account.ID, endings[0].by)
+		assert.Empty(t, f.Doing(f.Shobu), "the player is free again")
+	})
+}
+
+func TestARematchWaitsWhileTheComputerIsFull(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db, false)
+		_, game := f.playTheComputer(t)
+
+		_, err := f.Settings.Set(ctx, games.MaxComputerGames.Key, "0")
+		require.NoError(t, err)
+		_, _, err = f.rematches.Ready(ctx, f.Shobu, game.ID)
+		require.ErrorIs(t, err, games.ErrComputerGamesFull)
+
+		back, err := f.rematches.Get(f.Shobu.ID, game.ID)
+		require.NoError(t, err, "still being decided")
+		assert.False(t, back.Host.Ready)
+		assert.True(t, back.Guest.Ready)
+
+		_, err = f.Settings.Set(ctx, games.MaxComputerGames.Key, "1")
+		require.NoError(t, err)
+		started, _, err := f.rematches.Ready(ctx, f.Shobu, game.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, started)
+	})
+}
+
+func TestAPlayerLeavingEndsARematchOfTheComputer(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		f := newFixture(t, db, false)
+		_, game := f.playTheComputer(t)
+
+		f.Directory.Set(f.Shobu, false)
+		f.rematches.PresenceChanged(f.Shobu.ID)
+
+		_, err := f.rematches.Get(f.Shobu.ID, game.ID)
+		assert.ErrorIs(t, err, rematch.ErrNotFound)
+		endings := f.heard.endings()
+		require.Len(t, endings, 1)
+		assert.Equal(t, rematch.Left, endings[0].reason)
 	})
 }

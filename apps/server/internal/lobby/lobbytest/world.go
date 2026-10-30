@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/clocktest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
@@ -92,6 +93,8 @@ type World struct {
 	Games     *games.Service
 	Ratings   *ratings.Service
 	Decks     *decks.Service
+	Formats   *formats.Service
+	Catalogue *cards.Catalogue
 	Settings  *settings.Service
 	Directory *Directory
 	Heard     *Heard
@@ -126,6 +129,8 @@ func NewWorld(t *testing.T, db *gorm.DB, extra ...settings.Definition) *World {
 	w := &World{
 		DB:        db,
 		Decks:     decks.NewService(db, catalogue, siteSettings, storetest.Logger()),
+		Formats:   formatService,
+		Catalogue: catalogue,
 		Settings:  siteSettings,
 		Directory: NewDirectory(),
 		Heard:     &Heard{},

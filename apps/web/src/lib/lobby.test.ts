@@ -14,7 +14,11 @@ const lobby = {
   runningGames: [],
   paused: false,
   online: [
-    { id: 'u1', username: 'Shobu', activity: { kind: 'hosting' as const, gameId: 'g1' } },
+    {
+      id: 'u1',
+      username: 'Shobu',
+      activity: { kind: 'hosting' as const, gameId: 'g1', computer: false },
+    },
     { id: 'u2', username: 'Kokujo' },
   ],
 };
@@ -32,7 +36,7 @@ function deck(id: string, name: string, legalFormatIds: string[]): DeckSummary {
 
 describe('activityOf', () => {
   it('finds what the player is doing', () => {
-    expect(activityOf(lobby, 'u1')).toEqual({ kind: 'hosting', gameId: 'g1' });
+    expect(activityOf(lobby, 'u1')).toEqual({ kind: 'hosting', gameId: 'g1', computer: false });
     expect(activityOf(lobby, 'u2')).toBeNull();
     expect(activityOf(lobby, 'nobody')).toBeNull();
   });
@@ -40,11 +44,18 @@ describe('activityOf', () => {
 
 describe('describeActivity', () => {
   it('says what a player is doing', () => {
-    expect(describeActivity({ kind: 'hosting' })).toBe('Waiting for an opponent');
-    expect(describeActivity({ kind: 'queued', formatName: 'Open' })).toBe('Quick match in Open');
-    expect(describeActivity({ kind: 'queued' })).toBe('Quick match');
-    expect(describeActivity({ kind: 'playing', gameId: 'g1' })).toBe('Playing');
-    expect(describeActivity({ kind: 'rematch', gameId: 'g1' })).toBe('Deciding on a rematch');
+    expect(describeActivity({ kind: 'hosting', computer: false })).toBe('Waiting for an opponent');
+    expect(describeActivity({ kind: 'queued', formatName: 'Open', computer: false })).toBe(
+      'Quick match in Open',
+    );
+    expect(describeActivity({ kind: 'queued', computer: false })).toBe('Quick match');
+    expect(describeActivity({ kind: 'playing', gameId: 'g1', computer: false })).toBe('Playing');
+    expect(describeActivity({ kind: 'playing', gameId: 'g1', computer: true })).toBe(
+      'Playing the computer',
+    );
+    expect(describeActivity({ kind: 'rematch', gameId: 'g1', computer: false })).toBe(
+      'Deciding on a rematch',
+    );
     expect(describeActivity(null)).toBe('In the lobby');
     expect(describeActivity(undefined)).toBe('In the lobby');
   });

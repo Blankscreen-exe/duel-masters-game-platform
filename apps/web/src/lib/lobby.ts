@@ -18,7 +18,7 @@ export function describeActivity(activity: PlayerActivity | null | undefined): s
     case 'queued':
       return activity.formatName ? `Quick match in ${activity.formatName}` : 'Quick match';
     case 'playing':
-      return 'Playing';
+      return activity.computer ? 'Playing the computer' : 'Playing';
     case 'rematch':
       return 'Deciding on a rematch';
     default:

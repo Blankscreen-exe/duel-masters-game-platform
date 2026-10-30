@@ -65,7 +65,9 @@ type Match struct {
 	// count. disconnectGrace is how long a disconnected player has to come
 	// back before losing.
 	minimumCountedDuration time.Duration
-	disconnectGrace        time.Duration
+	// practice marks a game that never counts.
+	practice        bool
+	disconnectGrace time.Duration
 	// chatRefusal is Options.ChatRefusal: nil lets every chat message through.
 	chatRefusal func(userID string) string
 
@@ -607,8 +609,9 @@ func (m *Match) result(winner *Player, ending Ending, endedAt time.Time) Result 
 		StartedAt:  m.startedAt,
 		EndedAt:    endedAt,
 		Turns:      m.turnsPlayed,
+		Practice:   m.practice,
 	}
-	result.Counted = ending != EndingAborted && result.Duration() >= m.minimumCountedDuration
+	result.Counted = !m.practice && ending != EndingAborted && result.Duration() >= m.minimumCountedDuration
 
 	switch {
 	case winner == nil:
@@ -628,6 +631,7 @@ func (m *Match) duelFinishedMessage(result Result) server.DuelFinishedMessage {
 		DuelID:          result.MatchID,
 		Ending:          string(result.Ending),
 		Counted:         result.Counted,
+		Practice:        result.Practice,
 		Turns:           result.Turns,
 		DurationSeconds: int64(result.Duration().Seconds()),
 	}

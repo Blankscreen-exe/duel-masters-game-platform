@@ -32,7 +32,8 @@ export function describeResult(
   }
 
   const details = [endingText(message, isPlayer && viewerWon), playedText(message)];
-  if (!message.counted && winner) details.push('Too short to count towards ratings.');
+  if (message.practice) details.push('A practice game: it does not count towards ratings.');
+  else if (!message.counted && winner) details.push('Too short to count towards ratings.');
 
   return { headline, details, outcome };
 }

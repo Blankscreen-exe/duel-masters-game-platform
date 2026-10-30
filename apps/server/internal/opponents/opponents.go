@@ -114,6 +114,19 @@ func (s *Service) Get(ctx context.Context, id string) (Opponent, error) {
 	return found[0], nil
 }
 
+// ByUser returns the opponent playing under an account, if it is offered. It
+// returns ErrNotFound for any other.
+func (s *Service) ByUser(ctx context.Context, userID string) (Opponent, error) {
+	found, err := s.read(ctx, s.db.WithContext(ctx).Where("user_id = ? AND enabled = ?", userID, true))
+	if err != nil {
+		return Opponent{}, err
+	}
+	if len(found) == 0 {
+		return Opponent{}, ErrNotFound
+	}
+	return found[0], nil
+}
+
 // Check lists every way an opponent's deck breaks its format's rules or its
 // own, or nothing for a deck it can play.
 func (s *Service) Check(ctx context.Context, opponent Opponent) ([]decks.Problem, error) {

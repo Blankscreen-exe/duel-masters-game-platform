@@ -4,7 +4,8 @@
 // to the decks shown, the new game starts with the same format and options,
 // its coin toss called by the loser of the last. Declining, leaving the site
 // or letting the offer run out ends it. While deciding, the players do
-// nothing else, as the lobby's register of what players are doing keeps.
+// nothing else, as the lobby's register of what players are doing keeps. The
+// computer agrees to any rematch, with the deck it played.
 package rematch
 
 import (
@@ -14,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
@@ -78,6 +79,8 @@ type Seat struct {
 	Deck     Deck
 	// Ready is set once the player has agreed to play the decks shown.
 	Ready bool
+	// Computer marks a seat the computer plays, which is always ready.
+	Computer bool
 }
 
 // Rematch is a rematch being decided.
@@ -129,12 +132,14 @@ type Listener interface {
 
 // Dependencies are what rematches need.
 type Dependencies struct {
-	Lobby     *lobby.Service
-	Games     *games.Service
-	Directory lobby.Directory
-	Settings  *settings.Service
-	Listener  Listener
-	Logger    *slog.Logger
+	Lobby *lobby.Service
+	Games *games.Service
+	// Challenges seats the computer in rematches against it.
+	Challenges *opponents.Challenges
+	Directory  lobby.Directory
+	Settings   *settings.Service
+	Listener   Listener
+	Logger     *slog.Logger
 	// Now is the clock; time.Now outside tests.
 	Now func() time.Time
 	// SweepEvery is how often offers are checked for running out and for
@@ -146,6 +151,7 @@ type Dependencies struct {
 type Service struct {
 	lobby      *lobby.Service
 	games      *games.Service
+	challenges *opponents.Challenges
 	directory  lobby.Directory
 	settings   *settings.Service
 	listener   Listener
@@ -167,6 +173,7 @@ func NewService(deps Dependencies) *Service {
 	s := &Service{
 		lobby:      deps.Lobby,
 		games:      deps.Games,
+		challenges: deps.Challenges,
 		directory:  deps.Directory,
 		settings:   deps.Settings,
 		listener:   deps.Listener,
@@ -188,7 +195,8 @@ func NewService(deps Dependencies) *Service {
 // the server stopped has none.
 func (s *Service) GameEnded(ended games.Ended) {
 	game := ended.Game
-	if ended.Ending == games.EndingAborted || !s.directory.IsOnline(game.Host.ID) || !s.directory.IsOnline(game.Guest.ID) {
+	host, guest := seatOf(game.Host), seatOf(game.Guest)
+	if ended.Ending == games.EndingAborted || !s.here(host) || !s.here(guest) {
 		return
 	}
 
@@ -196,12 +204,18 @@ func (s *Service) GameEnded(ended games.Ended) {
 	// so neither starts anything else in between.
 	activities := s.lobby.Activities()
 	deciding := lobby.Activity{Kind: lobby.Rematching, GameID: game.ID}
-	if !activities.Change(game.Host.ID, lobby.Playing, deciding) {
-		return
-	}
-	if !activities.Change(game.Guest.ID, lobby.Playing, deciding) {
-		activities.Release(game.Host.ID, lobby.Rematching, game.ID)
-		return
+	var moved []string
+	for _, seat := range []Seat{host, guest} {
+		if seat.Computer {
+			continue
+		}
+		if !activities.Change(seat.UserID, lobby.Playing, deciding) {
+			for _, userID := range moved {
+				activities.Release(userID, lobby.Rematching, game.ID)
+			}
+			return
+		}
+		moved = append(moved, seat.UserID)
 	}
 
 	rematch := &Rematch{
@@ -212,8 +226,8 @@ func (s *Service) GameEnded(ended games.Ended) {
 		Visible:     game.Visible,
 		Spectators:  game.Spectators,
 		Matchmaking: game.Matchmaking,
-		Host:        seatOf(game.Host),
-		Guest:       seatOf(game.Guest),
+		Host:        host,
+		Guest:       guest,
 		CallerID:    ended.LoserID(),
 		ExpiresAt:   s.now().Add(time.Duration(s.settings.Number(OfferTime)) * time.Second),
 	}
@@ -231,7 +245,15 @@ func seatOf(player games.Player) Seat {
 		UserID:   player.ID,
 		Username: player.Username,
 		Deck:     Deck{ID: player.DeckID, Name: player.DeckName, Civilizations: player.Civilizations},
+		Ready:    player.Computer,
+		Computer: player.Computer,
 	}
+}
+
+// here reports whether a seat's player is there to play: the computer always
+// is, and a person while they have the site open.
+func (s *Service) here(seat Seat) bool {
+	return seat.Computer || s.directory.IsOnline(seat.UserID)
 }
 
 // GameFinished is part of games.Listener; the rematch was offered when the
@@ -278,7 +300,7 @@ func (s *Service) ChooseDeck(ctx context.Context, player users.User, gameID, dec
 	}
 	own, opponent := rematch.Seats(player.ID)
 	if own.Deck.ID != chosen.ID {
-		opponent.Ready = false
+		opponent.Ready = opponent.Computer
 	}
 	own.Deck = chosen
 	shown := *rematch
@@ -293,8 +315,11 @@ func (s *Service) ChooseDeck(ctx context.Context, player users.User, gameID, dec
 // both are told to go to it; Ready then returns it, and otherwise the
 // rematch, waiting for the opponent. It returns ErrNotFound as Get does,
 // lobby.ErrPaused while new games are paused, the errors
-// lobby.Service.PrepareChosenDeck returns for the player's own deck, and
-// ErrOpponentDeckIllegal when the opponent's no longer keeps to the format.
+// lobby.Service.PrepareChosenDeck returns for the player's own deck,
+// ErrOpponentDeckIllegal when the opponent's no longer keeps to the format,
+// and games.ErrComputerGamesFull while the computer cannot play another game.
+// A computer opponent that can no longer play ends the rematch, as if it had
+// declined: Ready then returns ErrNotFound.
 func (s *Service) Ready(ctx context.Context, player users.User, gameID string) (*games.Game, Rematch, error) {
 	if s.lobby.Paused() {
 		return nil, Rematch{}, lobby.ErrPaused
@@ -307,15 +332,23 @@ func (s *Service) Ready(ctx context.Context, player users.User, gameID string) (
 
 	game, err := s.start(ctx, shown)
 	if err != nil {
+		var illegal *games.IllegalDeckError
+		madeIllegal := errors.As(err, &illegal)
+		for _, seat := range []Seat{shown.Host, shown.Guest} {
+			if seat.Computer && (errors.Is(err, opponents.ErrUnavailable) || madeIllegal && illegal.Username == seat.Username) {
+				s.ended(shown, Declined, seat.UserID)
+				return nil, Rematch{}, ErrNotFound
+			}
+		}
+
 		// Back to deciding: nobody has agreed to anything that can be played.
-		shown.Host.Ready, shown.Guest.Ready = false, false
+		shown.Host.Ready, shown.Guest.Ready = shown.Host.Computer, shown.Guest.Computer
 		s.mu.Lock()
 		s.open[gameID] = &shown
 		s.mu.Unlock()
 		s.listener.RematchChanged(shown)
 
-		var illegal *games.IllegalDeckError
-		if errors.As(err, &illegal) && illegal.Username != player.Username {
+		if madeIllegal && illegal.Username != player.Username {
 			return nil, Rematch{}, ErrOpponentDeckIllegal
 		}
 		return nil, Rematch{}, err
@@ -368,20 +401,23 @@ func (s *Service) agree(ctx context.Context, player users.User, gameID string) (
 
 // start starts the rematch's game and tells both players.
 func (s *Service) start(ctx context.Context, rematch Rematch) (games.Game, error) {
-	host, hostDeck, format, err := s.entrant(ctx, rematch, rematch.Host)
+	format, host, err := s.entrant(ctx, rematch, rematch.Host)
 	if err != nil {
 		return games.Game{}, err
 	}
-	guest, guestDeck, _, err := s.entrant(ctx, rematch, rematch.Guest)
+	guestFormat, guest, err := s.entrant(ctx, rematch, rematch.Guest)
 	if err != nil {
 		return games.Game{}, err
+	}
+	if rematch.Host.Computer {
+		format = guestFormat
 	}
 
 	game, err := s.games.Start(ctx, games.StartInput{
 		Name:        rematch.Name,
 		Format:      format,
-		Host:        games.Entrant{User: host, Deck: hostDeck},
-		Guest:       games.Entrant{User: guest, Deck: guestDeck},
+		Host:        host,
+		Guest:       guest,
 		Visible:     rematch.Visible,
 		Spectators:  rematch.Spectators,
 		Matchmaking: rematch.Matchmaking,
@@ -392,21 +428,27 @@ func (s *Service) start(ctx context.Context, rematch Rematch) (games.Game, error
 	}
 
 	activities := s.lobby.Activities()
-	playing := lobby.Activity{Kind: lobby.Playing, GameID: game.ID}
-	activities.Change(host.ID, lobby.Rematching, playing)
-	activities.Change(guest.ID, lobby.Rematching, playing)
+	playing := lobby.Activity{Kind: lobby.Playing, GameID: game.ID, Computer: game.AgainstComputer()}
+	activities.Change(host.User.ID, lobby.Rematching, playing)
+	activities.Change(guest.User.ID, lobby.Rematching, playing)
 	s.listener.GameStarted(game)
-	s.logger.InfoContext(ctx, "started a rematch", "game", game.ID, "rematch of", rematch.GameID, "host", host.Username, "guest", guest.Username)
+	s.logger.InfoContext(ctx, "started a rematch", "game", game.ID, "rematch of", rematch.GameID, "host", host.User.Username, "guest", guest.User.Username)
 
 	return game, nil
 }
 
-// entrant is a seat's player and deck, checked against the format once more.
-// A deck deleted since it was chosen counts as one that cannot be played.
-func (s *Service) entrant(ctx context.Context, rematch Rematch, seat Seat) (users.User, decks.Deck, formats.Format, error) {
+// entrant is a seat's player and deck, checked against the format once more,
+// with the format as a person's deck finds it. A deck deleted since it was
+// chosen counts as one that cannot be played.
+func (s *Service) entrant(ctx context.Context, rematch Rematch, seat Seat) (formats.Format, games.Entrant, error) {
+	if seat.Computer {
+		entrant, err := s.challenges.Entrant(ctx, seat.UserID)
+		return formats.Format{}, entrant, err
+	}
+
 	player := users.User{ID: seat.UserID, Username: seat.Username}
 	format, deck, err := s.lobby.PrepareChosenDeck(ctx, player, rematch.FormatID, seat.Deck.ID)
-	return player, deck, format, err
+	return format, games.Entrant{User: player, Deck: deck}, err
 }
 
 // prepare checks one of the player's decks for the format, and describes it
@@ -492,9 +534,9 @@ func (s *Service) sweep() {
 		switch {
 		case !now.Before(rematch.ExpiresAt):
 			endings = append(endings, ending{rematch: *rematch, reason: Expired})
-		case !s.directory.IsOnline(rematch.Host.UserID):
+		case !s.here(rematch.Host):
 			endings = append(endings, ending{rematch: *rematch, reason: Left, by: rematch.Host.UserID})
-		case !s.directory.IsOnline(rematch.Guest.UserID):
+		case !s.here(rematch.Guest):
 			endings = append(endings, ending{rematch: *rematch, reason: Left, by: rematch.Guest.UserID})
 		default:
 			continue
