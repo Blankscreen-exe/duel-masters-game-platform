@@ -98,9 +98,13 @@ computer running at once, so a busy evening cannot overload the server.
 1. **The engine says what each question is about** (done). Every question tells its kind, the
    card whose effect asks when the player may know it, and which cards offered are the
    opponent's (`server.PromptAbout`).
-2. **The computer plays a whole game.** Rules of thumb and scoring, in Go, tested by having it play
-   complete games against itself with each starting deck: every game must finish, with no stalled
-   questions, under the race detector.
+2. **The computer plays a whole game** (done: `internal/computer`). Rules of thumb and scoring, in
+   Go, tested by having it play complete games against itself with each starter deck: every game
+   must finish, won by the game's rules, with no stalled questions, under the race detector. It
+   knows cards by their keywords and categories in the card database. A move or answer the engine
+   refuses is not repeated: it cancels, tries other choices, attacks with whatever can when the
+   engine will not end its turn, and as a last resort gives up the game rather than leave its
+   opponent waiting.
 3. **Personalities.** Stored in the database with their rules and decks, the starting set seeded,
    their play styles, and games against them started, recorded in the match history and kept out
    of ratings.
