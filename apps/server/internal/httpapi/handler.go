@@ -27,6 +27,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
 
@@ -59,6 +60,8 @@ type Dependencies struct {
 	Rematches *rematch.Service
 	// Challenges offers games against the computer opponents.
 	Challenges *opponents.Challenges
+	// Settings are the server's settings, as the admin panel lists them.
+	Settings *settings.Service
 	// Admin carries out the admin panel's actions, which AdminLog records.
 	Admin    *admin.Service
 	AdminLog *adminlog.Service
@@ -89,6 +92,7 @@ type handlers struct {
 	quickMatch    *matchmaking.Service
 	rematches     *rematch.Service
 	challenges    *opponents.Challenges
+	settings      *settings.Service
 	admin         *admin.Service
 	adminLog      *adminlog.Service
 	hub           *realtime.Hub
@@ -120,6 +124,7 @@ func NewHandler(deps Dependencies) http.Handler {
 		quickMatch:    deps.QuickMatch,
 		rematches:     deps.Rematches,
 		challenges:    deps.Challenges,
+		settings:      deps.Settings,
 		admin:         deps.Admin,
 		adminLog:      deps.AdminLog,
 		hub:           deps.Hub,

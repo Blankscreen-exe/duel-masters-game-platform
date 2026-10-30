@@ -861,6 +861,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every server setting
+         * @description Each with its current value, type, limits and default, in the order declared.
+         */
+        get: operations["getAdminSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a setting
+         * @description It applies at once, without a restart.
+         */
+        put: operations["setAdminSetting"];
+        post?: never;
+        /** Put a setting back to its default */
+        delete: operations["resetAdminSetting"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/log": {
         parameters: {
             query?: never;
@@ -991,6 +1034,39 @@ export interface components {
              * @description 8 to 128 characters.
              */
             password: string;
+        };
+        /** @description A server setting as the admin panel shows it. */
+        AdminSetting: {
+            key: string;
+            group: string;
+            description: string;
+            /** @enum {string} */
+            kind: "boolean" | "number" | "text";
+            default: string;
+            /** @description The current value, as text; "true" or "false" for a yes-or-no setting. */
+            value: string;
+            /** @description No admin has set it. */
+            isDefault: boolean;
+            /**
+             * Format: int64
+             * @description The lowest value of a number setting.
+             */
+            min?: number;
+            /**
+             * Format: int64
+             * @description The highest value of a number setting.
+             */
+            max?: number;
+            /** @description The longest value of a text setting, in characters. */
+            maxLength?: number;
+            /**
+             * Format: date-time
+             * @description When an admin last set it; absent while it is at its default.
+             */
+            updatedAt?: string;
+        };
+        AdminSettingInput: {
+            value: string;
         };
         /** @enum {string} */
         AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped";
@@ -3159,6 +3235,83 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["AdminConflict"];
+        };
+    };
+    getAdminSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSetting"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    setAdminSetting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSettingInput"];
+            };
+        };
+        responses: {
+            /** @description The setting as changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSetting"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    resetAdminSetting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The setting as reset. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSetting"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getAdminLog: {

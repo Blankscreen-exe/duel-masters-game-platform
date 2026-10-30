@@ -44,14 +44,14 @@ type Entry struct {
 	UpdatedAt time.Time
 }
 
-// record is a row of the settings table.
-type record struct {
+// settingRow is a row of the settings table.
+type settingRow struct {
 	Key       string `gorm:"primaryKey"`
 	Value     string
 	UpdatedAt time.Time
 }
 
-func (record) TableName() string { return "settings" }
+func (settingRow) TableName() string { return "settings" }
 
 // current is a setting's value in memory.
 type current struct {
@@ -111,7 +111,7 @@ func NewService(ctx context.Context, db *gorm.DB, logger *slog.Logger, definitio
 		return nil, fmt.Errorf("invalid settings: %w", err)
 	}
 
-	var stored []record
+	var stored []settingRow
 	if err := db.WithContext(ctx).Find(&stored).Error; err != nil {
 		return nil, fmt.Errorf("loading settings: %w", err)
 	}
@@ -192,10 +192,19 @@ func (s *Service) entry(key string) Entry {
 	return Entry{Info: s.definitions[key].Describe(), Value: value.raw, IsDefault: value.isDefault, UpdatedAt: value.updatedAt}
 }
 
+// Recorder is called in the transaction changing a setting, with its value
+// before and after, to record the change with it; an error undoes the change.
+type Recorder func(tx *gorm.DB, before, after string) error
+
 // Set checks a value against its setting, stores it and applies it at once.
 // It returns ErrUnknownSetting for an undeclared key and an
 // *InvalidValueError for a value the setting does not accept.
 func (s *Service) Set(ctx context.Context, key, raw string) (Entry, error) {
+	return s.SetRecorded(ctx, key, raw, nil)
+}
+
+// SetRecorded is Set, with record, if any, called in its transaction.
+func (s *Service) SetRecorded(ctx context.Context, key, raw string, record Recorder) (Entry, error) {
 	definition, known := s.definitions[key]
 	if !known {
 		return Entry{}, fmt.Errorf("%w: %q", ErrUnknownSetting, key)
@@ -209,13 +218,23 @@ func (s *Service) Set(ctx context.Context, key, raw string) (Entry, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	row := record{Key: key, Value: canonical, UpdatedAt: s.db.NowFunc()}
-	err = s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "key"}},
-		DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"}),
-	}).Create(&row).Error
+	row := settingRow{Key: key, Value: canonical, UpdatedAt: s.db.NowFunc()}
+	before := s.rawValue(key)
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "key"}},
+			DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"}),
+		}).Create(&row).Error
+		if err != nil {
+			return fmt.Errorf("storing setting %q: %w", key, err)
+		}
+		if record == nil {
+			return nil
+		}
+		return record(tx, before, canonical)
+	})
 	if err != nil {
-		return Entry{}, fmt.Errorf("storing setting %q: %w", key, err)
+		return Entry{}, err
 	}
 
 	s.mu.Lock()
@@ -225,9 +244,21 @@ func (s *Service) Set(ctx context.Context, key, raw string) (Entry, error) {
 	return s.entry(key), nil
 }
 
+// rawValue is a setting's current value, as stored.
+func (s *Service) rawValue(key string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.values[key].raw
+}
+
 // Reset removes an admin's value, so the setting goes back to its default. It
 // returns ErrUnknownSetting for an undeclared key.
 func (s *Service) Reset(ctx context.Context, key string) (Entry, error) {
+	return s.ResetRecorded(ctx, key, nil)
+}
+
+// ResetRecorded is Reset, with record, if any, called in its transaction.
+func (s *Service) ResetRecorded(ctx context.Context, key string, record Recorder) (Entry, error) {
 	definition, known := s.definitions[key]
 	if !known {
 		return Entry{}, fmt.Errorf("%w: %q", ErrUnknownSetting, key)
@@ -236,8 +267,18 @@ func (s *Service) Reset(ctx context.Context, key string) (Entry, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if err := s.db.WithContext(ctx).Delete(&record{Key: key}).Error; err != nil {
-		return Entry{}, fmt.Errorf("resetting setting %q: %w", key, err)
+	before := s.rawValue(key)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&settingRow{Key: key}).Error; err != nil {
+			return fmt.Errorf("resetting setting %q: %w", key, err)
+		}
+		if record == nil {
+			return nil
+		}
+		return record(tx, before, definition.Describe().Default)
+	})
+	if err != nil {
+		return Entry{}, err
 	}
 
 	s.mu.Lock()

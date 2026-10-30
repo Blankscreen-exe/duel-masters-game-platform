@@ -60,6 +60,27 @@ func (e AdminLogAction) Valid() bool {
 	}
 }
 
+// Defines values for AdminSettingKind.
+const (
+	AdminSettingKindBoolean AdminSettingKind = "boolean"
+	AdminSettingKindNumber  AdminSettingKind = "number"
+	AdminSettingKindText    AdminSettingKind = "text"
+)
+
+// Valid indicates whether the value is a known member of the AdminSettingKind enum.
+func (e AdminSettingKind) Valid() bool {
+	switch e {
+	case AdminSettingKindBoolean:
+		return true
+	case AdminSettingKindNumber:
+		return true
+	case AdminSettingKindText:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminUserStatus.
 const (
 	AdminUserStatusAdmin  AdminUserStatus = "admin"
@@ -492,6 +513,41 @@ type AdminLogPage struct {
 	Page     int             `json:"page"`
 	PageSize int             `json:"pageSize"`
 	Total    int             `json:"total"`
+}
+
+// AdminSetting A server setting as the admin panel shows it.
+type AdminSetting struct {
+	Default     string `json:"default"`
+	Description string `json:"description"`
+	Group       string `json:"group"`
+
+	// IsDefault No admin has set it.
+	IsDefault bool             `json:"isDefault"`
+	Key       string           `json:"key"`
+	Kind      AdminSettingKind `json:"kind"`
+
+	// Max The highest value of a number setting.
+	Max *int64 `json:"max,omitempty"`
+
+	// MaxLength The longest value of a text setting, in characters.
+	MaxLength *int `json:"maxLength,omitempty"`
+
+	// Min The lowest value of a number setting.
+	Min *int64 `json:"min,omitempty"`
+
+	// UpdatedAt When an admin last set it; absent while it is at its default.
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+
+	// Value The current value, as text; "true" or "false" for a yes-or-no setting.
+	Value string `json:"value"`
+}
+
+// AdminSettingKind defines model for AdminSetting.Kind.
+type AdminSettingKind string
+
+// AdminSettingInput defines model for AdminSettingInput.
+type AdminSettingInput struct {
+	Value string `json:"value"`
 }
 
 // AdminUser An account as the admin panel shows it.
@@ -1427,6 +1483,9 @@ type GetRankingsParams struct {
 	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
+// SetAdminSettingJSONRequestBody defines body for SetAdminSetting for application/json ContentType.
+type SetAdminSettingJSONRequestBody = AdminSettingInput
+
 // BanUserJSONRequestBody defines body for BanUser for application/json ContentType.
 type BanUserJSONRequestBody = BanInput
 
@@ -1869,6 +1928,15 @@ type ServerInterface interface {
 	// GetAdminLog The admin log
 	// (GET /admin/log)
 	GetAdminLog(w http.ResponseWriter, r *http.Request, params GetAdminLogParams)
+	// GetAdminSettings Every server setting
+	// (GET /admin/settings)
+	GetAdminSettings(w http.ResponseWriter, r *http.Request)
+	// ResetAdminSetting Put a setting back to its default
+	// (DELETE /admin/settings/{key})
+	ResetAdminSetting(w http.ResponseWriter, r *http.Request, key string)
+	// SetAdminSetting Change a setting
+	// (PUT /admin/settings/{key})
+	SetAdminSetting(w http.ResponseWriter, r *http.Request, key string)
 	// GetAdminUsers Search the accounts
 	// (GET /admin/users)
 	GetAdminUsers(w http.ResponseWriter, r *http.Request, params GetAdminUsersParams)
@@ -2086,6 +2154,72 @@ func (siw *ServerInterfaceWrapper) GetAdminLog(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminLog(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetAdminSetting operation middleware
+func (siw *ServerInterfaceWrapper) ResetAdminSetting(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetAdminSetting(w, r, key)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetAdminSetting operation middleware
+func (siw *ServerInterfaceWrapper) SetAdminSetting(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetAdminSetting(w, r, key)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3600,6 +3734,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/users/{userId}/mute", wrapper.MuteUser)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/users/{userId}/role", wrapper.SetUserRole)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/users/{userId}/password", wrapper.SetUserPassword)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/settings", wrapper.GetAdminSettings)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/settings/{key}", wrapper.ResetAdminSetting)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/settings/{key}", wrapper.SetAdminSetting)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/log", wrapper.GetAdminLog)
 
 	return m
@@ -3701,6 +3838,198 @@ func (response GetAdminLog403JSONResponse) VisitGetAdminLogResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSettingsRequestObject struct {
+}
+
+type GetAdminSettingsResponseObject interface {
+	VisitGetAdminSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminSettings200JSONResponse []AdminSetting
+
+func (response GetAdminSettings200JSONResponse) VisitGetAdminSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSettings401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetAdminSettings401JSONResponse) VisitGetAdminSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSettings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminSettings403JSONResponse) VisitGetAdminSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminSettingRequestObject struct {
+	Key string `json:"key"`
+}
+
+type ResetAdminSettingResponseObject interface {
+	VisitResetAdminSettingResponse(w http.ResponseWriter) error
+}
+
+type ResetAdminSetting200JSONResponse AdminSetting
+
+func (response ResetAdminSetting200JSONResponse) VisitResetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminSetting401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ResetAdminSetting401JSONResponse) VisitResetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminSetting403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ResetAdminSetting403JSONResponse) VisitResetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminSetting404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ResetAdminSetting404JSONResponse) VisitResetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAdminSettingRequestObject struct {
+	Key  string `json:"key"`
+	Body *SetAdminSettingJSONRequestBody
+}
+
+type SetAdminSettingResponseObject interface {
+	VisitSetAdminSettingResponse(w http.ResponseWriter) error
+}
+
+type SetAdminSetting200JSONResponse AdminSetting
+
+func (response SetAdminSetting200JSONResponse) VisitSetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAdminSetting400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response SetAdminSetting400JSONResponse) VisitSetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAdminSetting401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SetAdminSetting401JSONResponse) VisitSetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAdminSetting403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetAdminSetting403JSONResponse) VisitSetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAdminSetting404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetAdminSetting404JSONResponse) VisitSetAdminSettingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6637,6 +6966,15 @@ type StrictServerInterface interface {
 	// GetAdminLog The admin log
 	// (GET /admin/log)
 	GetAdminLog(ctx context.Context, request GetAdminLogRequestObject) (GetAdminLogResponseObject, error)
+	// GetAdminSettings Every server setting
+	// (GET /admin/settings)
+	GetAdminSettings(ctx context.Context, request GetAdminSettingsRequestObject) (GetAdminSettingsResponseObject, error)
+	// ResetAdminSetting Put a setting back to its default
+	// (DELETE /admin/settings/{key})
+	ResetAdminSetting(ctx context.Context, request ResetAdminSettingRequestObject) (ResetAdminSettingResponseObject, error)
+	// SetAdminSetting Change a setting
+	// (PUT /admin/settings/{key})
+	SetAdminSetting(ctx context.Context, request SetAdminSettingRequestObject) (SetAdminSettingResponseObject, error)
 	// GetAdminUsers Search the accounts
 	// (GET /admin/users)
 	GetAdminUsers(ctx context.Context, request GetAdminUsersRequestObject) (GetAdminUsersResponseObject, error)
@@ -6853,6 +7191,89 @@ func (sh *strictHandler) GetAdminLog(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminLogResponseObject); ok {
 		if err := validResponse.VisitGetAdminLogResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminSettings operation middleware
+func (sh *strictHandler) GetAdminSettings(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminSettings(ctx, request.(GetAdminSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminSettingsResponseObject); ok {
+		if err := validResponse.VisitGetAdminSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetAdminSetting operation middleware
+func (sh *strictHandler) ResetAdminSetting(w http.ResponseWriter, r *http.Request, key string) {
+	var request ResetAdminSettingRequestObject
+
+	request.Key = key
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetAdminSetting(ctx, request.(ResetAdminSettingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetAdminSetting")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetAdminSettingResponseObject); ok {
+		if err := validResponse.VisitResetAdminSettingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetAdminSetting operation middleware
+func (sh *strictHandler) SetAdminSetting(w http.ResponseWriter, r *http.Request, key string) {
+	var request SetAdminSettingRequestObject
+
+	request.Key = key
+
+	var body SetAdminSettingJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetAdminSetting(ctx, request.(SetAdminSettingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetAdminSetting")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetAdminSettingResponseObject); ok {
+		if err := validResponse.VisitSetAdminSettingResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

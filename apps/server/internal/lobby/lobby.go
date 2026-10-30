@@ -500,6 +500,12 @@ func (s *Service) GameClosed(game games.Game) {
 	s.broadcast()
 }
 
+// SettingsChanged shows everyone the lobby again after an admin changes a
+// setting, as pausing new games shows on it.
+func (s *Service) SettingsChanged() {
+	s.broadcast()
+}
+
 // broadcast shows everyone the lobby as it now is.
 func (s *Service) broadcast() {
 	s.listener.LobbyChanged(s.Snapshot())

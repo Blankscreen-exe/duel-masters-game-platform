@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADMIN_LOG_ACTIONS,
+  groupSettings,
+  settingLimits,
+  type AdminSetting,
   adminLogHref,
   adminUsersHref,
   parseAdminLogQuery,
@@ -47,5 +50,35 @@ describe('parseAdminLogQuery and adminLogHref', () => {
   it('names every action', () => {
     expect(ADMIN_LOG_ACTIONS.user_banned).toBe('Banned');
     expect(Object.keys(ADMIN_LOG_ACTIONS)).toHaveLength(10);
+  });
+});
+
+describe('settings', () => {
+  const setting = (overrides: Partial<AdminSetting>): AdminSetting => ({
+    key: 'a.b',
+    group: 'Games',
+    description: 'A setting.',
+    kind: 'boolean',
+    default: 'true',
+    value: 'true',
+    isDefault: true,
+    ...overrides,
+  });
+
+  it('groups them, keeping the order given', () => {
+    const groups = groupSettings([
+      setting({ key: '1', group: 'Games' }),
+      setting({ key: '2', group: 'Lobby' }),
+      setting({ key: '3', group: 'Games' }),
+    ]);
+
+    expect(groups.map(({ group }) => group)).toEqual(['Games', 'Lobby']);
+    expect(groups[0]?.settings.map(({ key }) => key)).toEqual(['1', '3']);
+  });
+
+  it('says what a setting allows', () => {
+    expect(settingLimits(setting({ kind: 'number', min: 0, max: 5000 }))).toBe('From 0 to 5000');
+    expect(settingLimits(setting({ kind: 'text', maxLength: 20 }))).toBe('Up to 20 characters');
+    expect(settingLimits(setting({}))).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import type { AdminUser } from './admin';
+import type { AdminSetting, AdminUser } from './admin';
 import { api } from './api/client';
 import { attempt, attemptEmpty, type Outcome } from './api/outcome';
 import type { components } from './api/schema';
@@ -48,4 +48,16 @@ export function setUserPassword(userId: string, password: string): Promise<Outco
   return attemptEmpty(() =>
     api.PUT('/admin/users/{userId}/password', { ...user(userId), body: { password } }),
   );
+}
+
+/** Changes a setting, which applies at once; the answer is the setting as changed. */
+export function setSetting(key: string, value: string): Promise<Outcome<AdminSetting>> {
+  return attempt(() =>
+    api.PUT('/admin/settings/{key}', { params: { path: { key } }, body: { value } }),
+  );
+}
+
+/** Puts a setting back to its default. */
+export function resetSetting(key: string): Promise<Outcome<AdminSetting>> {
+  return attempt(() => api.DELETE('/admin/settings/{key}', { params: { path: { key } } }));
 }

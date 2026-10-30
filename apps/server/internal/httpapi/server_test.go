@@ -122,7 +122,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 		Lobby: lobbyService, Games: gameService, Challenges: challenges, Directory: live, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
 	})
 	adminService := admin.NewService(admin.Dependencies{
-		DB: db, Auth: authService, Connections: hub, Games: gameService, Listener: live, Logger: logger, Now: clock.Now,
+		DB: db, Auth: authService, Connections: hub, Games: gameService, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
 	})
 
 	return testServer{
@@ -140,6 +140,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 			QuickMatch:    quickMatch,
 			Rematches:     rematches,
 			Challenges:    challenges,
+			Settings:      siteSettings,
 			Admin:         adminService,
 			AdminLog:      adminlog.NewService(db),
 			Hub:           hub,

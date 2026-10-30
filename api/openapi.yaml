@@ -1482,6 +1482,81 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/AdminConflict"
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      summary: Every server setting
+      description: Each with its current value, type, limits and default, in the order declared.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSetting"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/settings/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: setAdminSetting
+      summary: Change a setting
+      description: It applies at once, without a restart.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSettingInput"
+      responses:
+        "200":
+          description: The setting as changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSetting"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: resetAdminSetting
+      summary: Put a setting back to its default
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The setting as reset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSetting"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /admin/log:
     get:
       operationId: getAdminLog
@@ -1818,6 +1893,49 @@ components:
           format: password
           minLength: 8
           maxLength: 128
+    AdminSetting:
+      description: A server setting as the admin panel shows it.
+      type: object
+      required: [key, group, description, kind, default, value, isDefault]
+      properties:
+        key:
+          type: string
+        group:
+          type: string
+        description:
+          type: string
+        kind:
+          type: string
+          enum: [boolean, number, text]
+        default:
+          type: string
+        value:
+          description: The current value, as text; "true" or "false" for a yes-or-no setting.
+          type: string
+        isDefault:
+          description: No admin has set it.
+          type: boolean
+        min:
+          description: The lowest value of a number setting.
+          type: integer
+          format: int64
+        max:
+          description: The highest value of a number setting.
+          type: integer
+          format: int64
+        maxLength:
+          description: The longest value of a text setting, in characters.
+          type: integer
+        updatedAt:
+          description: When an admin last set it; absent while it is at its default.
+          type: string
+          format: date-time
+    AdminSettingInput:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: string
     AdminLogAction:
       type: string
       enum:

@@ -8,6 +8,7 @@ export type AdminUserStatus = Schemas['AdminUserStatus'];
 export type AdminLogAction = Schemas['AdminLogAction'];
 export type AdminLogEntry = Schemas['AdminLogEntry'];
 export type AdminLogPage = Schemas['AdminLogPage'];
+export type AdminSetting = Schemas['AdminSetting'];
 
 /** The admin panel's sections, in its menu. Sections join it as they are built. */
 export const ADMIN_SECTIONS = [
@@ -17,11 +18,41 @@ export const ADMIN_SECTIONS = [
     description: 'Find players, ban, mute, change roles and passwords.',
   },
   {
+    href: '/admin/settings',
+    label: 'Settings',
+    description: 'Every server setting, which applies at once.',
+  },
+  {
     href: '/admin/log',
     label: 'Admin log',
     description: 'Everything admins have done, the latest first.',
   },
 ] as const;
+
+/** The settings by group, the groups and the settings in each in the order given. */
+export function groupSettings(
+  settings: readonly AdminSetting[],
+): { group: string; settings: AdminSetting[] }[] {
+  const groups: { group: string; settings: AdminSetting[] }[] = [];
+  for (const setting of settings) {
+    const found = groups.find(({ group }) => group === setting.group);
+    if (found) found.settings.push(setting);
+    else groups.push({ group: setting.group, settings: [setting] });
+  }
+  return groups;
+}
+
+/** What a setting allows, in a few words, or null for a yes-or-no setting. */
+export function settingLimits(setting: AdminSetting): string | null {
+  switch (setting.kind) {
+    case 'number':
+      return `From ${String(setting.min)} to ${String(setting.max)}`;
+    case 'text':
+      return `Up to ${String(setting.maxLength)} characters`;
+    default:
+      return null;
+  }
+}
 
 /** The longest name search, as names are at most this long. */
 export const ADMIN_SEARCH_MAX_LENGTH = 20;

@@ -1,5 +1,5 @@
 // Package admin carries out what admins do in the admin panel: banning and
-// muting players, changing roles and passwords. Each action checks the
+// muting players, changing roles, passwords and settings. Each action checks the
 // guards (no admin acts on their own account, an admin is not banned, the
 // last admin stays), makes its change and records it in the admin log in one
 // transaction, and then puts it into effect on the live site, such as
@@ -17,6 +17,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
 
@@ -65,6 +66,7 @@ type Dependencies struct {
 	Auth        *auth.Service
 	Connections Connections
 	Games       Games
+	Settings    *settings.Service
 	Listener    Listener
 	Logger      *slog.Logger
 	// Now is the clock; pass time.Now outside tests.
@@ -77,6 +79,7 @@ type Service struct {
 	auth        *auth.Service
 	connections Connections
 	games       Games
+	settings    *settings.Service
 	listener    Listener
 	logger      *slog.Logger
 	now         func() time.Time
@@ -89,6 +92,7 @@ func NewService(deps Dependencies) *Service {
 		auth:        deps.Auth,
 		connections: deps.Connections,
 		games:       deps.Games,
+		settings:    deps.Settings,
 		listener:    deps.Listener,
 		logger:      deps.Logger,
 		now:         deps.Now,
