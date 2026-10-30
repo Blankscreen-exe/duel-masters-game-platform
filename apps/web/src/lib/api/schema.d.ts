@@ -861,6 +861,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/computer-opponents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every computer opponent, retired or not */
+        get: operations["getAdminComputerOpponents"];
+        put?: never;
+        /**
+         * Add a computer opponent
+         * @description It starts retired, to be offered once its deck is ready.
+         */
+        post: operations["createComputerOpponent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/computer-opponents/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a computer opponent can be set to */
+        get: operations["getComputerOpponentOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/computer-opponents/{opponentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                opponentId: components["parameters"]["OpponentId"];
+            };
+            cookie?: never;
+        };
+        /** A computer opponent, retired or not */
+        get: operations["getAdminComputerOpponent"];
+        /**
+         * Change a computer opponent
+         * @description Games already running carry on as they started. An offered opponent's deck must keep to its rules (code "deck_not_legal", with every problem); retire it to work on the deck.
+         */
+        put: operations["updateComputerOpponent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/computer-opponents/{opponentId}/offered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                opponentId: components["parameters"]["OpponentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Offer a computer opponent to players, or retire it
+         * @description Once retired, running games carry on, and a rematch being decided against it ends when the player agrees. An opponent can be offered only if its deck keeps to its rules (code "deck_not_legal", with every problem).
+         */
+        put: operations["setComputerOpponentOffered"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/settings": {
         parameters: {
             query?: never;
@@ -1035,6 +1118,60 @@ export interface components {
              */
             password: string;
         };
+        /** @description A computer opponent as the admin panel shows it. */
+        AdminComputerOpponent: {
+            id: string;
+            name: string;
+            description: string;
+            style: string;
+            /** @enum {string} */
+            strength: "easy" | "normal";
+            formatId: string;
+            formatName: string;
+            /** @description The most civilizations its deck may have; 0 for any number. */
+            maxCivilizations: number;
+            /** @description The card types its deck may have. */
+            cardTypes: string[];
+            /** @description Players are offered it; otherwise it is retired. */
+            offered: boolean;
+            /** @description Its deck, by cost, then name. */
+            cards: components["schemas"]["DeckCard"][];
+            cardCount: number;
+            /** @description The civilizations of its deck's cards, in the game's order. */
+            civilizations: string[];
+            /** @description Every way its deck breaks its format's rules or its own; empty if it can play. */
+            problems: components["schemas"]["DeckProblem"][];
+        };
+        /** @description A computer opponent as an admin saves it. A retired one's deck may be unfinished. */
+        ComputerOpponentInput: {
+            /** @description Its name, under the same rules as a player's, and not a name anyone has. */
+            name: string;
+            /** @description One line, up to 200 characters, shown to players choosing it. */
+            description: string;
+            /** @description One of the play styles. */
+            style: string;
+            /** @enum {string} */
+            strength: "easy" | "normal";
+            formatId: string;
+            /** @description The most civilizations its deck may have; 0 for any number. */
+            maxCivilizations: number;
+            /** @description The card types its deck may have; at least one. */
+            cardTypes: string[];
+            cards: components["schemas"]["DeckEntry"][];
+        };
+        ComputerOpponentOffered: {
+            offered: boolean;
+        };
+        ComputerOpponentOptions: {
+            /** @description The play styles, by label. */
+            styles: components["schemas"]["ComputerOpponentStyle"][];
+            /** @description The card types a deck's rules can allow, including those the game cannot play yet. */
+            cardTypes: string[];
+        };
+        ComputerOpponentStyle: {
+            name: string;
+            label: string;
+        };
         /** @description A server setting as the admin panel shows it. */
         AdminSetting: {
             key: string;
@@ -1069,7 +1206,7 @@ export interface components {
             value: string;
         };
         /** @enum {string} */
-        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped";
+        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped" | "computer_opponent_added" | "computer_opponent_changed" | "computer_opponent_offered" | "computer_opponent_retired";
         AdminLogEntry: {
             id: string;
             /** @description The admin who acted; absent once their account is gone. */
@@ -1235,10 +1372,10 @@ export interface components {
             cardId?: string;
         };
         /**
-         * @description deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies.
+         * @description deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not.
          * @enum {string}
          */
-        DeckProblemCode: "deck_size" | "not_playable" | "not_in_format" | "banned" | "over_limit" | "too_many_copies";
+        DeckProblemCode: "deck_size" | "not_playable" | "not_in_format" | "banned" | "over_limit" | "too_many_copies" | "too_many_civilizations" | "card_type";
         DeckListText: {
             /** @description At most 10,000 characters and 200 lines. */
             text: string;
@@ -1675,6 +1812,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description An account already has this name (code "username_taken"). */
+        ComputerOpponentNameTaken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description The guards forbid it: admins cannot act on their own account (code "own_account"), an admin cannot be banned until made a player (code "admin_ban"), a banned player cannot be made an admin (code "banned_admin"), the last admin cannot be made a player (code "last_admin"), and a computer opponent's account cannot be changed (code "computer_account"). */
         AdminConflict: {
             headers: {
@@ -1769,6 +1915,7 @@ export interface components {
         };
     };
     parameters: {
+        OpponentId: string;
         /** @description The account's id. */
         UserId: string;
     };
@@ -3235,6 +3382,164 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["AdminConflict"];
+        };
+    };
+    getAdminComputerOpponents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The opponents, in order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminComputerOpponent"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createComputerOpponent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComputerOpponentInput"];
+            };
+        };
+        responses: {
+            /** @description The opponent as added. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminComputerOpponent"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["ComputerOpponentNameTaken"];
+        };
+    };
+    getComputerOpponentOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The play styles and card types. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputerOpponentOptions"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminComputerOpponent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                opponentId: components["parameters"]["OpponentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The opponent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminComputerOpponent"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateComputerOpponent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                opponentId: components["parameters"]["OpponentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComputerOpponentInput"];
+            };
+        };
+        responses: {
+            /** @description The opponent as changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminComputerOpponent"];
+                };
+            };
+            400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["ComputerOpponentNameTaken"];
+        };
+    };
+    setComputerOpponentOffered: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                opponentId: components["parameters"]["OpponentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComputerOpponentOffered"];
+            };
+        };
+        responses: {
+            /** @description The opponent as changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminComputerOpponent"];
+                };
+            };
+            400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getAdminSettings: {

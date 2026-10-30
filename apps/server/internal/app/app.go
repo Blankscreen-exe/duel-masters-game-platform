@@ -155,8 +155,9 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		Now:       time.Now,
 	})
 	builtCards, _ := cards.Build(source, games.PlayableCards())
+	opponentService := opponents.NewService(db, catalogue, formatService)
 	challenges := opponents.NewChallenges(opponents.ChallengeDependencies{
-		Opponents: opponents.NewService(db, catalogue, formatService),
+		Opponents: opponentService,
 		Formats:   formatService,
 		Lobby:     lobbyService,
 		Games:     gameService,
@@ -209,6 +210,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 				Lobby:         lobbyService,
 				QuickMatch:    quickMatch,
 				Rematches:     rematches,
+				Opponents:     opponentService,
 				Challenges:    challenges,
 				Settings:      siteSettings,
 				Admin:         adminService,

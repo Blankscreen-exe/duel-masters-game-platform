@@ -58,6 +58,8 @@ type Dependencies struct {
 	QuickMatch *matchmaking.Service
 	// Rematches runs the rematches of games just ended.
 	Rematches *rematch.Service
+	// Opponents are the computer opponents, as the admin panel manages them.
+	Opponents *opponents.Service
 	// Challenges offers games against the computer opponents.
 	Challenges *opponents.Challenges
 	// Settings are the server's settings, as the admin panel lists them.
@@ -91,6 +93,7 @@ type handlers struct {
 	lobby         *lobby.Service
 	quickMatch    *matchmaking.Service
 	rematches     *rematch.Service
+	opponents     *opponents.Service
 	challenges    *opponents.Challenges
 	settings      *settings.Service
 	admin         *admin.Service
@@ -123,6 +126,7 @@ func NewHandler(deps Dependencies) http.Handler {
 		lobby:         deps.Lobby,
 		quickMatch:    deps.QuickMatch,
 		rematches:     deps.Rematches,
+		opponents:     deps.Opponents,
 		challenges:    deps.Challenges,
 		settings:      deps.Settings,
 		admin:         deps.Admin,

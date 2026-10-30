@@ -210,16 +210,12 @@ func addOpponents(tx *gorm.DB, starting []startingOpponent, logger *slog.Logger)
 			CreatedAt:        now,
 			UpdatedAt:        now,
 		}
-		if err := tx.Create(&row).Error; err != nil {
-			return fmt.Errorf("adding computer opponent %q: %w", opponent.name, err)
-		}
-
-		entries := make([]opponentCardRow, 0, len(opponent.cards))
+		deck := make([]decks.Entry, 0, len(opponent.cards))
 		for _, name := range opponent.cards {
-			entries = append(entries, opponentCardRow{ComputerOpponentID: row.ID, CardID: ids[name], Count: decks.MaxCopies})
+			deck = append(deck, decks.Entry{CardID: ids[name], Count: decks.MaxCopies})
 		}
-		if err := tx.Create(&entries).Error; err != nil {
-			return fmt.Errorf("adding the deck of computer opponent %q: %w", opponent.name, err)
+		if err := insert(tx, row, deck); err != nil {
+			return fmt.Errorf("adding computer opponent %q: %w", opponent.name, err)
 		}
 	}
 

@@ -8,13 +8,14 @@ interface DeckListProps {
   readonly draft: DeckDraft;
   readonly onAdd: (card: Card) => void;
   readonly onRemove: (cardId: string) => void;
-  readonly onCover: (cardId: string | null) => void;
+  /** Lets a card be chosen as the deck's cover, for a deck that has one. */
+  readonly onCover?: (cardId: string | null) => void;
 }
 
 const STEP =
   'grid size-7 shrink-0 place-items-center bg-slate-800 font-display text-base font-bold text-slate-200 ring-1 ring-slate-600/60 ring-inset transition hover:bg-slate-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-40';
 
-/** The deck's cards grouped by cost, each with buttons for one more, one fewer and the cover. */
+/** The deck's cards grouped by cost, each with buttons for one more, one fewer and any cover. */
 export function DeckList({ draft, onAdd, onRemove, onCover }: DeckListProps) {
   const groups = groupByCost(draft);
 
@@ -66,22 +67,24 @@ export function DeckList({ draft, onAdd, onRemove, onCover }: DeckListProps) {
                     {card.name}
                   </span>
                   <CivilizationMarks civilizations={card.civilizations} />
-                  <button
-                    type="button"
-                    aria-pressed={isCover}
-                    aria-label={
-                      isCover
-                        ? `${card.name} is the cover; use the site's pick`
-                        : `Use ${card.name} as the cover`
-                    }
-                    title={isCover ? 'The cover card' : 'Use as the cover'}
-                    onClick={() => {
-                      onCover(isCover ? null : card.id);
-                    }}
-                    className={`px-1 text-base leading-none transition ${isCover ? 'text-amber-300' : 'text-slate-600 hover:text-amber-200'}`}
-                  >
-                    ★
-                  </button>
+                  {onCover && (
+                    <button
+                      type="button"
+                      aria-pressed={isCover}
+                      aria-label={
+                        isCover
+                          ? `${card.name} is the cover; use the site's pick`
+                          : `Use ${card.name} as the cover`
+                      }
+                      title={isCover ? 'The cover card' : 'Use as the cover'}
+                      onClick={() => {
+                        onCover(isCover ? null : card.id);
+                      }}
+                      className={`px-1 text-base leading-none transition ${isCover ? 'text-amber-300' : 'text-slate-600 hover:text-amber-200'}`}
+                    >
+                      ★
+                    </button>
+                  )}
                 </li>
               );
             })}

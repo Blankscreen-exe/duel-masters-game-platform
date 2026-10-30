@@ -264,38 +264,49 @@ func (s *Service) check(ctx context.Context, input Input) (Input, error) {
 		return Input{}, validation.New("name", fmt.Sprintf("must be at most %d characters", NameMaxLength))
 	}
 
-	ids := make([]string, 0, len(input.Cards))
-	for _, entry := range input.Cards {
-		if slices.Contains(ids, entry.CardID) {
-			return Input{}, validation.New("cards", "must list each card once")
-		}
-		ids = append(ids, entry.CardID)
-	}
-	if total := Count(input.Cards); total > Size {
-		return Input{}, validation.New("cards", fmt.Sprintf("must be at most %d, not %d", Size, total))
-	}
-
-	known, err := s.catalogue.Cards(ctx, ids)
-	if err != nil {
+	if err := CheckForSaving(ctx, s.catalogue, input.Cards); err != nil {
 		return Input{}, err
 	}
-	for _, entry := range input.Cards {
-		card, found := known[entry.CardID]
-		switch {
-		case !found:
-			return Input{}, validation.New("cards", fmt.Sprintf("include %q, which is not a card", entry.CardID))
-		case !card.Playable():
-			return Input{}, validation.New("cards", fmt.Sprintf("include %s, which cannot be played yet", card.Name))
-		case entry.Count < 1 || entry.Count > MaxCopies:
-			return Input{}, validation.New("cards", fmt.Sprintf("must have 1 to %d copies of %s, not %d", MaxCopies, card.Name, entry.Count))
-		}
-	}
 
-	if input.CoverCardID != "" && !slices.Contains(ids, input.CoverCardID) {
+	covered := slices.ContainsFunc(input.Cards, func(entry Entry) bool { return entry.CardID == input.CoverCardID })
+	if input.CoverCardID != "" && !covered {
 		return Input{}, validation.New("coverCardId", "must be one of the deck's cards")
 	}
 
 	return input, nil
+}
+
+// CheckForSaving checks a deck's cards against the rules every saved deck
+// follows, whole or not, returning a *validation.Error naming the field "cards"
+// for any it breaks.
+func CheckForSaving(ctx context.Context, catalogue *cards.Catalogue, entries []Entry) error {
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if slices.Contains(ids, entry.CardID) {
+			return validation.New("cards", "must list each card once")
+		}
+		ids = append(ids, entry.CardID)
+	}
+	if total := Count(entries); total > Size {
+		return validation.New("cards", fmt.Sprintf("must be at most %d, not %d", Size, total))
+	}
+
+	known, err := catalogue.Cards(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		card, found := known[entry.CardID]
+		switch {
+		case !found:
+			return validation.New("cards", fmt.Sprintf("include %q, which is not a card", entry.CardID))
+		case !card.Playable():
+			return validation.New("cards", fmt.Sprintf("include %s, which cannot be played yet", card.Name))
+		case entry.Count < 1 || entry.Count > MaxCopies:
+			return validation.New("cards", fmt.Sprintf("must have 1 to %d copies of %s, not %d", MaxCopies, card.Name, entry.Count))
+		}
+	}
+	return nil
 }
 
 // writeCards adds a deck's cards.

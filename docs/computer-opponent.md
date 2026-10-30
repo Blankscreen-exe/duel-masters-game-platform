@@ -128,5 +128,8 @@ cannot overload the server.
    (`match.Options.Practice`).
 4. **The "Vs computer" tab** on the play page (done). Pick a personality and a deck legal in its
    format, in a row like the other tabs', so the page still fits the screen.
-5. **Admin panel:** the computer opponents page and the two settings.
+5. **Admin panel** (done). The computer opponents page: add, change, retire and bring back, with the
+   deck built in the players' deck builder. An offered opponent must have a deck it can play; a
+   retired one's may be unfinished, so a new one starts retired. Retired, not deleted, as its games
+   stay in players' histories. The two settings are on the admin panel's settings page.
 6. **Later:** the look-ahead and a Hard strength.

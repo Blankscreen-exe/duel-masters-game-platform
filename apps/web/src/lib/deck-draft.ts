@@ -32,7 +32,10 @@ export type CannotAdd = 'not_playable' | 'max_copies' | 'deck_full';
  * A saved deck as a draft. Cards that have left the card database cannot be saved again, so they
  * are left out; `dropped` counts their copies, to tell the player.
  */
-export function draftFromDeck(deck: Deck): { draft: DeckDraft; dropped: number } {
+export function draftFromDeck(deck: Pick<Deck, 'name' | 'cards' | 'coverCardId'>): {
+  draft: DeckDraft;
+  dropped: number;
+} {
   const cards: DraftCard[] = [];
   let dropped = 0;
   for (const { card, count } of deck.cards) {

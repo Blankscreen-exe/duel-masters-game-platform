@@ -210,12 +210,9 @@ func (h *handlers) ReadDeckList(ctx context.Context, request api.ReadDeckListReq
 
 // deckInput is a deck as the request gives it.
 func deckInput(body api.DeckInput) decks.Input {
-	input := decks.Input{Name: body.Name, Cards: make([]decks.Entry, 0, len(body.Cards))}
+	input := decks.Input{Name: body.Name, Cards: entriesOf(body.Cards)}
 	if body.CoverCardId != nil {
 		input.CoverCardID = *body.CoverCardId
-	}
-	for _, entry := range body.Cards {
-		input.Cards = append(input.Cards, decks.Entry{CardID: entry.CardId, Count: entry.Count})
 	}
 
 	return input

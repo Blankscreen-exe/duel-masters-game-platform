@@ -40,6 +40,11 @@ const (
 	SettingReset       Action = "setting_reset"
 	ChatMessageDeleted Action = "chat_message_deleted"
 	GameStopped        Action = "game_stopped"
+
+	ComputerOpponentAdded   Action = "computer_opponent_added"
+	ComputerOpponentChanged Action = "computer_opponent_changed"
+	ComputerOpponentOffered Action = "computer_opponent_offered"
+	ComputerOpponentRetired Action = "computer_opponent_retired"
 )
 
 // Actions lists every action, in the order the admin panel offers them.
@@ -47,6 +52,7 @@ func Actions() []Action {
 	return []Action{
 		UserBanned, UserUnbanned, UserMuted, UserUnmuted, RoleChanged, PasswordReset,
 		SettingChanged, SettingReset, ChatMessageDeleted, GameStopped,
+		ComputerOpponentAdded, ComputerOpponentChanged, ComputerOpponentOffered, ComputerOpponentRetired,
 	}
 }
 

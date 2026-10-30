@@ -125,12 +125,16 @@ function UserRow({ user, isYou }: { readonly user: AdminUser; readonly isYou: bo
           className={`size-2 shrink-0 rounded-full ${user.online ? 'bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153/0.8)]' : 'bg-slate-600'}`}
         />
         <span className="sr-only">{user.online ? 'Online' : 'Offline'}</span>
-        <Link
-          href={profileHref(user.username)}
-          className="truncate font-semibold text-slate-100 hover:text-accent"
-        >
-          {user.username}
-        </Link>
+        {user.computer ? (
+          <span className="truncate font-semibold text-slate-100">{user.username}</span>
+        ) : (
+          <Link
+            href={profileHref(user.username)}
+            className="truncate font-semibold text-slate-100 hover:text-accent"
+          >
+            {user.username}
+          </Link>
+        )}
         {user.role === 'admin' && (
           <span className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-accent uppercase ring-1 ring-accent/50 ring-inset">
             Admin

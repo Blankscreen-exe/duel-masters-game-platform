@@ -24,7 +24,7 @@ import (
 var (
 	// ErrNotAdmin is returned when the account acting is not, or no longer,
 	// an admin.
-	ErrNotAdmin = errors.New("only admins can do this")
+	ErrNotAdmin = users.ErrNotAdmin
 	// ErrOwnAccount is returned to an admin acting on their own account.
 	ErrOwnAccount = errors.New("admins cannot do this to their own account")
 	// ErrAdminBan is returned for banning an admin, who must be made a

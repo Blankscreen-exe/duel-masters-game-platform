@@ -8,6 +8,8 @@ import (
 // Style is how a computer player plays: what it values and how readily it
 // takes risks. Personalities each have their own.
 type Style struct {
+	// Label is what the admin panel calls it.
+	Label string
 	// Aggression, from 0 to 1, is how readily it attacks the opponent's
 	// shields rather than keeping its creatures back: at 0 only when it is
 	// safe, at 1 whenever it can.
@@ -39,24 +41,24 @@ func (s Style) favours(card Card) float64 {
 }
 
 // Balanced is a style that plays neither all out nor holding back.
-var Balanced = Style{Aggression: 0.5, KeepBlockers: true, ManaTarget: 7}
+var Balanced = Style{Label: "Balanced", Aggression: 0.5, KeepBlockers: true, ManaTarget: 7}
 
 // styles are the styles a computer opponent may play with, by the name it is
 // stored under.
 var styles = map[string]Style{
 	"balanced": Balanced,
 	// discard empties the opponent's hand first.
-	"discard": {Aggression: 0.5, KeepBlockers: true, ManaTarget: 7, Favours: []string{"discard_opp"}},
+	"discard": {Label: "Hand discard", Aggression: 0.5, KeepBlockers: true, ManaTarget: 7, Favours: []string{"discard_opp"}},
 	// rush plays cheap creatures and attacks with everything, every turn.
-	"rush": {Aggression: 1, KeepBlockers: false, ManaTarget: 5, Favours: []string{"speed_attack", "power_attack"}},
+	"rush": {Label: "Rapid summon", Aggression: 1, KeepBlockers: false, ManaTarget: 5, Favours: []string{"speed_attack", "power_attack"}},
 	// wall keeps blockers back and attacks only when it is safe.
-	"wall": {Aggression: 0.2, KeepBlockers: true, ManaTarget: 8, Favours: []string{"blocker"}},
+	"wall": {Label: "Defensive wall", Aggression: 0.2, KeepBlockers: true, ManaTarget: 8, Favours: []string{"blocker"}},
 	// tapper taps the opponent's creatures, then attacks.
-	"tapper": {Aggression: 0.7, KeepBlockers: false, ManaTarget: 7, Favours: []string{"tap_opp"}},
+	"tapper": {Label: "Tapper", Aggression: 0.7, KeepBlockers: false, ManaTarget: 7, Favours: []string{"tap_opp"}},
 	// bounce sends the opponent's creatures back to their hand.
-	"bounce": {Aggression: 0.5, KeepBlockers: true, ManaTarget: 7, Favours: []string{"removal_bounce"}},
+	"bounce": {Label: "Bounce", Aggression: 0.5, KeepBlockers: true, ManaTarget: 7, Favours: []string{"removal_bounce"}},
 	// giant builds mana fast for the biggest creatures.
-	"giant": {Aggression: 0.6, KeepBlockers: false, ManaTarget: 9, Favours: []string{"ramp", "double_break", "triple_break"}},
+	"giant": {Label: "Big creatures", Aggression: 0.6, KeepBlockers: false, ManaTarget: 9, Favours: []string{"ramp", "double_break", "triple_break"}},
 }
 
 // StyleNamed returns the style stored under the name.

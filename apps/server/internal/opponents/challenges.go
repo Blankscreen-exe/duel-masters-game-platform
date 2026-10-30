@@ -82,7 +82,9 @@ func NewChallenges(deps ChallengeDependencies) *Challenges {
 	}
 }
 
-// Offers lists the opponents players are offered, in order.
+// Offers lists the opponents players are offered, in order, leaving out any
+// that cannot play for now: a format's ban list may have changed since its deck
+// was made.
 func (c *Challenges) Offers(ctx context.Context) ([]Offer, error) {
 	list, err := c.opponents.List(ctx)
 	if err != nil {
@@ -91,6 +93,14 @@ func (c *Challenges) Offers(ctx context.Context) ([]Offer, error) {
 
 	offers := make([]Offer, 0, len(list))
 	for _, opponent := range list {
+		problems, err := c.opponents.Check(ctx, opponent)
+		if err != nil {
+			return nil, err
+		}
+		if len(problems) > 0 {
+			continue
+		}
+
 		format, err := c.formats.ByID(ctx, opponent.FormatID)
 		if err != nil {
 			return nil, fmt.Errorf("finding %s's format: %w", opponent.Name, err)

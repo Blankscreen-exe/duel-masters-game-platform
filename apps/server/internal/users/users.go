@@ -47,6 +47,9 @@ var (
 	// ErrUsernameTaken is returned when another account already has the name,
 	// in any combination of upper and lower case.
 	ErrUsernameTaken = errors.New("username taken")
+	// ErrNotAdmin is returned when the account acting is not, or no longer,
+	// an admin.
+	ErrNotAdmin = errors.New("only admins can do this")
 )
 
 // User is a player account.
@@ -309,6 +312,34 @@ func TakenIn(tx *gorm.DB, username string) (bool, error) {
 	return count > 0, nil
 }
 
+// RenameComputerIn changes the name of a computer opponent's account inside the
+// transaction tx. It returns a *validation.Error for a name breaking the rules,
+// ErrUsernameTaken for a name another account has, and ErrNotFound for no such
+// computer account.
+func RenameComputerIn(tx *gorm.DB, id, username string) error {
+	name, key, err := NormalizeUsername(username)
+	if err != nil {
+		return err
+	}
+
+	var others int64
+	if err := tx.Model(&User{}).Where("username_key = ? AND id <> ?", key, id).Count(&others).Error; err != nil {
+		return fmt.Errorf("looking for account %q: %w", name, err)
+	}
+	if others > 0 {
+		return ErrUsernameTaken
+	}
+
+	result := tx.Model(&User{}).Where("id = ? AND computer = ?", id, true).Updates(map[string]any{"username": name, "username_key": key})
+	if result.Error != nil {
+		return fmt.Errorf("renaming computer account %q: %w", name, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // CreateComputerIn is CreateComputer inside the transaction tx, such as a
 // seed adding computer opponents with their accounts.
 func CreateComputerIn(tx *gorm.DB, username string) (User, error) {
@@ -431,6 +462,21 @@ func LockIn(tx *gorm.DB, ids []string, withAdmins bool) (map[string]User, error)
 		byID[user.ID] = user
 	}
 	return byID, nil
+}
+
+// LockAdminIn locks the account acting, inside the transaction making its
+// change, and returns it, or ErrNotAdmin if at now it is no longer an admin.
+func LockAdminIn(tx *gorm.DB, id string, now time.Time) (User, error) {
+	locked, err := LockIn(tx, []string{id}, false)
+	if err != nil {
+		return User{}, err
+	}
+
+	admin, found := locked[id]
+	if _, banned := admin.BanAt(now); !found || !admin.IsAdmin() || banned {
+		return User{}, ErrNotAdmin
+	}
+	return admin, nil
 }
 
 // SetRoleIn changes an account's role inside the caller's transaction. It

@@ -114,8 +114,9 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 		Lobby: lobbyService, Games: gameService, Ratings: ratingService, Directory: live, Settings: siteSettings,
 		Listener: live, Logger: logger, Now: clock.Now,
 	})
+	opponentService := opponents.NewService(db, catalogue, formatService)
 	challenges := opponents.NewChallenges(opponents.ChallengeDependencies{
-		Opponents: opponents.NewService(db, catalogue, formatService), Formats: formatService, Lobby: lobbyService, Games: gameService,
+		Opponents: opponentService, Formats: formatService, Lobby: lobbyService, Games: gameService,
 		Library: computer.NewLibrary(nil), Settings: siteSettings, Logger: logger,
 	})
 	rematches := rematch.NewService(rematch.Dependencies{
@@ -139,6 +140,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 			Lobby:         lobbyService,
 			QuickMatch:    quickMatch,
 			Rematches:     rematches,
+			Opponents:     opponentService,
 			Challenges:    challenges,
 			Settings:      siteSettings,
 			Admin:         adminService,

@@ -18,6 +18,11 @@ export const ADMIN_SECTIONS = [
     description: 'Find players, ban, mute, change roles and passwords.',
   },
   {
+    href: '/admin/computer-opponents',
+    label: 'Computer opponents',
+    description: 'Add, change and retire the personalities players practise against.',
+  },
+  {
     href: '/admin/settings',
     label: 'Settings',
     description: 'Every server setting, which applies at once.',
@@ -110,6 +115,10 @@ export const ADMIN_LOG_ACTIONS: Readonly<Record<AdminLogAction, string>> = {
   setting_reset: 'Reset a setting',
   chat_message_deleted: 'Deleted a chat message',
   game_stopped: 'Stopped a game',
+  computer_opponent_added: 'Added a computer opponent',
+  computer_opponent_changed: 'Changed a computer opponent',
+  computer_opponent_offered: 'Offered a computer opponent',
+  computer_opponent_retired: 'Retired a computer opponent',
 };
 
 /** The admin log as a page address asks for it. */

@@ -265,6 +265,8 @@ Every game, rematches included, starts with a coin toss that both players (and s
   Computer opponents' accounts are listed, marked as computer, and cannot be changed: nobody logs
   in to them.
 - **Games**: watch or end a running game (no winner, no rating change); recent results.
+- **Computer opponents**: add, change, retire and bring back the personalities players practise
+  against, each with its deck, built as players build theirs (see `docs/computer-opponent.md`).
 - **Formats**: create and edit formats, their sets and their banned/limited cards, and their
   order. A format no deck or game has used can be deleted; one in use can only be **retired**:
   it can no longer be picked for new games or shown in the deck builder, and past games keep its
@@ -283,7 +285,7 @@ Every game, rematches included, starts with a coin toss that both players (and s
   in a database-neutral format (not a SQLite file), so a backup from SQLite restores into
   PostgreSQL and the other way round.
 - **Admin log**: every ban, mute, password reset, role change, setting change, deleted chat
-  message, stopped game, format and starter deck change and backup import is saved with the admin
+  message, stopped game, format, starter deck and computer opponent change and backup import is saved with the admin
   who did it and when, and listed in the panel.
 
 ## 10. Pages

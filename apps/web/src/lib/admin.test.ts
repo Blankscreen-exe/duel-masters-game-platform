@@ -49,7 +49,7 @@ describe('parseAdminLogQuery and adminLogHref', () => {
 
   it('names every action', () => {
     expect(ADMIN_LOG_ACTIONS.user_banned).toBe('Banned');
-    expect(Object.keys(ADMIN_LOG_ACTIONS)).toHaveLength(10);
+    expect(Object.keys(ADMIN_LOG_ACTIONS)).toHaveLength(14);
   });
 });
 

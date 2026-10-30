@@ -17,7 +17,7 @@ import (
 // setting does not accept. Setting it to the value it has records nothing.
 func (s *Service) SetSetting(ctx context.Context, actor users.User, key, value string) (settings.Entry, error) {
 	return s.settings.SetRecorded(ctx, key, value, func(tx *gorm.DB, before, after string) error {
-		admin, err := s.lockAdmin(tx, actor)
+		admin, err := users.LockAdminIn(tx, actor.ID, s.timestamp())
 		if err != nil || before == after {
 			return err
 		}
@@ -30,25 +30,10 @@ func (s *Service) SetSetting(ctx context.Context, actor users.User, key, value s
 // nothing.
 func (s *Service) ResetSetting(ctx context.Context, actor users.User, key string) (settings.Entry, error) {
 	return s.settings.ResetRecorded(ctx, key, func(tx *gorm.DB, before, after string) error {
-		admin, err := s.lockAdmin(tx, actor)
+		admin, err := users.LockAdminIn(tx, actor.ID, s.timestamp())
 		if err != nil || before == after {
 			return err
 		}
 		return adminlog.RecordIn(tx, admin, adminlog.SettingReset, key, fmt.Sprintf("From %s back to %s", before, after))
 	})
-}
-
-// lockAdmin locks the account acting, in the transaction making its change,
-// and returns it, or ErrNotAdmin if it is no longer an admin.
-func (s *Service) lockAdmin(tx *gorm.DB, actor users.User) (users.User, error) {
-	locked, err := users.LockIn(tx, []string{actor.ID}, false)
-	if err != nil {
-		return users.User{}, err
-	}
-
-	admin, found := locked[actor.ID]
-	if _, banned := admin.BanAt(s.timestamp()); !found || !admin.IsAdmin() || banned {
-		return users.User{}, ErrNotAdmin
-	}
-	return admin, nil
 }

@@ -1482,6 +1482,160 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/AdminConflict"
+  /admin/computer-opponents:
+    get:
+      operationId: getAdminComputerOpponents
+      summary: Every computer opponent, retired or not
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The opponents, in order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminComputerOpponent"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createComputerOpponent
+      summary: Add a computer opponent
+      description: It starts retired, to be offered once its deck is ready.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComputerOpponentInput"
+      responses:
+        "201":
+          description: The opponent as added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminComputerOpponent"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ComputerOpponentNameTaken"
+  /admin/computer-opponents/options:
+    get:
+      operationId: getComputerOpponentOptions
+      summary: What a computer opponent can be set to
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The play styles and card types.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComputerOpponentOptions"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/computer-opponents/{opponentId}:
+    parameters:
+      - $ref: "#/components/parameters/OpponentId"
+    get:
+      operationId: getAdminComputerOpponent
+      summary: A computer opponent, retired or not
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The opponent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminComputerOpponent"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateComputerOpponent
+      summary: Change a computer opponent
+      description: >-
+        Games already running carry on as they started. An offered opponent's deck must keep to its
+        rules (code "deck_not_legal", with every problem); retire it to work on the deck.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComputerOpponentInput"
+      responses:
+        "200":
+          description: The opponent as changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminComputerOpponent"
+        "400":
+          $ref: "#/components/responses/InvalidDeckOrInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/ComputerOpponentNameTaken"
+  /admin/computer-opponents/{opponentId}/offered:
+    parameters:
+      - $ref: "#/components/parameters/OpponentId"
+    put:
+      operationId: setComputerOpponentOffered
+      summary: Offer a computer opponent to players, or retire it
+      description: >-
+        Once retired, running games carry on, and a rematch being decided against it ends when the
+        player agrees. An opponent can be offered only if its deck keeps to its rules (code
+        "deck_not_legal", with every problem).
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComputerOpponentOffered"
+      responses:
+        "200":
+          description: The opponent as changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminComputerOpponent"
+        "400":
+          $ref: "#/components/responses/InvalidDeckOrInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /admin/settings:
     get:
       operationId: getAdminSettings
@@ -1618,6 +1772,12 @@ components:
       schema:
         type: integer
   parameters:
+    OpponentId:
+      name: opponentId
+      in: path
+      required: true
+      schema:
+        type: string
     UserId:
       name: userId
       in: path
@@ -1628,6 +1788,12 @@ components:
   responses:
     Forbidden:
       description: Only admins can do this (code "forbidden").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ComputerOpponentNameTaken:
+      description: An account already has this name (code "username_taken").
       content:
         application/json:
           schema:
@@ -1893,6 +2059,130 @@ components:
           format: password
           minLength: 8
           maxLength: 128
+    AdminComputerOpponent:
+      description: A computer opponent as the admin panel shows it.
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - style
+        - strength
+        - formatId
+        - formatName
+        - maxCivilizations
+        - cardTypes
+        - offered
+        - cards
+        - cardCount
+        - civilizations
+        - problems
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        style:
+          type: string
+        strength:
+          type: string
+          enum: [easy, normal]
+        formatId:
+          type: string
+        formatName:
+          type: string
+        maxCivilizations:
+          description: The most civilizations its deck may have; 0 for any number.
+          type: integer
+        cardTypes:
+          description: The card types its deck may have.
+          type: array
+          items:
+            type: string
+        offered:
+          description: Players are offered it; otherwise it is retired.
+          type: boolean
+        cards:
+          description: Its deck, by cost, then name.
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckCard"
+        cardCount:
+          type: integer
+        civilizations:
+          description: The civilizations of its deck's cards, in the game's order.
+          type: array
+          items:
+            type: string
+        problems:
+          description: Every way its deck breaks its format's rules or its own; empty if it can play.
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckProblem"
+    ComputerOpponentInput:
+      description: A computer opponent as an admin saves it. A retired one's deck may be unfinished.
+      type: object
+      required: [name, description, style, strength, formatId, maxCivilizations, cardTypes, cards]
+      properties:
+        name:
+          description: Its name, under the same rules as a player's, and not a name anyone has.
+          type: string
+        description:
+          description: One line, up to 200 characters, shown to players choosing it.
+          type: string
+        style:
+          description: One of the play styles.
+          type: string
+        strength:
+          type: string
+          enum: [easy, normal]
+        formatId:
+          type: string
+        maxCivilizations:
+          description: The most civilizations its deck may have; 0 for any number.
+          type: integer
+          minimum: 0
+          maximum: 5
+        cardTypes:
+          description: The card types its deck may have; at least one.
+          type: array
+          items:
+            type: string
+        cards:
+          type: array
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/DeckEntry"
+    ComputerOpponentOffered:
+      type: object
+      required: [offered]
+      properties:
+        offered:
+          type: boolean
+    ComputerOpponentOptions:
+      type: object
+      required: [styles, cardTypes]
+      properties:
+        styles:
+          description: The play styles, by label.
+          type: array
+          items:
+            $ref: "#/components/schemas/ComputerOpponentStyle"
+        cardTypes:
+          description: The card types a deck's rules can allow, including those the game cannot play yet.
+          type: array
+          items:
+            type: string
+    ComputerOpponentStyle:
+      type: object
+      required: [name, label]
+      properties:
+        name:
+          type: string
+        label:
+          type: string
     AdminSetting:
       description: A server setting as the admin panel shows it.
       type: object
@@ -1949,6 +2239,10 @@ components:
         - setting_reset
         - chat_message_deleted
         - game_stopped
+        - computer_opponent_added
+        - computer_opponent_changed
+        - computer_opponent_offered
+        - computer_opponent_retired
     AdminLogEntry:
       type: object
       required: [id, adminName, action, subject, details, at]
@@ -2293,9 +2587,18 @@ components:
         deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left
         the card database. not_in_format: none of its printings is from an allowed set. banned: the
         format bans it. over_limit: more copies than the format allows. too_many_copies: more than
-        4 copies.
+        4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has
+        more civilizations than its rules allow, or a card of a type they do not.
       type: string
-      enum: [deck_size, not_playable, not_in_format, banned, over_limit, too_many_copies]
+      enum:
+        - deck_size
+        - not_playable
+        - not_in_format
+        - banned
+        - over_limit
+        - too_many_copies
+        - too_many_civilizations
+        - card_type
     DeckListText:
       type: object
       required: [text]

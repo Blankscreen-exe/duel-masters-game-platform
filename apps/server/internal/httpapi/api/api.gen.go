@@ -18,24 +18,54 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for AdminComputerOpponentStrength.
+const (
+	AdminComputerOpponentStrengthEasy   AdminComputerOpponentStrength = "easy"
+	AdminComputerOpponentStrengthNormal AdminComputerOpponentStrength = "normal"
+)
+
+// Valid indicates whether the value is a known member of the AdminComputerOpponentStrength enum.
+func (e AdminComputerOpponentStrength) Valid() bool {
+	switch e {
+	case AdminComputerOpponentStrengthEasy:
+		return true
+	case AdminComputerOpponentStrengthNormal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminLogAction.
 const (
-	AdminLogActionChatMessageDeleted AdminLogAction = "chat_message_deleted"
-	AdminLogActionGameStopped        AdminLogAction = "game_stopped"
-	AdminLogActionPasswordReset      AdminLogAction = "password_reset"
-	AdminLogActionRoleChanged        AdminLogAction = "role_changed"
-	AdminLogActionSettingChanged     AdminLogAction = "setting_changed"
-	AdminLogActionSettingReset       AdminLogAction = "setting_reset"
-	AdminLogActionUserBanned         AdminLogAction = "user_banned"
-	AdminLogActionUserMuted          AdminLogAction = "user_muted"
-	AdminLogActionUserUnbanned       AdminLogAction = "user_unbanned"
-	AdminLogActionUserUnmuted        AdminLogAction = "user_unmuted"
+	AdminLogActionChatMessageDeleted      AdminLogAction = "chat_message_deleted"
+	AdminLogActionComputerOpponentAdded   AdminLogAction = "computer_opponent_added"
+	AdminLogActionComputerOpponentChanged AdminLogAction = "computer_opponent_changed"
+	AdminLogActionComputerOpponentOffered AdminLogAction = "computer_opponent_offered"
+	AdminLogActionComputerOpponentRetired AdminLogAction = "computer_opponent_retired"
+	AdminLogActionGameStopped             AdminLogAction = "game_stopped"
+	AdminLogActionPasswordReset           AdminLogAction = "password_reset"
+	AdminLogActionRoleChanged             AdminLogAction = "role_changed"
+	AdminLogActionSettingChanged          AdminLogAction = "setting_changed"
+	AdminLogActionSettingReset            AdminLogAction = "setting_reset"
+	AdminLogActionUserBanned              AdminLogAction = "user_banned"
+	AdminLogActionUserMuted               AdminLogAction = "user_muted"
+	AdminLogActionUserUnbanned            AdminLogAction = "user_unbanned"
+	AdminLogActionUserUnmuted             AdminLogAction = "user_unmuted"
 )
 
 // Valid indicates whether the value is a known member of the AdminLogAction enum.
 func (e AdminLogAction) Valid() bool {
 	switch e {
 	case AdminLogActionChatMessageDeleted:
+		return true
+	case AdminLogActionComputerOpponentAdded:
+		return true
+	case AdminLogActionComputerOpponentChanged:
+		return true
+	case AdminLogActionComputerOpponentOffered:
+		return true
+	case AdminLogActionComputerOpponentRetired:
 		return true
 	case AdminLogActionGameStopped:
 		return true
@@ -120,20 +150,42 @@ func (e ComputerOpponentStrength) Valid() bool {
 	}
 }
 
+// Defines values for ComputerOpponentInputStrength.
+const (
+	ComputerOpponentInputStrengthEasy   ComputerOpponentInputStrength = "easy"
+	ComputerOpponentInputStrengthNormal ComputerOpponentInputStrength = "normal"
+)
+
+// Valid indicates whether the value is a known member of the ComputerOpponentInputStrength enum.
+func (e ComputerOpponentInputStrength) Valid() bool {
+	switch e {
+	case ComputerOpponentInputStrengthEasy:
+		return true
+	case ComputerOpponentInputStrengthNormal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeckProblemCode.
 const (
-	DeckProblemCodeBanned        DeckProblemCode = "banned"
-	DeckProblemCodeDeckSize      DeckProblemCode = "deck_size"
-	DeckProblemCodeNotInFormat   DeckProblemCode = "not_in_format"
-	DeckProblemCodeNotPlayable   DeckProblemCode = "not_playable"
-	DeckProblemCodeOverLimit     DeckProblemCode = "over_limit"
-	DeckProblemCodeTooManyCopies DeckProblemCode = "too_many_copies"
+	DeckProblemCodeBanned               DeckProblemCode = "banned"
+	DeckProblemCodeCardType             DeckProblemCode = "card_type"
+	DeckProblemCodeDeckSize             DeckProblemCode = "deck_size"
+	DeckProblemCodeNotInFormat          DeckProblemCode = "not_in_format"
+	DeckProblemCodeNotPlayable          DeckProblemCode = "not_playable"
+	DeckProblemCodeOverLimit            DeckProblemCode = "over_limit"
+	DeckProblemCodeTooManyCivilizations DeckProblemCode = "too_many_civilizations"
+	DeckProblemCodeTooManyCopies        DeckProblemCode = "too_many_copies"
 )
 
 // Valid indicates whether the value is a known member of the DeckProblemCode enum.
 func (e DeckProblemCode) Valid() bool {
 	switch e {
 	case DeckProblemCodeBanned:
+		return true
+	case DeckProblemCodeCardType:
 		return true
 	case DeckProblemCodeDeckSize:
 		return true
@@ -142,6 +194,8 @@ func (e DeckProblemCode) Valid() bool {
 	case DeckProblemCodeNotPlayable:
 		return true
 	case DeckProblemCodeOverLimit:
+		return true
+	case DeckProblemCodeTooManyCivilizations:
 		return true
 	case DeckProblemCodeTooManyCopies:
 		return true
@@ -485,6 +539,39 @@ type Account struct {
 	Username string `json:"username"`
 }
 
+// AdminComputerOpponent A computer opponent as the admin panel shows it.
+type AdminComputerOpponent struct {
+	CardCount int `json:"cardCount"`
+
+	// CardTypes The card types its deck may have.
+	CardTypes []string `json:"cardTypes"`
+
+	// Cards Its deck, by cost, then name.
+	Cards []DeckCard `json:"cards"`
+
+	// Civilizations The civilizations of its deck's cards, in the game's order.
+	Civilizations []string `json:"civilizations"`
+	Description   string   `json:"description"`
+	FormatId      string   `json:"formatId"`
+	FormatName    string   `json:"formatName"`
+	Id            string   `json:"id"`
+
+	// MaxCivilizations The most civilizations its deck may have; 0 for any number.
+	MaxCivilizations int    `json:"maxCivilizations"`
+	Name             string `json:"name"`
+
+	// Offered Players are offered it; otherwise it is retired.
+	Offered bool `json:"offered"`
+
+	// Problems Every way its deck breaks its format's rules or its own; empty if it can play.
+	Problems []DeckProblem                 `json:"problems"`
+	Strength AdminComputerOpponentStrength `json:"strength"`
+	Style    string                        `json:"style"`
+}
+
+// AdminComputerOpponentStrength defines model for AdminComputerOpponent.Strength.
+type AdminComputerOpponentStrength string
+
 // AdminLogAction defines model for AdminLogAction.
 type AdminLogAction string
 
@@ -729,6 +816,50 @@ type ComputerOpponent struct {
 // ComputerOpponentStrength defines model for ComputerOpponent.Strength.
 type ComputerOpponentStrength string
 
+// ComputerOpponentInput A computer opponent as an admin saves it. A retired one's deck may be unfinished.
+type ComputerOpponentInput struct {
+	// CardTypes The card types its deck may have; at least one.
+	CardTypes []string    `json:"cardTypes"`
+	Cards     []DeckEntry `json:"cards"`
+
+	// Description One line, up to 200 characters, shown to players choosing it.
+	Description string `json:"description"`
+	FormatId    string `json:"formatId"`
+
+	// MaxCivilizations The most civilizations its deck may have; 0 for any number.
+	MaxCivilizations int `json:"maxCivilizations"`
+
+	// Name Its name, under the same rules as a player's, and not a name anyone has.
+	Name     string                        `json:"name"`
+	Strength ComputerOpponentInputStrength `json:"strength"`
+
+	// Style One of the play styles.
+	Style string `json:"style"`
+}
+
+// ComputerOpponentInputStrength defines model for ComputerOpponentInput.Strength.
+type ComputerOpponentInputStrength string
+
+// ComputerOpponentOffered defines model for ComputerOpponentOffered.
+type ComputerOpponentOffered struct {
+	Offered bool `json:"offered"`
+}
+
+// ComputerOpponentOptions defines model for ComputerOpponentOptions.
+type ComputerOpponentOptions struct {
+	// CardTypes The card types a deck's rules can allow, including those the game cannot play yet.
+	CardTypes []string `json:"cardTypes"`
+
+	// Styles The play styles, by label.
+	Styles []ComputerOpponentStyle `json:"styles"`
+}
+
+// ComputerOpponentStyle defines model for ComputerOpponentStyle.
+type ComputerOpponentStyle struct {
+	Label string `json:"label"`
+	Name  string `json:"name"`
+}
+
 // Credentials defines model for Credentials.
 type Credentials struct {
 	// Password 8 to 128 characters.
@@ -828,14 +959,14 @@ type DeckProblem struct {
 	// CardId The card at fault; absent for the deck's size.
 	CardId *string `json:"cardId,omitempty"`
 
-	// Code deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies.
+	// Code deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not.
 	Code DeckProblemCode `json:"code"`
 
 	// Message The problem explained to the player.
 	Message string `json:"message"`
 }
 
-// DeckProblemCode deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies.
+// DeckProblemCode deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not.
 type DeckProblemCode string
 
 // DeckSummary defines model for DeckSummary.
@@ -1394,6 +1525,9 @@ type Streak = int
 // Tier defines model for Tier.
 type Tier string
 
+// OpponentId defines model for OpponentId.
+type OpponentId = string
+
 // UserId defines model for UserId.
 type UserId = string
 
@@ -1402,6 +1536,9 @@ type AdminConflict = Error
 
 // Busy Returned with every error status.
 type Busy = Error
+
+// ComputerOpponentNameTaken Returned with every error status.
+type ComputerOpponentNameTaken = Error
 
 // Forbidden Returned with every error status.
 type Forbidden = Error
@@ -1482,6 +1619,15 @@ type GetRankingsParams struct {
 	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
 	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
+
+// CreateComputerOpponentJSONRequestBody defines body for CreateComputerOpponent for application/json ContentType.
+type CreateComputerOpponentJSONRequestBody = ComputerOpponentInput
+
+// UpdateComputerOpponentJSONRequestBody defines body for UpdateComputerOpponent for application/json ContentType.
+type UpdateComputerOpponentJSONRequestBody = ComputerOpponentInput
+
+// SetComputerOpponentOfferedJSONRequestBody defines body for SetComputerOpponentOffered for application/json ContentType.
+type SetComputerOpponentOfferedJSONRequestBody = ComputerOpponentOffered
 
 // SetAdminSettingJSONRequestBody defines body for SetAdminSetting for application/json ContentType.
 type SetAdminSettingJSONRequestBody = AdminSettingInput
@@ -1925,6 +2071,24 @@ func (t *RealtimeMessage) UnmarshalJSON(b []byte) error {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAdminComputerOpponents Every computer opponent, retired or not
+	// (GET /admin/computer-opponents)
+	GetAdminComputerOpponents(w http.ResponseWriter, r *http.Request)
+	// CreateComputerOpponent Add a computer opponent
+	// (POST /admin/computer-opponents)
+	CreateComputerOpponent(w http.ResponseWriter, r *http.Request)
+	// GetComputerOpponentOptions What a computer opponent can be set to
+	// (GET /admin/computer-opponents/options)
+	GetComputerOpponentOptions(w http.ResponseWriter, r *http.Request)
+	// GetAdminComputerOpponent A computer opponent, retired or not
+	// (GET /admin/computer-opponents/{opponentId})
+	GetAdminComputerOpponent(w http.ResponseWriter, r *http.Request, opponentId OpponentId)
+	// UpdateComputerOpponent Change a computer opponent
+	// (PUT /admin/computer-opponents/{opponentId})
+	UpdateComputerOpponent(w http.ResponseWriter, r *http.Request, opponentId OpponentId)
+	// SetComputerOpponentOffered Offer a computer opponent to players, or retire it
+	// (PUT /admin/computer-opponents/{opponentId}/offered)
+	SetComputerOpponentOffered(w http.ResponseWriter, r *http.Request, opponentId OpponentId)
 	// GetAdminLog The admin log
 	// (GET /admin/log)
 	GetAdminLog(w http.ResponseWriter, r *http.Request, params GetAdminLogParams)
@@ -2103,6 +2267,126 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdminComputerOpponents operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminComputerOpponents(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminComputerOpponents(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateComputerOpponent operation middleware
+func (siw *ServerInterfaceWrapper) CreateComputerOpponent(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateComputerOpponent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetComputerOpponentOptions operation middleware
+func (siw *ServerInterfaceWrapper) GetComputerOpponentOptions(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetComputerOpponentOptions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminComputerOpponent operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminComputerOpponent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "opponentId" -------------
+	var opponentId OpponentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "opponentId", r.PathValue("opponentId"), &opponentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "opponentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminComputerOpponent(w, r, opponentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateComputerOpponent operation middleware
+func (siw *ServerInterfaceWrapper) UpdateComputerOpponent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "opponentId" -------------
+	var opponentId OpponentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "opponentId", r.PathValue("opponentId"), &opponentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "opponentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateComputerOpponent(w, r, opponentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetComputerOpponentOffered operation middleware
+func (siw *ServerInterfaceWrapper) SetComputerOpponentOffered(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "opponentId" -------------
+	var opponentId OpponentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "opponentId", r.PathValue("opponentId"), &opponentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "opponentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetComputerOpponentOffered(w, r, opponentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetAdminLog operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminLog(w http.ResponseWriter, r *http.Request) {
@@ -3734,6 +4018,12 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/users/{userId}/mute", wrapper.MuteUser)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/users/{userId}/role", wrapper.SetUserRole)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/users/{userId}/password", wrapper.SetUserPassword)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/computer-opponents", wrapper.GetAdminComputerOpponents)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/computer-opponents", wrapper.CreateComputerOpponent)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/computer-opponents/options", wrapper.GetComputerOpponentOptions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}", wrapper.GetAdminComputerOpponent)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}", wrapper.UpdateComputerOpponent)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}/offered", wrapper.SetComputerOpponentOffered)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/settings", wrapper.GetAdminSettings)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/settings/{key}", wrapper.ResetAdminSetting)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/settings/{key}", wrapper.SetAdminSetting)
@@ -3745,6 +4035,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 type AdminConflictJSONResponse Error
 
 type BusyJSONResponse Error
+
+type ComputerOpponentNameTakenJSONResponse Error
 
 type ForbiddenJSONResponse Error
 
@@ -3777,6 +4069,422 @@ type TooManyAttemptsJSONResponse struct {
 }
 
 type UnauthenticatedJSONResponse Error
+
+type GetAdminComputerOpponentsRequestObject struct {
+}
+
+type GetAdminComputerOpponentsResponseObject interface {
+	VisitGetAdminComputerOpponentsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminComputerOpponents200JSONResponse []AdminComputerOpponent
+
+func (response GetAdminComputerOpponents200JSONResponse) VisitGetAdminComputerOpponentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminComputerOpponents401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetAdminComputerOpponents401JSONResponse) VisitGetAdminComputerOpponentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminComputerOpponents403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminComputerOpponents403JSONResponse) VisitGetAdminComputerOpponentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateComputerOpponentRequestObject struct {
+	Body *CreateComputerOpponentJSONRequestBody
+}
+
+type CreateComputerOpponentResponseObject interface {
+	VisitCreateComputerOpponentResponse(w http.ResponseWriter) error
+}
+
+type CreateComputerOpponent201JSONResponse AdminComputerOpponent
+
+func (response CreateComputerOpponent201JSONResponse) VisitCreateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateComputerOpponent400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response CreateComputerOpponent400JSONResponse) VisitCreateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateComputerOpponent401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response CreateComputerOpponent401JSONResponse) VisitCreateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateComputerOpponent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateComputerOpponent403JSONResponse) VisitCreateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateComputerOpponent409JSONResponse struct {
+	ComputerOpponentNameTakenJSONResponse
+}
+
+func (response CreateComputerOpponent409JSONResponse) VisitCreateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetComputerOpponentOptionsRequestObject struct {
+}
+
+type GetComputerOpponentOptionsResponseObject interface {
+	VisitGetComputerOpponentOptionsResponse(w http.ResponseWriter) error
+}
+
+type GetComputerOpponentOptions200JSONResponse ComputerOpponentOptions
+
+func (response GetComputerOpponentOptions200JSONResponse) VisitGetComputerOpponentOptionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetComputerOpponentOptions401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetComputerOpponentOptions401JSONResponse) VisitGetComputerOpponentOptionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetComputerOpponentOptions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetComputerOpponentOptions403JSONResponse) VisitGetComputerOpponentOptionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminComputerOpponentRequestObject struct {
+	OpponentId OpponentId `json:"opponentId"`
+}
+
+type GetAdminComputerOpponentResponseObject interface {
+	VisitGetAdminComputerOpponentResponse(w http.ResponseWriter) error
+}
+
+type GetAdminComputerOpponent200JSONResponse AdminComputerOpponent
+
+func (response GetAdminComputerOpponent200JSONResponse) VisitGetAdminComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminComputerOpponent401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetAdminComputerOpponent401JSONResponse) VisitGetAdminComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminComputerOpponent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminComputerOpponent403JSONResponse) VisitGetAdminComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminComputerOpponent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAdminComputerOpponent404JSONResponse) VisitGetAdminComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateComputerOpponentRequestObject struct {
+	OpponentId OpponentId `json:"opponentId"`
+	Body       *UpdateComputerOpponentJSONRequestBody
+}
+
+type UpdateComputerOpponentResponseObject interface {
+	VisitUpdateComputerOpponentResponse(w http.ResponseWriter) error
+}
+
+type UpdateComputerOpponent200JSONResponse AdminComputerOpponent
+
+func (response UpdateComputerOpponent200JSONResponse) VisitUpdateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateComputerOpponent400JSONResponse struct{ InvalidDeckOrInputJSONResponse }
+
+func (response UpdateComputerOpponent400JSONResponse) VisitUpdateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateComputerOpponent401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response UpdateComputerOpponent401JSONResponse) VisitUpdateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateComputerOpponent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateComputerOpponent403JSONResponse) VisitUpdateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateComputerOpponent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateComputerOpponent404JSONResponse) VisitUpdateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateComputerOpponent409JSONResponse struct {
+	ComputerOpponentNameTakenJSONResponse
+}
+
+func (response UpdateComputerOpponent409JSONResponse) VisitUpdateComputerOpponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetComputerOpponentOfferedRequestObject struct {
+	OpponentId OpponentId `json:"opponentId"`
+	Body       *SetComputerOpponentOfferedJSONRequestBody
+}
+
+type SetComputerOpponentOfferedResponseObject interface {
+	VisitSetComputerOpponentOfferedResponse(w http.ResponseWriter) error
+}
+
+type SetComputerOpponentOffered200JSONResponse AdminComputerOpponent
+
+func (response SetComputerOpponentOffered200JSONResponse) VisitSetComputerOpponentOfferedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetComputerOpponentOffered400JSONResponse struct{ InvalidDeckOrInputJSONResponse }
+
+func (response SetComputerOpponentOffered400JSONResponse) VisitSetComputerOpponentOfferedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetComputerOpponentOffered401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SetComputerOpponentOffered401JSONResponse) VisitSetComputerOpponentOfferedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetComputerOpponentOffered403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetComputerOpponentOffered403JSONResponse) VisitSetComputerOpponentOfferedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetComputerOpponentOffered404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetComputerOpponentOffered404JSONResponse) VisitSetComputerOpponentOfferedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type GetAdminLogRequestObject struct {
 	Params GetAdminLogParams
@@ -6963,6 +7671,24 @@ func (response GetSiteStats200JSONResponse) VisitGetSiteStatsResponse(w http.Res
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAdminComputerOpponents Every computer opponent, retired or not
+	// (GET /admin/computer-opponents)
+	GetAdminComputerOpponents(ctx context.Context, request GetAdminComputerOpponentsRequestObject) (GetAdminComputerOpponentsResponseObject, error)
+	// CreateComputerOpponent Add a computer opponent
+	// (POST /admin/computer-opponents)
+	CreateComputerOpponent(ctx context.Context, request CreateComputerOpponentRequestObject) (CreateComputerOpponentResponseObject, error)
+	// GetComputerOpponentOptions What a computer opponent can be set to
+	// (GET /admin/computer-opponents/options)
+	GetComputerOpponentOptions(ctx context.Context, request GetComputerOpponentOptionsRequestObject) (GetComputerOpponentOptionsResponseObject, error)
+	// GetAdminComputerOpponent A computer opponent, retired or not
+	// (GET /admin/computer-opponents/{opponentId})
+	GetAdminComputerOpponent(ctx context.Context, request GetAdminComputerOpponentRequestObject) (GetAdminComputerOpponentResponseObject, error)
+	// UpdateComputerOpponent Change a computer opponent
+	// (PUT /admin/computer-opponents/{opponentId})
+	UpdateComputerOpponent(ctx context.Context, request UpdateComputerOpponentRequestObject) (UpdateComputerOpponentResponseObject, error)
+	// SetComputerOpponentOffered Offer a computer opponent to players, or retire it
+	// (PUT /admin/computer-opponents/{opponentId}/offered)
+	SetComputerOpponentOffered(ctx context.Context, request SetComputerOpponentOfferedRequestObject) (SetComputerOpponentOfferedResponseObject, error)
 	// GetAdminLog The admin log
 	// (GET /admin/log)
 	GetAdminLog(ctx context.Context, request GetAdminLogRequestObject) (GetAdminLogResponseObject, error)
@@ -7170,6 +7896,177 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdminComputerOpponents operation middleware
+func (sh *strictHandler) GetAdminComputerOpponents(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminComputerOpponentsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminComputerOpponents(ctx, request.(GetAdminComputerOpponentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminComputerOpponents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminComputerOpponentsResponseObject); ok {
+		if err := validResponse.VisitGetAdminComputerOpponentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateComputerOpponent operation middleware
+func (sh *strictHandler) CreateComputerOpponent(w http.ResponseWriter, r *http.Request) {
+	var request CreateComputerOpponentRequestObject
+
+	var body CreateComputerOpponentJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateComputerOpponent(ctx, request.(CreateComputerOpponentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateComputerOpponent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateComputerOpponentResponseObject); ok {
+		if err := validResponse.VisitCreateComputerOpponentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetComputerOpponentOptions operation middleware
+func (sh *strictHandler) GetComputerOpponentOptions(w http.ResponseWriter, r *http.Request) {
+	var request GetComputerOpponentOptionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetComputerOpponentOptions(ctx, request.(GetComputerOpponentOptionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetComputerOpponentOptions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetComputerOpponentOptionsResponseObject); ok {
+		if err := validResponse.VisitGetComputerOpponentOptionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminComputerOpponent operation middleware
+func (sh *strictHandler) GetAdminComputerOpponent(w http.ResponseWriter, r *http.Request, opponentId OpponentId) {
+	var request GetAdminComputerOpponentRequestObject
+
+	request.OpponentId = opponentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminComputerOpponent(ctx, request.(GetAdminComputerOpponentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminComputerOpponent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminComputerOpponentResponseObject); ok {
+		if err := validResponse.VisitGetAdminComputerOpponentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateComputerOpponent operation middleware
+func (sh *strictHandler) UpdateComputerOpponent(w http.ResponseWriter, r *http.Request, opponentId OpponentId) {
+	var request UpdateComputerOpponentRequestObject
+
+	request.OpponentId = opponentId
+
+	var body UpdateComputerOpponentJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateComputerOpponent(ctx, request.(UpdateComputerOpponentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateComputerOpponent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateComputerOpponentResponseObject); ok {
+		if err := validResponse.VisitUpdateComputerOpponentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetComputerOpponentOffered operation middleware
+func (sh *strictHandler) SetComputerOpponentOffered(w http.ResponseWriter, r *http.Request, opponentId OpponentId) {
+	var request SetComputerOpponentOfferedRequestObject
+
+	request.OpponentId = opponentId
+
+	var body SetComputerOpponentOfferedJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetComputerOpponentOffered(ctx, request.(SetComputerOpponentOfferedRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetComputerOpponentOffered")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetComputerOpponentOfferedResponseObject); ok {
+		if err := validResponse.VisitSetComputerOpponentOfferedResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetAdminLog operation middleware

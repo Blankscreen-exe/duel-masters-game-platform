@@ -2,6 +2,7 @@ import type { AdminSetting, AdminUser } from './admin';
 import { api } from './api/client';
 import { attempt, attemptEmpty, type Outcome } from './api/outcome';
 import type { components } from './api/schema';
+import type { AdminComputerOpponent, ComputerOpponentInput } from './computer-opponents';
 
 type Role = components['schemas']['Role'];
 
@@ -60,4 +61,33 @@ export function setSetting(key: string, value: string): Promise<Outcome<AdminSet
 /** Puts a setting back to its default. */
 export function resetSetting(key: string): Promise<Outcome<AdminSetting>> {
   return attempt(() => api.DELETE('/admin/settings/{key}', { params: { path: { key } } }));
+}
+
+/** Adds a computer opponent, which starts retired. */
+export function createOpponent(
+  body: ComputerOpponentInput,
+): Promise<Outcome<AdminComputerOpponent>> {
+  return attempt(() => api.POST('/admin/computer-opponents', { body }));
+}
+
+export function saveOpponent(
+  opponentId: string,
+  body: ComputerOpponentInput,
+): Promise<Outcome<AdminComputerOpponent>> {
+  return attempt(() =>
+    api.PUT('/admin/computer-opponents/{opponentId}', { params: { path: { opponentId } }, body }),
+  );
+}
+
+/** Offers a computer opponent to players, or retires it. */
+export function setOpponentOffered(
+  opponentId: string,
+  offered: boolean,
+): Promise<Outcome<AdminComputerOpponent>> {
+  return attempt(() =>
+    api.PUT('/admin/computer-opponents/{opponentId}/offered', {
+      params: { path: { opponentId } },
+      body: { offered },
+    }),
+  );
 }
