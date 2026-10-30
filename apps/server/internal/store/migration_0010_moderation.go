@@ -54,10 +54,8 @@ func migration0010Moderation() *gormigrate.Migration {
 	return &gormigrate.Migration{
 		ID: "0010_add_moderation",
 		Migrate: func(tx *gorm.DB) error {
-			for _, field := range moderationColumns0010 {
-				if err := tx.Migrator().AddColumn(&user0010{}, field); err != nil {
-					return err
-				}
+			if err := addUserColumns(tx, &user0010{}, moderationColumns0010...); err != nil {
+				return err
 			}
 			return tx.Migrator().CreateTable(&adminAction0010{})
 		},
@@ -65,12 +63,8 @@ func migration0010Moderation() *gormigrate.Migration {
 			if err := tx.Migrator().DropTable(&adminAction0010{}); err != nil {
 				return err
 			}
-			for _, field := range moderationColumns0010 {
-				if err := tx.Migrator().DropColumn(&user0010{}, field); err != nil {
-					return err
-				}
-			}
-			return nil
+			starting := map[string]any{"banned_at": nil, "banned_until": nil, "ban_reason": "", "muted_at": nil, "muted_until": nil}
+			return dropUserColumns(tx, &user0010{}, starting, moderationColumns0010...)
 		},
 	}
 }

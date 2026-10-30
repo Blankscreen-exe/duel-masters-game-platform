@@ -19,24 +19,14 @@ func (user0012) TableName() string { return "users" }
 // It adds a column rather than a role: changing the role's check would mean
 // rebuilding the users table on SQLite, whose implicit delete would take
 // every account's sessions and decks with it.
-//
-// For the same reason, rolling it back on SQLite, which can drop a column
-// only by rebuilding the table, leaves the column, which nothing reads any
-// more; migrating again then finds it in place.
 func migration0012ComputerAccounts() *gormigrate.Migration {
 	return &gormigrate.Migration{
 		ID: "0012_add_computer_accounts",
 		Migrate: func(tx *gorm.DB) error {
-			if tx.Migrator().HasColumn(&user0012{}, "Computer") {
-				return nil
-			}
-			return tx.Migrator().AddColumn(&user0012{}, "Computer")
+			return addUserColumns(tx, &user0012{}, "Computer")
 		},
 		Rollback: func(tx *gorm.DB) error {
-			if tx.Dialector.Name() == sqliteDialect {
-				return nil
-			}
-			return tx.Migrator().DropColumn(&user0012{}, "Computer")
+			return dropUserColumns(tx, &user0012{}, map[string]any{"computer": false}, "Computer")
 		},
 	}
 }

@@ -234,3 +234,56 @@ func TestUndoingComputerAccountsKeepsEveryonesSessions(t *testing.T) {
 		assert.False(t, computer)
 	})
 }
+
+func TestUndoingRatingsKeepsEveryonesSessions(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Shobu", "player"))
+		require.NoError(t, insertSession(db, "s1", "u1"))
+		require.NoError(t, db.Table("users").Where("id = ?", "u1").Updates(map[string]any{
+			"rating": 1500, "wins": 9, "losses": 2, "streak": 3,
+		}).Error)
+
+		require.NoError(t, store.RollbackTo(db, "0007_create_games"))
+		var sessions int64
+		require.NoError(t, db.Table("sessions").Count(&sessions).Error)
+		assert.Equal(t, int64(1), sessions, "undoing the migration takes nobody's sessions")
+
+		require.NoError(t, store.Migrate(db), "and it can run again")
+
+		var standing struct{ Rating, Wins, Losses, Streak int }
+		require.NoError(t, db.Table("users").Where("id = ?", "u1").Take(&standing).Error)
+		assert.Equal(t, 1000, standing.Rating, "everyone starts again")
+		assert.Zero(t, standing.Wins+standing.Losses+standing.Streak)
+		assert.True(t, db.Migrator().HasIndex("users", "idx_users_rating"))
+	})
+}
+
+func TestUndoingModerationKeepsEveryonesSessions(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Shobu", "player"))
+		require.NoError(t, insertSession(db, "s1", "u1"))
+		require.NoError(t, db.Table("users").Where("id = ?", "u1").Updates(map[string]any{
+			"banned_at": time.Now(), "banned_until": time.Now(), "ban_reason": "Cheating", "muted_at": time.Now(), "muted_until": time.Now(),
+		}).Error)
+
+		require.NoError(t, store.RollbackTo(db, "0009_store_sqlite_times_as_numbers"))
+		var sessions int64
+		require.NoError(t, db.Table("sessions").Count(&sessions).Error)
+		assert.Equal(t, int64(1), sessions, "undoing the migration takes nobody's sessions")
+		assert.False(t, db.Migrator().HasTable("admin_actions"))
+
+		require.NoError(t, store.Migrate(db), "and it can run again")
+
+		var moderation struct {
+			BannedAt, BannedUntil, MutedAt, MutedUntil *time.Time
+			BanReason                                  string
+		}
+		require.NoError(t, db.Table("users").Where("id = ?", "u1").Take(&moderation).Error)
+		assert.Nil(t, moderation.BannedAt, "nobody comes back banned")
+		assert.Nil(t, moderation.BannedUntil)
+		assert.Nil(t, moderation.MutedAt, "or muted")
+		assert.Nil(t, moderation.MutedUntil)
+		assert.Empty(t, moderation.BanReason)
+		assert.True(t, db.Migrator().HasTable("admin_actions"))
+	})
+}
