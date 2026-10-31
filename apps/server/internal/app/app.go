@@ -28,11 +28,13 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/mail"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/secrets"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -111,7 +113,17 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		logger.Warn("there are no accounts yet: the first account to sign up becomes the admin, so sign up now")
 	}
 
-	authService := auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(runtime.NumCPU()), time.Now, logger.With("component", "auth"))
+	var secretBox *secrets.Box
+	if cfg.SecretKey != nil {
+		if secretBox, err = secrets.NewBox(cfg.SecretKey); err != nil {
+			return nil, err
+		}
+	} else {
+		logger.Warn("APP_SECRET_KEY is not set, so no mail server can be set up and new players cannot confirm their email address")
+	}
+	mailService := mail.NewService(db, secretBox, logger.With("component", "mail"))
+
+	authService := auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(runtime.NumCPU()), mailService, time.Now, logger.With("component", "auth"))
 
 	source, err := cards.ReadSource(cfg.CardDatabaseDir)
 	if err != nil {
@@ -179,6 +191,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	adminService := admin.NewService(admin.Dependencies{
 		DB:          db,
 		Auth:        authService,
+		Mail:        mailService,
 		Connections: hub,
 		Games:       gameService,
 		Settings:    siteSettings,
@@ -198,6 +211,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		rematches:  rematches,
 		server: &http.Server{
 			Handler: httpapi.NewHandler(httpapi.Dependencies{
+				Mail:          mailService,
 				DB:            sqlDB,
 				Auth:          authService,
 				Users:         accounts,
@@ -285,8 +299,9 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 	return errors.Join(err, closeDown(shutdownCtx))
 }
 
-// cleanUpSessions deletes expired sessions straight away, then once every
-// interval, until ctx ends.
+// cleanUpSessions deletes expired sessions and accounts that ran out of time to
+// confirm their email address straight away, then once every interval, until
+// ctx ends.
 func (a *App) cleanUpSessions(ctx context.Context) {
 	ticker := time.NewTicker(sessionCleanupInterval)
 	defer ticker.Stop()
@@ -298,6 +313,14 @@ func (a *App) cleanUpSessions(ctx context.Context) {
 			a.logger.Warn("deleting expired sessions failed", "error", err)
 		case deleted > 0:
 			a.logger.Info("deleted expired sessions", "count", deleted)
+		}
+
+		deleted, err = a.auth.DeleteUnconfirmedAccounts(ctx)
+		switch {
+		case err != nil && ctx.Err() == nil:
+			a.logger.Warn("deleting unconfirmed accounts failed", "error", err)
+		case deleted > 0:
+			a.logger.Info("deleted accounts that never confirmed their email address", "count", deleted)
 		}
 
 		select {

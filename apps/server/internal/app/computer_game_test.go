@@ -83,7 +83,7 @@ func TestAPlayerPlaysAStartingOpponentOnTheWholeServer(t *testing.T) {
 	}()
 
 	browser := &site{t: t, address: listener.Addr().String()}
-	require.Equal(t, http.StatusCreated, browser.call(http.MethodPost, "/auth/signup", map[string]string{"username": "Shobu", "password": "a long enough password"}, nil))
+	require.Equal(t, http.StatusCreated, browser.call(http.MethodPost, "/auth/signup", map[string]string{"username": "Shobu", "email": "shobu@example.test", "password": "a long enough password"}, nil))
 
 	var offered []struct {
 		ID   string `json:"id"`

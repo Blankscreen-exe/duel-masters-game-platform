@@ -1,12 +1,15 @@
 package config
 
 import (
+	"encoding/base64"
 	"log/slog"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/secrets"
 )
 
 // siteOrigins is the setting production needs, for tests about other settings.
@@ -28,15 +31,46 @@ func TestLoadUsesDefaults(t *testing.T) {
 	assert.Equal(t, []string{"http://localhost:3000", "http://127.0.0.1:3000"}, cfg.SiteOrigins, "the Next.js site in development")
 }
 
+// secretKey is a well-formed APP_SECRET_KEY, which production requires.
+var secretKey = "APP_SECRET_KEY=" + base64.StdEncoding.EncodeToString(make([]byte, secrets.KeySize))
+
+func TestSecretKey(t *testing.T) {
+	t.Run("is read", func(t *testing.T) {
+		cfg, err := Load([]string{secretKey})
+		require.NoError(t, err)
+		assert.Equal(t, make([]byte, secrets.KeySize), cfg.SecretKey)
+	})
+
+	t.Run("is optional in development", func(t *testing.T) {
+		cfg, err := Load(nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.SecretKey)
+	})
+
+	t.Run("is required in production", func(t *testing.T) {
+		_, err := Load([]string{"APP_ENV=production", siteOrigins})
+		assert.ErrorContains(t, err, "APP_SECRET_KEY is required")
+	})
+
+	t.Run("must be well formed, and the error keeps it secret", func(t *testing.T) {
+		_, err := Load([]string{"APP_SECRET_KEY=short-and-leaky"})
+		assert.ErrorContains(t, err, "APP_SECRET_KEY")
+		assert.NotContains(t, err.Error(), "short-and-leaky")
+
+		_, err = Load([]string{"APP_SECRET_KEY=" + base64.StdEncoding.EncodeToString([]byte("too short"))})
+		assert.ErrorContains(t, err, "32 bytes")
+	})
+}
+
 func TestSecureCookies(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		environ []string
 		want    bool
 	}{
-		{"on in production", []string{"APP_ENV=production", siteOrigins}, true},
+		{"on in production", []string{"APP_ENV=production", siteOrigins, secretKey}, true},
 		{"off in development", nil, false},
-		{"turned off in production", []string{"APP_ENV=production", siteOrigins, "SECURE_COOKIES=false"}, false},
+		{"turned off in production", []string{"APP_ENV=production", siteOrigins, secretKey, "SECURE_COOKIES=false"}, false},
 		{"turned on in development", []string{"SECURE_COOKIES=true"}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -53,6 +87,7 @@ func TestSecureCookies(t *testing.T) {
 func TestLoadReadsEveryVariable(t *testing.T) {
 	cfg, err := Load([]string{
 		"APP_ENV=production",
+		secretKey,
 		"HTTP_ADDR=0.0.0.0:9000",
 		"DATA_DIR=/var/lib/platform",
 		"DB_DRIVER=postgres",
@@ -96,7 +131,7 @@ func TestLoadDefaultsDependOnOtherSettings(t *testing.T) {
 	})
 
 	t.Run("production logs JSON", func(t *testing.T) {
-		cfg, err := Load([]string{"APP_ENV=production", siteOrigins})
+		cfg, err := Load([]string{"APP_ENV=production", siteOrigins, secretKey})
 		require.NoError(t, err)
 		assert.Equal(t, LogJSON, cfg.Log.Format)
 	})

@@ -15,7 +15,7 @@ import (
 )
 
 func (h *handlers) SignUp(ctx context.Context, request api.SignUpRequestObject) (api.SignUpResponseObject, error) {
-	user, session, err := h.auth.SignUp(ctx, request.Body.Username, request.Body.Password)
+	user, session, err := h.auth.SignUp(ctx, request.Body.Username, request.Body.Email, request.Body.Password)
 	switch {
 	case err == nil:
 		shown, err := h.account(ctx, user)
@@ -28,6 +28,8 @@ func (h *handlers) SignUp(ctx context.Context, request api.SignUpRequestObject) 
 		return api.SignUp403JSONResponse(apiError(codeSignupsClosed, "Sign-ups are closed at the moment.")), nil
 	case errors.Is(err, users.ErrUsernameTaken):
 		return api.SignUp409JSONResponse(apiError(codeUsernameTaken, "That username is already taken.")), nil
+	case errors.Is(err, users.ErrEmailTaken):
+		return api.SignUp409JSONResponse(apiError(codeEmailTaken, "That email address is already in use.")), nil
 	}
 
 	if invalid, ok := invalidInput(err, nil); ok {
@@ -87,7 +89,7 @@ func (h *handlers) LogOut(ctx context.Context, _ api.LogOutRequestObject) (api.L
 }
 
 func (h *handlers) GetCurrentAccount(ctx context.Context, _ api.GetCurrentAccountRequestObject) (api.GetCurrentAccountResponseObject, error) {
-	user, _, err := h.currentUser(ctx)
+	user, err := h.unconfirmedUser(ctx)
 	if errors.Is(err, auth.ErrNoSession) {
 		return api.GetCurrentAccount401JSONResponse{UnauthenticatedJSONResponse: unauthenticated()}, nil
 	}

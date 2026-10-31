@@ -49,7 +49,10 @@ const (
 	AdminLogActionFormatRetired           AdminLogAction = "format_retired"
 	AdminLogActionFormatsReordered        AdminLogAction = "formats_reordered"
 	AdminLogActionGameStopped             AdminLogAction = "game_stopped"
+	AdminLogActionMailSettingsChanged     AdminLogAction = "mail_settings_changed"
+	AdminLogActionMailSettingsCleared     AdminLogAction = "mail_settings_cleared"
 	AdminLogActionPasswordReset           AdminLogAction = "password_reset"
+	AdminLogActionPlayerLetIn             AdminLogAction = "player_let_in"
 	AdminLogActionRoleChanged             AdminLogAction = "role_changed"
 	AdminLogActionSettingChanged          AdminLogAction = "setting_changed"
 	AdminLogActionSettingReset            AdminLogAction = "setting_reset"
@@ -84,7 +87,13 @@ func (e AdminLogAction) Valid() bool {
 		return true
 	case AdminLogActionGameStopped:
 		return true
+	case AdminLogActionMailSettingsChanged:
+		return true
+	case AdminLogActionMailSettingsCleared:
+		return true
 	case AdminLogActionPasswordReset:
+		return true
+	case AdminLogActionPlayerLetIn:
 		return true
 	case AdminLogActionRoleChanged:
 		return true
@@ -128,9 +137,10 @@ func (e AdminSettingKind) Valid() bool {
 
 // Defines values for AdminUserStatus.
 const (
-	AdminUserStatusAdmin  AdminUserStatus = "admin"
-	AdminUserStatusBanned AdminUserStatus = "banned"
-	AdminUserStatusMuted  AdminUserStatus = "muted"
+	AdminUserStatusAdmin      AdminUserStatus = "admin"
+	AdminUserStatusBanned     AdminUserStatus = "banned"
+	AdminUserStatusMuted      AdminUserStatus = "muted"
+	AdminUserStatusUnverified AdminUserStatus = "unverified"
 )
 
 // Valid indicates whether the value is a known member of the AdminUserStatus enum.
@@ -141,6 +151,8 @@ func (e AdminUserStatus) Valid() bool {
 	case AdminUserStatusBanned:
 		return true
 	case AdminUserStatusMuted:
+		return true
+	case AdminUserStatusUnverified:
 		return true
 	default:
 		return false
@@ -255,6 +267,27 @@ func (e HealthStatus) Valid() bool {
 	case HealthStatusOk:
 		return true
 	case HealthStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MailSecurity.
+const (
+	MailSecurityNone     MailSecurity = "none"
+	MailSecurityStarttls MailSecurity = "starttls"
+	MailSecurityTls      MailSecurity = "tls"
+)
+
+// Valid indicates whether the value is a known member of the MailSecurity enum.
+func (e MailSecurity) Valid() bool {
+	switch e {
+	case MailSecurityNone:
+		return true
+	case MailSecurityStarttls:
+		return true
+	case MailSecurityTls:
 		return true
 	default:
 		return false
@@ -629,7 +662,13 @@ type Account struct {
 	// AvatarUrl The picture they chose; absent until they choose one.
 	AvatarUrl *string   `json:"avatarUrl,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
-	Id        string    `json:"id"`
+
+	// Email The player's email address, which only they and admins see.
+	Email *string `json:"email,omitempty"`
+
+	// EmailVerified Whether the player may use the site. Until then only confirming their email address works, and everything else answers as if they were not logged in.
+	EmailVerified bool   `json:"emailVerified"`
+	Id            string `json:"id"`
 
 	// Mute A ban or a mute.
 	Mute *Penalty `json:"mute,omitempty"`
@@ -779,10 +818,16 @@ type AdminUser struct {
 	Ban *Ban `json:"ban,omitempty"`
 
 	// Computer Whether the account is a computer opponent's, which nobody logs in to and admins cannot change.
-	Computer bool      `json:"computer"`
-	Id       string    `json:"id"`
-	JoinedAt time.Time `json:"joinedAt"`
-	Losses   int       `json:"losses"`
+	Computer bool `json:"computer"`
+
+	// Email The player's email address; absent for an account without one.
+	Email *string `json:"email,omitempty"`
+
+	// EmailVerified Whether the player may use the site, by a confirmed address or an admin letting them in.
+	EmailVerified bool      `json:"emailVerified"`
+	Id            string    `json:"id"`
+	JoinedAt      time.Time `json:"joinedAt"`
+	Losses        int       `json:"losses"`
 
 	// Mute A ban or a mute.
 	Mute *Penalty `json:"mute,omitempty"`
@@ -1144,6 +1189,11 @@ type DeckSummary struct {
 	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
+// EmailChange defines model for EmailChange.
+type EmailChange struct {
+	Email string `json:"email"`
+}
+
 // Error Returned with every error status.
 type Error struct {
 	// Code A stable, machine-readable error code, such as "not_found".
@@ -1293,6 +1343,53 @@ type LobbyPerson struct {
 
 	// Rank A rating with its tier and, below Diamond, its division.
 	Rank     *Rank  `json:"rank,omitempty"`
+	Username string `json:"username"`
+}
+
+// MailSecurity How the connection to the mail server is protected: STARTTLS, usually on port 587; TLS from the start, usually on port 465; or none, for a server on the same machine.
+type MailSecurity string
+
+// MailSettings The mail server's settings as the admin panel shows them, without the password.
+type MailSettings struct {
+	// Configured Whether a mail server is set up and can be used.
+	Configured  bool    `json:"configured"`
+	FromAddress *string `json:"fromAddress,omitempty"`
+	FromName    *string `json:"fromName,omitempty"`
+
+	// HasPassword Whether a password is stored.
+	HasPassword bool    `json:"hasPassword"`
+	Host        *string `json:"host,omitempty"`
+
+	// KeyAvailable Whether the server has an APP_SECRET_KEY to store settings with.
+	KeyAvailable bool `json:"keyAvailable"`
+	Port         *int `json:"port,omitempty"`
+
+	// Security How the connection to the mail server is protected: STARTTLS, usually on port 587; TLS from the start, usually on port 465; or none, for a server on the same machine.
+	Security *MailSecurity `json:"security,omitempty"`
+
+	// Unreadable Whether settings are stored that this APP_SECRET_KEY cannot read, so they must be set again.
+	Unreadable bool       `json:"unreadable"`
+	UpdatedAt  *time.Time `json:"updatedAt,omitempty"`
+	Username   *string    `json:"username,omitempty"`
+}
+
+// MailSettingsInput defines model for MailSettingsInput.
+type MailSettingsInput struct {
+	// FromAddress The address email comes from.
+	FromAddress string `json:"fromAddress"`
+
+	// FromName The name email comes from; may be empty.
+	FromName string `json:"fromName"`
+	Host     string `json:"host"`
+
+	// Password Absent keeps the stored password; empty removes it.
+	Password *string `json:"password,omitempty"`
+	Port     int     `json:"port"`
+
+	// Security How the connection to the mail server is protected: STARTTLS, usually on port 587; TLS from the start, usually on port 465; or none, for a server on the same machine.
+	Security MailSecurity `json:"security"`
+
+	// Username Empty for a server that needs no login.
 	Username string `json:"username"`
 }
 
@@ -1711,6 +1808,18 @@ type RunningGame struct {
 	StartedAt  time.Time `json:"startedAt"`
 }
 
+// SignUpInput defines model for SignUpInput.
+type SignUpInput struct {
+	// Email An email address, unique regardless of case.
+	Email string `json:"email"`
+
+	// Password 8 to 128 characters.
+	Password string `json:"password"`
+
+	// Username 3 to 20 letters, numbers, underscores or hyphens, after surrounding spaces are trimmed. Unique regardless of case.
+	Username string `json:"username"`
+}
+
 // SiteStats defines model for SiteStats.
 type SiteStats struct {
 	GamesRunning  int `json:"gamesRunning"`
@@ -1720,8 +1829,39 @@ type SiteStats struct {
 // Streak The current run of wins, above zero, or of losses, below.
 type Streak = int
 
+// TestMailInput defines model for TestMailInput.
+type TestMailInput struct {
+	// To The address to send the test email to.
+	To string `json:"to"`
+}
+
 // Tier defines model for Tier.
 type Tier string
+
+// Verification How confirming the player's email address stands.
+type Verification struct {
+	// CodeExpiresAt When the last code stops working; absent before the first.
+	CodeExpiresAt *time.Time `json:"codeExpiresAt,omitempty"`
+
+	// CodeSentAt When the last code was sent; absent before the first.
+	CodeSentAt *time.Time `json:"codeSentAt,omitempty"`
+
+	// DeleteAt When the account is deleted if still not confirmed; absent before the first code.
+	DeleteAt *time.Time `json:"deleteAt,omitempty"`
+	Email    string     `json:"email"`
+
+	// MailWorks Whether the site can send a code right now. A player waits while it cannot.
+	MailWorks bool `json:"mailWorks"`
+
+	// ResendInSeconds How long until another code may be asked for.
+	ResendInSeconds int `json:"resendInSeconds"`
+}
+
+// VerificationCode defines model for VerificationCode.
+type VerificationCode struct {
+	// Code The digits from the email.
+	Code string `json:"code"`
+}
 
 // FormatId defines model for FormatId.
 type FormatId = string
@@ -1740,6 +1880,9 @@ type Busy = Error
 
 // ComputerOpponentNameTaken Returned with every error status.
 type ComputerOpponentNameTaken = Error
+
+// EmailConfirmed Returned with every error status.
+type EmailConfirmed = Error
 
 // Forbidden Returned with every error status.
 type Forbidden = Error
@@ -1787,7 +1930,7 @@ type GetAdminUsersParams struct {
 	// Search Keeps the accounts whose name contains it, ignoring case.
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 
-	// Status Keeps the accounts banned now, muted now, or the admins.
+	// Status Keeps the accounts banned now, muted now, the admins, or those not yet confirmed.
 	Status   *AdminUserStatus `form:"status,omitempty" json:"status,omitempty"`
 	Page     *int             `form:"page,omitempty" json:"page,omitempty"`
 	PageSize *int             `form:"pageSize,omitempty" json:"pageSize,omitempty"`
@@ -1891,6 +2034,12 @@ type UpdateFormatJSONRequestBody = FormatInput
 // SetFormatRetiredJSONRequestBody defines body for SetFormatRetired for application/json ContentType.
 type SetFormatRetiredJSONRequestBody = FormatRetired
 
+// SetMailSettingsJSONRequestBody defines body for SetMailSettings for application/json ContentType.
+type SetMailSettingsJSONRequestBody = MailSettingsInput
+
+// SendTestMailJSONRequestBody defines body for SendTestMail for application/json ContentType.
+type SendTestMailJSONRequestBody = TestMailInput
+
 // SetAdminSettingJSONRequestBody defines body for SetAdminSetting for application/json ContentType.
 type SetAdminSettingJSONRequestBody = AdminSettingInput
 
@@ -1916,7 +2065,13 @@ type LogInJSONRequestBody = Credentials
 type ChangePasswordJSONRequestBody = PasswordChange
 
 // SignUpJSONRequestBody defines body for SignUp for application/json ContentType.
-type SignUpJSONRequestBody = Credentials
+type SignUpJSONRequestBody = SignUpInput
+
+// ConfirmEmailJSONRequestBody defines body for ConfirmEmail for application/json ContentType.
+type ConfirmEmailJSONRequestBody = VerificationCode
+
+// ChangeVerificationEmailJSONRequestBody defines body for ChangeVerificationEmail for application/json ContentType.
+type ChangeVerificationEmailJSONRequestBody = EmailChange
 
 // PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
 type PostChatMessageJSONRequestBody = ChatPost
@@ -2375,6 +2530,18 @@ type ServerInterface interface {
 	// GetAdminLog The admin log
 	// (GET /admin/log)
 	GetAdminLog(w http.ResponseWriter, r *http.Request, params GetAdminLogParams)
+	// ClearMailSettings Forget the mail server
+	// (DELETE /admin/mail)
+	ClearMailSettings(w http.ResponseWriter, r *http.Request)
+	// GetMailSettings The mail server's settings
+	// (GET /admin/mail)
+	GetMailSettings(w http.ResponseWriter, r *http.Request)
+	// SetMailSettings Set up the mail server
+	// (PUT /admin/mail)
+	SetMailSettings(w http.ResponseWriter, r *http.Request)
+	// SendTestMail Send a test email through the mail server
+	// (POST /admin/mail/test)
+	SendTestMail(w http.ResponseWriter, r *http.Request)
 	// GetAdminSettings Every server setting
 	// (GET /admin/settings)
 	GetAdminSettings(w http.ResponseWriter, r *http.Request)
@@ -2393,6 +2560,9 @@ type ServerInterface interface {
 	// BanUser Ban a player
 	// (POST /admin/users/{userId}/ban)
 	BanUser(w http.ResponseWriter, r *http.Request, userId UserId)
+	// LetUserIn Let a player in without confirming their email address
+	// (POST /admin/users/{userId}/let-in)
+	LetUserIn(w http.ResponseWriter, r *http.Request, userId UserId)
 	// UnmuteUser Lift a player's mute
 	// (DELETE /admin/users/{userId}/mute)
 	UnmuteUser(w http.ResponseWriter, r *http.Request, userId UserId)
@@ -2423,6 +2593,18 @@ type ServerInterface interface {
 	// SignUp Create an account and log it in
 	// (POST /auth/signup)
 	SignUp(w http.ResponseWriter, r *http.Request)
+	// GetVerification How confirming the player's email address stands
+	// (GET /auth/verification)
+	GetVerification(w http.ResponseWriter, r *http.Request)
+	// ConfirmEmail Confirm the player's email address with the code sent to it
+	// (POST /auth/verification)
+	ConfirmEmail(w http.ResponseWriter, r *http.Request)
+	// SendVerificationCode Send a new code to the player's email address
+	// (POST /auth/verification/code)
+	SendVerificationCode(w http.ResponseWriter, r *http.Request)
+	// ChangeVerificationEmail Correct the email address of an account not yet confirmed
+	// (PUT /auth/verification/email)
+	ChangeVerificationEmail(w http.ResponseWriter, r *http.Request)
 	// ListAvatars The pictures players can choose for their profile
 	// (GET /avatars)
 	ListAvatars(w http.ResponseWriter, r *http.Request)
@@ -2859,6 +3041,62 @@ func (siw *ServerInterfaceWrapper) GetAdminLog(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ClearMailSettings operation middleware
+func (siw *ServerInterfaceWrapper) ClearMailSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClearMailSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMailSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetMailSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMailSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetMailSettings operation middleware
+func (siw *ServerInterfaceWrapper) SetMailSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetMailSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SendTestMail operation middleware
+func (siw *ServerInterfaceWrapper) SendTestMail(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendTestMail(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetAdminSettings operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminSettings(w http.ResponseWriter, r *http.Request) {
 
@@ -3049,6 +3287,32 @@ func (siw *ServerInterfaceWrapper) BanUser(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// LetUserIn operation middleware
+func (siw *ServerInterfaceWrapper) LetUserIn(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LetUserIn(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // UnmuteUser operation middleware
 func (siw *ServerInterfaceWrapper) UnmuteUser(w http.ResponseWriter, r *http.Request) {
 
@@ -3228,6 +3492,62 @@ func (siw *ServerInterfaceWrapper) SignUp(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SignUp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetVerification operation middleware
+func (siw *ServerInterfaceWrapper) GetVerification(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVerification(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmEmail operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmEmail(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmEmail(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SendVerificationCode operation middleware
+func (siw *ServerInterfaceWrapper) SendVerificationCode(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendVerificationCode(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ChangeVerificationEmail operation middleware
+func (siw *ServerInterfaceWrapper) ChangeVerificationEmail(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ChangeVerificationEmail(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4577,6 +4897,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.GetHealth)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/signup", wrapper.SignUp)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/verification", wrapper.GetVerification)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/verification", wrapper.ConfirmEmail)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/verification/code", wrapper.SendVerificationCode)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/auth/verification/email", wrapper.ChangeVerificationEmail)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/login", wrapper.LogIn)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.LogOut)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/me", wrapper.GetCurrentAccount)
@@ -4642,6 +4966,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}", wrapper.GetAdminComputerOpponent)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}", wrapper.UpdateComputerOpponent)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}/offered", wrapper.SetComputerOpponentOffered)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/users/{userId}/let-in", wrapper.LetUserIn)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/mail", wrapper.ClearMailSettings)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mail", wrapper.GetMailSettings)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/mail", wrapper.SetMailSettings)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/mail/test", wrapper.SendTestMail)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/settings", wrapper.GetAdminSettings)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/settings/{key}", wrapper.ResetAdminSetting)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/settings/{key}", wrapper.SetAdminSetting)
@@ -4655,6 +4984,8 @@ type AdminConflictJSONResponse Error
 type BusyJSONResponse Error
 
 type ComputerOpponentNameTakenJSONResponse Error
+
+type EmailConfirmedJSONResponse Error
 
 type ForbiddenJSONResponse Error
 
@@ -5599,6 +5930,268 @@ func (response GetAdminLog403JSONResponse) VisitGetAdminLogResponse(w http.Respo
 	return err
 }
 
+type ClearMailSettingsRequestObject struct {
+}
+
+type ClearMailSettingsResponseObject interface {
+	VisitClearMailSettingsResponse(w http.ResponseWriter) error
+}
+
+type ClearMailSettings200JSONResponse MailSettings
+
+func (response ClearMailSettings200JSONResponse) VisitClearMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClearMailSettings401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ClearMailSettings401JSONResponse) VisitClearMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClearMailSettings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ClearMailSettings403JSONResponse) VisitClearMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMailSettingsRequestObject struct {
+}
+
+type GetMailSettingsResponseObject interface {
+	VisitGetMailSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetMailSettings200JSONResponse MailSettings
+
+func (response GetMailSettings200JSONResponse) VisitGetMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMailSettings401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetMailSettings401JSONResponse) VisitGetMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMailSettings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetMailSettings403JSONResponse) VisitGetMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetMailSettingsRequestObject struct {
+	Body *SetMailSettingsJSONRequestBody
+}
+
+type SetMailSettingsResponseObject interface {
+	VisitSetMailSettingsResponse(w http.ResponseWriter) error
+}
+
+type SetMailSettings200JSONResponse MailSettings
+
+func (response SetMailSettings200JSONResponse) VisitSetMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetMailSettings400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response SetMailSettings400JSONResponse) VisitSetMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetMailSettings401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SetMailSettings401JSONResponse) VisitSetMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetMailSettings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetMailSettings403JSONResponse) VisitSetMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetMailSettings409JSONResponse Error
+
+func (response SetMailSettings409JSONResponse) VisitSetMailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendTestMailRequestObject struct {
+	Body *SendTestMailJSONRequestBody
+}
+
+type SendTestMailResponseObject interface {
+	VisitSendTestMailResponse(w http.ResponseWriter) error
+}
+
+type SendTestMail204Response struct {
+}
+
+func (response SendTestMail204Response) VisitSendTestMailResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SendTestMail400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response SendTestMail400JSONResponse) VisitSendTestMailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendTestMail401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SendTestMail401JSONResponse) VisitSendTestMailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendTestMail403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SendTestMail403JSONResponse) VisitSendTestMailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendTestMail409JSONResponse Error
+
+func (response SendTestMail409JSONResponse) VisitSendTestMailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendTestMail502JSONResponse Error
+
+func (response SendTestMail502JSONResponse) VisitSendTestMailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminSettingsRequestObject struct {
 }
 
@@ -6015,6 +6608,84 @@ func (response BanUser404JSONResponse) VisitBanUserResponse(w http.ResponseWrite
 type BanUser409JSONResponse struct{ AdminConflictJSONResponse }
 
 func (response BanUser409JSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LetUserInRequestObject struct {
+	UserId UserId `json:"userId"`
+}
+
+type LetUserInResponseObject interface {
+	VisitLetUserInResponse(w http.ResponseWriter) error
+}
+
+type LetUserIn200JSONResponse AdminUser
+
+func (response LetUserIn200JSONResponse) VisitLetUserInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LetUserIn401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response LetUserIn401JSONResponse) VisitLetUserInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LetUserIn403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response LetUserIn403JSONResponse) VisitLetUserInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LetUserIn404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response LetUserIn404JSONResponse) VisitLetUserInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LetUserIn409JSONResponse struct{ AdminConflictJSONResponse }
+
+func (response LetUserIn409JSONResponse) VisitLetUserInResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6721,6 +7392,266 @@ func (response SignUp409JSONResponse) VisitSignUpResponse(w http.ResponseWriter)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVerificationRequestObject struct {
+}
+
+type GetVerificationResponseObject interface {
+	VisitGetVerificationResponse(w http.ResponseWriter) error
+}
+
+type GetVerification200JSONResponse Verification
+
+func (response GetVerification200JSONResponse) VisitGetVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVerification401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetVerification401JSONResponse) VisitGetVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmEmailRequestObject struct {
+	Body *ConfirmEmailJSONRequestBody
+}
+
+type ConfirmEmailResponseObject interface {
+	VisitConfirmEmailResponse(w http.ResponseWriter) error
+}
+
+type ConfirmEmail200JSONResponse Account
+
+func (response ConfirmEmail200JSONResponse) VisitConfirmEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmEmail400JSONResponse Error
+
+func (response ConfirmEmail400JSONResponse) VisitConfirmEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmEmail401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ConfirmEmail401JSONResponse) VisitConfirmEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmEmail409JSONResponse struct{ EmailConfirmedJSONResponse }
+
+func (response ConfirmEmail409JSONResponse) VisitConfirmEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendVerificationCodeRequestObject struct {
+}
+
+type SendVerificationCodeResponseObject interface {
+	VisitSendVerificationCodeResponse(w http.ResponseWriter) error
+}
+
+type SendVerificationCode200JSONResponse Verification
+
+func (response SendVerificationCode200JSONResponse) VisitSendVerificationCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendVerificationCode401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SendVerificationCode401JSONResponse) VisitSendVerificationCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendVerificationCode409JSONResponse Error
+
+func (response SendVerificationCode409JSONResponse) VisitSendVerificationCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendVerificationCode429JSONResponse struct{ TooManyAttemptsJSONResponse }
+
+func (response SendVerificationCode429JSONResponse) VisitSendVerificationCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SendVerificationCode502JSONResponse Error
+
+func (response SendVerificationCode502JSONResponse) VisitSendVerificationCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeVerificationEmailRequestObject struct {
+	Body *ChangeVerificationEmailJSONRequestBody
+}
+
+type ChangeVerificationEmailResponseObject interface {
+	VisitChangeVerificationEmailResponse(w http.ResponseWriter) error
+}
+
+type ChangeVerificationEmail200JSONResponse Verification
+
+func (response ChangeVerificationEmail200JSONResponse) VisitChangeVerificationEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeVerificationEmail400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response ChangeVerificationEmail400JSONResponse) VisitChangeVerificationEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeVerificationEmail401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ChangeVerificationEmail401JSONResponse) VisitChangeVerificationEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeVerificationEmail409JSONResponse Error
+
+func (response ChangeVerificationEmail409JSONResponse) VisitChangeVerificationEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeVerificationEmail429JSONResponse struct{ TooManyAttemptsJSONResponse }
+
+func (response ChangeVerificationEmail429JSONResponse) VisitChangeVerificationEmailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8880,6 +9811,18 @@ type StrictServerInterface interface {
 	// GetAdminLog The admin log
 	// (GET /admin/log)
 	GetAdminLog(ctx context.Context, request GetAdminLogRequestObject) (GetAdminLogResponseObject, error)
+	// ClearMailSettings Forget the mail server
+	// (DELETE /admin/mail)
+	ClearMailSettings(ctx context.Context, request ClearMailSettingsRequestObject) (ClearMailSettingsResponseObject, error)
+	// GetMailSettings The mail server's settings
+	// (GET /admin/mail)
+	GetMailSettings(ctx context.Context, request GetMailSettingsRequestObject) (GetMailSettingsResponseObject, error)
+	// SetMailSettings Set up the mail server
+	// (PUT /admin/mail)
+	SetMailSettings(ctx context.Context, request SetMailSettingsRequestObject) (SetMailSettingsResponseObject, error)
+	// SendTestMail Send a test email through the mail server
+	// (POST /admin/mail/test)
+	SendTestMail(ctx context.Context, request SendTestMailRequestObject) (SendTestMailResponseObject, error)
 	// GetAdminSettings Every server setting
 	// (GET /admin/settings)
 	GetAdminSettings(ctx context.Context, request GetAdminSettingsRequestObject) (GetAdminSettingsResponseObject, error)
@@ -8898,6 +9841,9 @@ type StrictServerInterface interface {
 	// BanUser Ban a player
 	// (POST /admin/users/{userId}/ban)
 	BanUser(ctx context.Context, request BanUserRequestObject) (BanUserResponseObject, error)
+	// LetUserIn Let a player in without confirming their email address
+	// (POST /admin/users/{userId}/let-in)
+	LetUserIn(ctx context.Context, request LetUserInRequestObject) (LetUserInResponseObject, error)
 	// UnmuteUser Lift a player's mute
 	// (DELETE /admin/users/{userId}/mute)
 	UnmuteUser(ctx context.Context, request UnmuteUserRequestObject) (UnmuteUserResponseObject, error)
@@ -8928,6 +9874,18 @@ type StrictServerInterface interface {
 	// SignUp Create an account and log it in
 	// (POST /auth/signup)
 	SignUp(ctx context.Context, request SignUpRequestObject) (SignUpResponseObject, error)
+	// GetVerification How confirming the player's email address stands
+	// (GET /auth/verification)
+	GetVerification(ctx context.Context, request GetVerificationRequestObject) (GetVerificationResponseObject, error)
+	// ConfirmEmail Confirm the player's email address with the code sent to it
+	// (POST /auth/verification)
+	ConfirmEmail(ctx context.Context, request ConfirmEmailRequestObject) (ConfirmEmailResponseObject, error)
+	// SendVerificationCode Send a new code to the player's email address
+	// (POST /auth/verification/code)
+	SendVerificationCode(ctx context.Context, request SendVerificationCodeRequestObject) (SendVerificationCodeResponseObject, error)
+	// ChangeVerificationEmail Correct the email address of an account not yet confirmed
+	// (PUT /auth/verification/email)
+	ChangeVerificationEmail(ctx context.Context, request ChangeVerificationEmailRequestObject) (ChangeVerificationEmailResponseObject, error)
 	// ListAvatars The pictures players can choose for their profile
 	// (GET /avatars)
 	ListAvatars(ctx context.Context, request ListAvatarsRequestObject) (ListAvatarsResponseObject, error)
@@ -9470,6 +10428,116 @@ func (sh *strictHandler) GetAdminLog(w http.ResponseWriter, r *http.Request, par
 	}
 }
 
+// ClearMailSettings operation middleware
+func (sh *strictHandler) ClearMailSettings(w http.ResponseWriter, r *http.Request) {
+	var request ClearMailSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClearMailSettings(ctx, request.(ClearMailSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClearMailSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClearMailSettingsResponseObject); ok {
+		if err := validResponse.VisitClearMailSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMailSettings operation middleware
+func (sh *strictHandler) GetMailSettings(w http.ResponseWriter, r *http.Request) {
+	var request GetMailSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMailSettings(ctx, request.(GetMailSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMailSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMailSettingsResponseObject); ok {
+		if err := validResponse.VisitGetMailSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetMailSettings operation middleware
+func (sh *strictHandler) SetMailSettings(w http.ResponseWriter, r *http.Request) {
+	var request SetMailSettingsRequestObject
+
+	var body SetMailSettingsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetMailSettings(ctx, request.(SetMailSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetMailSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetMailSettingsResponseObject); ok {
+		if err := validResponse.VisitSetMailSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SendTestMail operation middleware
+func (sh *strictHandler) SendTestMail(w http.ResponseWriter, r *http.Request) {
+	var request SendTestMailRequestObject
+
+	var body SendTestMailJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SendTestMail(ctx, request.(SendTestMailRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SendTestMail")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SendTestMailResponseObject); ok {
+		if err := validResponse.VisitSendTestMailResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetAdminSettings operation middleware
 func (sh *strictHandler) GetAdminSettings(w http.ResponseWriter, r *http.Request) {
 	var request GetAdminSettingsRequestObject
@@ -9631,6 +10699,32 @@ func (sh *strictHandler) BanUser(w http.ResponseWriter, r *http.Request, userId 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(BanUserResponseObject); ok {
 		if err := validResponse.VisitBanUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LetUserIn operation middleware
+func (sh *strictHandler) LetUserIn(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request LetUserInRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LetUserIn(ctx, request.(LetUserInRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LetUserIn")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LetUserInResponseObject); ok {
+		if err := validResponse.VisitLetUserInResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -9928,6 +11022,116 @@ func (sh *strictHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SignUpResponseObject); ok {
 		if err := validResponse.VisitSignUpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetVerification operation middleware
+func (sh *strictHandler) GetVerification(w http.ResponseWriter, r *http.Request) {
+	var request GetVerificationRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetVerification(ctx, request.(GetVerificationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetVerification")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetVerificationResponseObject); ok {
+		if err := validResponse.VisitGetVerificationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmEmail operation middleware
+func (sh *strictHandler) ConfirmEmail(w http.ResponseWriter, r *http.Request) {
+	var request ConfirmEmailRequestObject
+
+	var body ConfirmEmailJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmEmail(ctx, request.(ConfirmEmailRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmEmail")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmEmailResponseObject); ok {
+		if err := validResponse.VisitConfirmEmailResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SendVerificationCode operation middleware
+func (sh *strictHandler) SendVerificationCode(w http.ResponseWriter, r *http.Request) {
+	var request SendVerificationCodeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SendVerificationCode(ctx, request.(SendVerificationCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SendVerificationCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SendVerificationCodeResponseObject); ok {
+		if err := validResponse.VisitSendVerificationCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ChangeVerificationEmail operation middleware
+func (sh *strictHandler) ChangeVerificationEmail(w http.ResponseWriter, r *http.Request) {
+	var request ChangeVerificationEmailRequestObject
+
+	var body ChangeVerificationEmailJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ChangeVerificationEmail(ctx, request.(ChangeVerificationEmailRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ChangeVerificationEmail")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ChangeVerificationEmailResponseObject); ok {
+		if err := validResponse.VisitChangeVerificationEmailResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

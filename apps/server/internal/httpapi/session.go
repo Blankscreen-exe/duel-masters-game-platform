@@ -60,6 +60,13 @@ func (h *handlers) currentUser(ctx context.Context) (users.User, string, error) 
 	return session.user, session.token, session.err
 }
 
+// unconfirmedUser returns the logged-in account, whether or not its email
+// address is confirmed, for the few answers about confirming it. Everything
+// else uses currentUser, which treats a player not yet confirmed as nobody.
+func (h *handlers) unconfirmedUser(ctx context.Context) (users.User, error) {
+	return h.auth.AuthenticateUnconfirmed(ctx, sessionFrom(ctx).token)
+}
+
 // sessionCookie sets the cookie holding a new session: sent with every request
 // to the site, never readable by page scripts, and not sent along with
 // requests other sites trigger.

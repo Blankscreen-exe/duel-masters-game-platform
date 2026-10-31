@@ -22,6 +22,8 @@ services:
     environment:
       # The addresses players open the site from; see .env.example.
       SITE_ORIGINS: ${SITE_ORIGINS:-http://localhost:3000}
+      # Encrypts the mail server's settings in the database; see .env.example.
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY in .env; make one with openssl rand -base64 32}
     volumes:
       - data:/data
     depends_on:

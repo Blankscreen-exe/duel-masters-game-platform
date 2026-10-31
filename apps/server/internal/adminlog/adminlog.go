@@ -36,6 +36,7 @@ const (
 	UserUnmuted        Action = "user_unmuted"
 	RoleChanged        Action = "role_changed"
 	PasswordReset      Action = "password_reset"
+	PlayerLetIn        Action = "player_let_in"
 	SettingChanged     Action = "setting_changed"
 	SettingReset       Action = "setting_reset"
 	ChatMessageDeleted Action = "chat_message_deleted"
@@ -51,15 +52,19 @@ const (
 	FormatRetired    Action = "format_retired"
 	FormatRestored   Action = "format_restored"
 	FormatsReordered Action = "formats_reordered"
+
+	MailSettingsChanged Action = "mail_settings_changed"
+	MailSettingsCleared Action = "mail_settings_cleared"
 )
 
 // Actions lists every action, in the order the admin panel offers them.
 func Actions() []Action {
 	return []Action{
-		UserBanned, UserUnbanned, UserMuted, UserUnmuted, RoleChanged, PasswordReset,
+		UserBanned, UserUnbanned, UserMuted, UserUnmuted, RoleChanged, PasswordReset, PlayerLetIn,
 		SettingChanged, SettingReset, ChatMessageDeleted, GameStopped,
 		ComputerOpponentAdded, ComputerOpponentChanged, ComputerOpponentOffered, ComputerOpponentRetired,
 		FormatAdded, FormatChanged, FormatRetired, FormatRestored, FormatsReordered,
+		MailSettingsChanged, MailSettingsCleared,
 	}
 }
 

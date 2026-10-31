@@ -22,6 +22,13 @@ const (
 	codeSignupsClosed      = "signups_closed"
 	codeUsernameTaken      = "username_taken"
 	codeWrongPassword      = "wrong_password"
+	codeEmailTaken         = "email_taken"
+	codeEmailConfirmed     = "email_confirmed"
+	codeMailUnavailable    = "mail_unavailable"
+	codeMailFailed         = "mail_failed"
+	codeWrongCode          = "wrong_code"
+	codeCodeExpired        = "code_expired"
+	codeNoSecretKey        = "no_secret_key"
 
 	codeTooManyDecks = "too_many_decks"
 	codeTooFast      = "too_fast"

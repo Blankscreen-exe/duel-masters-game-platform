@@ -33,6 +33,11 @@ export const ADMIN_SECTIONS = [
     description: 'Every server setting, which applies at once.',
   },
   {
+    href: '/admin/mail',
+    label: 'Email',
+    description: 'The mail server that sends new players their codes.',
+  },
+  {
     href: '/admin/log',
     label: 'Admin log',
     description: 'Everything admins have done, the latest first.',
@@ -76,6 +81,7 @@ export const ADMIN_USER_STATUSES: readonly {
   { status: 'banned', label: 'Banned' },
   { status: 'muted', label: 'Muted' },
   { status: 'admin', label: 'Admins' },
+  { status: 'unverified', label: 'Not confirmed' },
 ];
 
 const STATUSES = new Set<string>(ADMIN_USER_STATUSES.flatMap(({ status }) => status ?? []));
@@ -116,6 +122,7 @@ export const ADMIN_LOG_ACTIONS: Readonly<Record<AdminLogAction, string>> = {
   user_unmuted: 'Lifted a mute',
   role_changed: 'Changed a role',
   password_reset: 'Gave a new password',
+  player_let_in: 'Let a player in',
   setting_changed: 'Changed a setting',
   setting_reset: 'Reset a setting',
   chat_message_deleted: 'Deleted a chat message',
@@ -129,6 +136,8 @@ export const ADMIN_LOG_ACTIONS: Readonly<Record<AdminLogAction, string>> = {
   format_retired: 'Retired a format',
   format_restored: 'Brought back a format',
   formats_reordered: 'Reordered the formats',
+  mail_settings_changed: 'Changed the mail server',
+  mail_settings_cleared: 'Forgot the mail server',
 };
 
 /** The admin log as a page address asks for it. */

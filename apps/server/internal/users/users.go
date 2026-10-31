@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/avatars"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/mail"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/paging"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
@@ -48,6 +49,11 @@ var (
 	// ErrUsernameTaken is returned when another account already has the name,
 	// in any combination of upper and lower case.
 	ErrUsernameTaken = errors.New("username taken")
+	// ErrEmailTaken is returned when another account already has the email
+	// address, in any combination of upper and lower case.
+	ErrEmailTaken = errors.New("email taken")
+	// ErrEmailConfirmed is returned for changing an address already confirmed.
+	ErrEmailConfirmed = errors.New("the email address is already confirmed")
 	// ErrNotAdmin is returned when the account acting is not, or no longer,
 	// an admin.
 	ErrNotAdmin = errors.New("only admins can do this")
@@ -68,6 +74,17 @@ type User struct {
 	// AvatarID is the picture the player chose from package avatars, empty until
 	// they choose one.
 	AvatarID string
+	// Email is the address as the player typed it; empty for computer
+	// opponents.
+	Email string
+	// EmailKey is the lowercase form that keeps addresses unique.
+	EmailKey string
+	// EmailVerifiedAt is when the address was confirmed, or an admin let the
+	// player in; nil keeps the player out until then.
+	EmailVerifiedAt *time.Time
+	// VerifyBy is when an account still not confirmed is deleted; nil for one
+	// that has never been sent a code, waiting for the site's mail to work.
+	VerifyBy *time.Time
 	Moderation
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -77,6 +94,10 @@ func (User) TableName() string { return "users" }
 
 // IsAdmin reports whether the account may use the admin panel.
 func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
+
+// IsVerified reports whether the player may use the site: their email address
+// is confirmed, or needs no confirming.
+func (u User) IsVerified() bool { return u.EmailVerifiedAt != nil }
 
 // Moderation is an account's latest ban and mute, as the users table keeps
 // them. Other features reading the table embed it to know who is banned.
@@ -198,12 +219,44 @@ func NewService(db *gorm.DB, logger *slog.Logger) *Service {
 	return &Service{db: db, logger: logger}
 }
 
-// Create adds an account with an already hashed password. The first person's
-// account ever created becomes an admin, computer opponents' not counting;
-// every later one is a player. It returns a
-// *validation.Error for a name breaking the rules and ErrUsernameTaken for a
-// name already in use.
+// NormalizeEmail checks an email address and returns it tidied, with the
+// lowercase key that keeps addresses unique. It returns a *validation.Error for
+// one that is not a bare address.
+func NormalizeEmail(raw string) (email, key string, err error) {
+	email = strings.TrimSpace(raw)
+	if mail.CheckAddress(email) != nil {
+		return "", "", validation.New("email", "must be an email address such as name@example.com")
+	}
+
+	return email, strings.ToLower(email), nil
+}
+
+// Register adds a player's account with an email address and an already hashed
+// password. The first person's account ever created becomes an admin, computer
+// opponents' not counting, and has no code to enter: it sets up the mail server
+// that sends them. Every later one is a player, kept out until the address is
+// confirmed. It returns a *validation.Error for a name or address breaking the
+// rules, ErrUsernameTaken for a name in use and ErrEmailTaken for an address in
+// use.
+func (s *Service) Register(ctx context.Context, username, email, passwordHash string) (User, error) {
+	address, addressKey, err := NormalizeEmail(email)
+	if err != nil {
+		return User{}, err
+	}
+
+	return s.create(ctx, username, passwordHash, address, addressKey)
+}
+
+// Create adds an account with no email address to confirm, and an already
+// hashed password, for setting up players without going through sign-up. See
+// Register.
 func (s *Service) Create(ctx context.Context, username, passwordHash string) (User, error) {
+	return s.create(ctx, username, passwordHash, "", "")
+}
+
+// create adds an account. One with no address, or the first, is confirmed from
+// the start.
+func (s *Service) create(ctx context.Context, username, passwordHash, email, emailKey string) (User, error) {
 	name, key, err := NormalizeUsername(username)
 	if err != nil {
 		return User{}, err
@@ -217,7 +270,7 @@ func (s *Service) Create(ctx context.Context, username, passwordHash string) (Us
 	s.createMu.Lock()
 	defer s.createMu.Unlock()
 
-	user := User{ID: id.String(), Username: name, UsernameKey: key, PasswordHash: passwordHash, Role: RolePlayer}
+	user := User{ID: id.String(), Username: name, UsernameKey: key, PasswordHash: passwordHash, Role: RolePlayer, Email: email, EmailKey: emailKey}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing int64
 		if err := people(tx.Model(&User{})).Limit(1).Count(&existing).Error; err != nil {
@@ -226,10 +279,33 @@ func (s *Service) Create(ctx context.Context, username, passwordHash string) (Us
 		if existing == 0 {
 			user.Role = RoleAdmin
 		}
+		if existing == 0 || email == "" {
+			now := tx.NowFunc()
+			user.EmailVerifiedAt = &now
+		}
+
+		if emailKey != "" {
+			taken, err := emailTakenIn(tx, emailKey, user.ID)
+			if err != nil {
+				return err
+			}
+			if taken {
+				return ErrEmailTaken
+			}
+		}
 
 		return tx.Create(&user).Error
 	})
+	if errors.Is(err, ErrEmailTaken) {
+		return User{}, ErrEmailTaken
+	}
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		// Another server could have taken the address since it was checked.
+		if emailKey != "" {
+			if taken, checkErr := emailTakenIn(s.db.WithContext(ctx), emailKey, user.ID); checkErr == nil && taken {
+				return User{}, ErrEmailTaken
+			}
+		}
 		return User{}, ErrUsernameTaken
 	}
 	if err != nil {
@@ -243,6 +319,93 @@ func (s *Service) Create(ctx context.Context, username, passwordHash string) (Us
 	}
 
 	return user, nil
+}
+
+// emailTakenIn reports whether an account other than id has the address.
+func emailTakenIn(tx *gorm.DB, emailKey, id string) (bool, error) {
+	var count int64
+	err := tx.Model(&User{}).Where("email_key = ? AND id <> ?", emailKey, id).Limit(1).Count(&count).Error
+	if err != nil {
+		return false, fmt.Errorf("checking an email address: %w", err)
+	}
+
+	return count > 0, nil
+}
+
+// ChangeEmail replaces the address of an account not yet confirmed, for a player
+// who mistyped it. It returns a *validation.Error for an address breaking the
+// rules, ErrEmailTaken for one in use, and ErrEmailConfirmed for an account
+// already confirmed.
+func (s *Service) ChangeEmail(ctx context.Context, id, email string) (User, error) {
+	address, key, err := NormalizeEmail(email)
+	if err != nil {
+		return User{}, err
+	}
+
+	s.createMu.Lock()
+	defer s.createMu.Unlock()
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		taken, err := emailTakenIn(tx, key, id)
+		if err != nil {
+			return err
+		}
+		if taken {
+			return ErrEmailTaken
+		}
+
+		result := tx.Model(&User{}).Where("id = ? AND email_verified_at IS NULL", id).
+			Updates(map[string]any{"email": address, "email_key": key})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrEmailConfirmed
+		}
+		return nil
+	})
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return User{}, ErrEmailTaken
+	}
+	if err != nil {
+		return User{}, err
+	}
+
+	return s.ByID(ctx, id)
+}
+
+// ConfirmEmailIn marks an account's address confirmed inside the caller's
+// transaction, which lets the player in and saves the account from deletion.
+func ConfirmEmailIn(tx *gorm.DB, id string, at time.Time) error {
+	return update(tx, id, "confirming an email address", map[string]any{"email_verified_at": at, "verify_by": nil})
+}
+
+// SetVerifyBy sets when an account not yet confirmed is deleted, unless it
+// already has a time: the first code starts the clock, and later ones do not
+// put it back.
+func (s *Service) SetVerifyBy(ctx context.Context, id string, at time.Time) error {
+	err := s.db.WithContext(ctx).Model(&User{}).
+		Where("id = ? AND email_verified_at IS NULL AND verify_by IS NULL", id).
+		Update("verify_by", at).Error
+	if err != nil {
+		return fmt.Errorf("setting when an account is deleted: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteUnconfirmed deletes the accounts whose time to confirm their address has
+// run out, and returns how many there were. Their sessions and code go with
+// them. An account never sent a code has no time set, and stays.
+func (s *Service) DeleteUnconfirmed(ctx context.Context, now time.Time) (int64, error) {
+	result := s.db.WithContext(ctx).
+		Where("email_verified_at IS NULL AND verify_by IS NOT NULL AND verify_by <= ?", now).
+		Delete(&User{})
+	if result.Error != nil {
+		return 0, fmt.Errorf("deleting unconfirmed accounts: %w", result.Error)
+	}
+
+	return result.RowsAffected, nil
 }
 
 // ByUsername finds an account by name, in any case. It returns ErrNotFound if
@@ -367,7 +530,8 @@ func CreateComputerIn(tx *gorm.DB, username string) (User, error) {
 		return User{}, fmt.Errorf("making an account id: %w", err)
 	}
 
-	user := User{ID: id.String(), Username: name, UsernameKey: key, Role: RolePlayer, Computer: true}
+	confirmed := tx.NowFunc()
+	user := User{ID: id.String(), Username: name, UsernameKey: key, Role: RolePlayer, Computer: true, EmailVerifiedAt: &confirmed}
 	err = tx.Create(&user).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return User{}, ErrUsernameTaken
@@ -396,6 +560,9 @@ const (
 	StatusMuted Status = "muted"
 	// StatusAdmin is the admins.
 	StatusAdmin Status = "admin"
+	// StatusUnverified is the accounts whose email address is not yet
+	// confirmed.
+	StatusUnverified Status = "unverified"
 )
 
 // Query asks for one page of the accounts.
@@ -437,8 +604,10 @@ func (s *Service) Search(ctx context.Context, query Query, now time.Time) (Page,
 		matching = matching.Where(muteColumns.inForceAt(now))
 	case StatusAdmin:
 		matching = matching.Where("role = ?", RoleAdmin)
+	case StatusUnverified:
+		matching = matching.Where("email_verified_at IS NULL")
 	default:
-		return Page{}, validation.New("status", "must be banned, muted or admin")
+		return Page{}, validation.New("status", "must be banned, muted, admin or unverified")
 	}
 
 	var total int64

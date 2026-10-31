@@ -12,6 +12,7 @@ api.use(jsonChanges);
 type Schemas = components['schemas'];
 export type ApiError = Schemas['Error'];
 export type Account = Schemas['Account'];
+export type Verification = Schemas['Verification'];
 export type Avatar = Schemas['Avatar'];
 export type Card = Schemas['Card'];
 export type CardPage = Schemas['CardPage'];

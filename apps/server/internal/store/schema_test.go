@@ -235,6 +235,31 @@ func TestUndoingComputerAccountsKeepsEveryonesSessions(t *testing.T) {
 	})
 }
 
+func TestEmailMigrationKeepsEveryAccountUsable(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, store.RollbackTo(db, "0016_add_user_avatars"))
+		require.NoError(t, db.Exec(`INSERT INTO users (id, username, username_key, password_hash, role, created_at, updated_at) VALUES ('old', 'Old', 'old', 'hash', 'player', '2026-01-01 00:00:00', '2026-01-01 00:00:00')`).Error)
+		require.NoError(t, db.Exec(`INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES ('session', 'old', '2026-01-01 00:00:00', '2036-01-01 00:00:00')`).Error)
+
+		require.NoError(t, store.Migrate(db))
+
+		var confirmed int64
+		require.NoError(t, db.Table("users").Where("id = 'old' AND email_verified_at IS NOT NULL").Count(&confirmed).Error)
+		assert.Equal(t, int64(1), confirmed)
+
+		// Addresses are unique, though many accounts have none.
+		require.NoError(t, db.Exec(`INSERT INTO users (id, username, username_key, password_hash, role, created_at, updated_at) VALUES ('other', 'Other', 'other', 'hash', 'player', '2026-01-01 00:00:00', '2026-01-01 00:00:00')`).Error)
+		require.NoError(t, db.Exec(`UPDATE users SET email_key = 'a@example.test' WHERE id = 'old'`).Error)
+		assert.Error(t, db.Exec(`UPDATE users SET email_key = 'a@example.test' WHERE id = 'other'`).Error)
+
+		require.NoError(t, store.RollbackTo(db, "0016_add_user_avatars"))
+
+		var sessions int64
+		require.NoError(t, db.Table("sessions").Where("user_id = 'old'").Count(&sessions).Error)
+		assert.Equal(t, int64(1), sessions, "undoing the migration takes nobody's sessions")
+	})
+}
+
 func TestUndoingUserAvatarsKeepsEveryAccount(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
 		require.NoError(t, insertUser(db, "u1", "Shobu", "player"))

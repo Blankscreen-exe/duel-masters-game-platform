@@ -19,6 +19,7 @@ supersedes the old one.
 | [0011](0011-engine-keeps-its-original-layout.md)        | The engine keeps its original layout                  | Accepted |
 | [0012](0012-gorm-for-data-access.md)                    | GORM for data access                                  | Accepted |
 | [0013](0013-card-catalogue-in-the-database.md)         | The card catalogue is copied into the database        | Accepted |
+| [0014](0014-email-confirmation-and-mail-settings.md) | Players confirm an email address, through a mail server an admin sets up | Accepted |
 
 ## Template
 

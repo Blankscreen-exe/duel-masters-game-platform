@@ -42,7 +42,7 @@ var SignupsOpen = settings.Bool{
 
 // Settings are the settings this feature declares.
 func Settings() []settings.Definition {
-	return []settings.Definition{SignupsOpen}
+	return []settings.Definition{SignupsOpen, CodeMinutes, ResendSeconds, UnconfirmedHours}
 }
 
 var (
@@ -87,19 +87,21 @@ type Service struct {
 	users    *users.Service
 	settings *settings.Service
 	hasher   *PasswordHasher
+	mailer   Mailer
 	logins   *ratelimit.Limiter
 	now      func() time.Time
 	logger   *slog.Logger
 }
 
-// NewService returns the service. now is the clock; pass time.Now outside
-// tests.
-func NewService(db *gorm.DB, accounts *users.Service, siteSettings *settings.Service, hasher *PasswordHasher, now func() time.Time, logger *slog.Logger) *Service {
+// NewService returns the service. mailer sends the codes that confirm email
+// addresses. now is the clock; pass time.Now outside tests.
+func NewService(db *gorm.DB, accounts *users.Service, siteSettings *settings.Service, hasher *PasswordHasher, mailer Mailer, now func() time.Time, logger *slog.Logger) *Service {
 	return &Service{
 		db:       db,
 		users:    accounts,
 		settings: siteSettings,
 		hasher:   hasher,
+		mailer:   mailer,
 		logins:   ratelimit.New(loginAttempts, loginWindow, now),
 		now:      now,
 		logger:   logger,
@@ -118,16 +120,22 @@ func ValidatePassword(password string) error {
 	return nil
 }
 
-// SignUp creates an account and logs it in. It returns ErrSignupsClosed while
-// an admin has closed sign-ups, a *validation.Error for a name or password
-// breaking the rules, and users.ErrUsernameTaken for a name in use.
-func (s *Service) SignUp(ctx context.Context, username, password string) (users.User, Session, error) {
+// SignUp creates an account and logs it in, and sends a code to the email
+// address if the site's mail works. Failing to send does not stop the sign-up:
+// the player can ask for the code again. It returns ErrSignupsClosed while an
+// admin has closed sign-ups, a *validation.Error for a name, address or password
+// breaking the rules, users.ErrUsernameTaken for a name in use and
+// users.ErrEmailTaken for an address in use.
+func (s *Service) SignUp(ctx context.Context, username, email, password string) (users.User, Session, error) {
 	if !s.settings.Bool(SignupsOpen) {
 		return users.User{}, Session{}, ErrSignupsClosed
 	}
 
 	// Checked before hashing, which is the slow part.
 	if _, _, err := users.NormalizeUsername(username); err != nil {
+		return users.User{}, Session{}, err
+	}
+	if _, _, err := users.NormalizeEmail(email); err != nil {
 		return users.User{}, Session{}, err
 	}
 	if err := ValidatePassword(password); err != nil {
@@ -139,7 +147,7 @@ func (s *Service) SignUp(ctx context.Context, username, password string) (users.
 		return users.User{}, Session{}, err
 	}
 
-	user, err := s.users.Create(ctx, username, hash)
+	user, err := s.users.Register(ctx, username, email, hash)
 	if err != nil {
 		return users.User{}, Session{}, err
 	}
@@ -147,6 +155,10 @@ func (s *Service) SignUp(ctx context.Context, username, password string) (users.
 	session, err := s.startSession(ctx, user.ID)
 	if err != nil {
 		return users.User{}, Session{}, err
+	}
+
+	if !user.IsVerified() {
+		s.sendFirstCode(ctx, user)
 	}
 
 	return user, session, nil
@@ -234,11 +246,28 @@ func (s *Service) upgradeHash(ctx context.Context, user users.User, password str
 	}
 }
 
-// Authenticate returns the account a session token belongs to. It returns
-// ErrNoSession for a missing, unknown or expired token, and for a banned
-// account's: a ban ends the account's sessions, and this also refuses one
-// started by a login that crossed with the ban.
+// Authenticate returns the account a session token belongs to, for everything
+// on the site but confirming an email address. It returns ErrNoSession for a
+// missing, unknown or expired token, for a banned account's, and for one whose
+// email address is not yet confirmed.
 func (s *Service) Authenticate(ctx context.Context, token string) (users.User, error) {
+	user, err := s.AuthenticateUnconfirmed(ctx, token)
+	if err != nil {
+		return users.User{}, err
+	}
+	if !user.IsVerified() {
+		return users.User{}, ErrNoSession
+	}
+
+	return user, nil
+}
+
+// AuthenticateUnconfirmed is Authenticate that also accepts an account whose
+// email address is not yet confirmed, for confirming it. It returns ErrNoSession
+// for a missing, unknown or expired token, and for a banned account's: a ban
+// ends the account's sessions, and this also refuses one started by a login that
+// crossed with the ban.
+func (s *Service) AuthenticateUnconfirmed(ctx context.Context, token string) (users.User, error) {
 	if token == "" {
 		return users.User{}, ErrNoSession
 	}
