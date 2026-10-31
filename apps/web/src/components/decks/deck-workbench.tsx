@@ -15,6 +15,7 @@ import {
 } from '@/lib/deck-draft';
 import type { DeckEditing } from './deck-card-buttons';
 import { DeckCards } from './deck-cards';
+import { DeckDrag, DropArea } from './deck-drag';
 import { DeckStats } from './deck-stats';
 import { DeckTrunk } from './deck-trunk';
 import { EnlargedCard } from './enlarged-card';
@@ -40,7 +41,8 @@ const PANELS = 'deck-builder';
 /**
  * Where a deck is built, whoever it is for: the deck as cards in the main area with its statistics
  * below, and the trunk of playable cards in the side bar, staying in view while the deck scrolls.
- * Any card of either can be enlarged. On phones each is a tab. What holds the deck saves it.
+ * Cards are dragged between the two, or moved with their buttons, and any card of either can be
+ * enlarged. On phones each is a tab, with the buttons. What holds the deck saves it.
  */
 export function DeckWorkbench({
   draft,
@@ -73,7 +75,7 @@ export function DeckWorkbench({
   };
 
   return (
-    <>
+    <DeckDrag draft={draft} onAdd={editing.onAdd} onRemove={editing.onRemove}>
       <TabList
         label="Deck builder"
         panelIdPrefix={PANELS}
@@ -88,7 +90,8 @@ export function DeckWorkbench({
       />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="min-w-0 space-y-6 max-lg:contents">
+        {/* All of this takes a dropped card, so a short deck is as easy to drop on as a long one. */}
+        <DropArea zone="deck" draft={draft} className="min-w-0 space-y-6 max-lg:contents">
           <div
             id={`${PANELS}-deck`}
             role="tabpanel"
@@ -122,9 +125,11 @@ export function DeckWorkbench({
             </Panel>
             {sidePanels}
           </div>
-        </div>
+        </DropArea>
 
-        <div
+        <DropArea
+          zone="trunk"
+          draft={draft}
           id={`${PANELS}-trunk`}
           role="tabpanel"
           className={`min-w-0 lg:sticky lg:top-20 lg:h-[calc(100dvh-6rem)] ${view === 'trunk' ? '' : 'max-lg:hidden'}`}
@@ -140,7 +145,7 @@ export function DeckWorkbench({
               />
             </div>
           </Panel>
-        </div>
+        </DropArea>
       </div>
 
       {enlarged && (
@@ -152,7 +157,7 @@ export function DeckWorkbench({
           }}
         />
       )}
-    </>
+    </DeckDrag>
   );
 }
 

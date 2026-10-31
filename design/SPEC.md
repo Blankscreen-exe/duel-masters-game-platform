@@ -323,7 +323,7 @@ Every page has hover feedback and works on phones (see 11.2).
 | Lobby         | `/play`               | Open games (join/watch), create game, quick match, online players, lobby chat. On phones the games list becomes stacked cards |
 | Game          | `/play/[gameId]`      | Board, name bars, Leave/Surrender, result screen. Spectators see the same without the buttons |
 | My decks      | `/decks`              | Deck tiles: cover card, civilizations, count, legal formats; new, copy, delete, import |
-| Deck builder  | `/decks/[deckId]`     | The trunk in a side bar: every playable card as a scrolling, searchable list of small cards with names. The main area shows the deck as cards by cost, one picture per copy, with + and −. Any card can be enlarged. Mana curve, civilization split, count and rule warnings; rename, cover card, export. On phones: Trunk, Deck and Stats tabs |
+| Deck builder  | `/decks/[deckId]`     | The trunk in a side bar: every playable card as a scrolling, searchable list of small cards with names. The main area shows the deck as cards by cost, one picture per copy. Cards are dragged between the two, or moved with + and − buttons. Any card can be enlarged. Mana curve, civilization split, count and rule warnings; rename, cover card, export. On phones: Trunk, Deck and Stats tabs |
 | Rankings      | `/rankings`           | Leaderboard with tier badges, your position highlighted, search, pages |
 | Profile       | `/u/[name]`           | Rank, rating, wins and losses, streak, favourite civilizations, recent matches |
 | Match history | `/u/[name]/matches`   | All matches: opponent, result, decks, format, turns, length, rating change |
