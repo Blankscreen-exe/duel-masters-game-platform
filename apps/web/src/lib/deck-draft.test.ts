@@ -13,7 +13,7 @@ import {
   DECK_NAME_MAX_LENGTH,
   DECK_SIZE,
   draftFromDeck,
-  groupByCost,
+  groupByType,
   manaCurve,
   MAX_COPIES,
   removeCard,
@@ -204,15 +204,44 @@ describe('saved decks and drafts', () => {
 describe('deck statistics', () => {
   const draft = withCopies(withCopies(withCopies(empty, hulcus, 3), bolshack, 4), zaschack, 1);
 
-  it('groups the cards by cost', () => {
-    expect(
-      groupByCost(draft).map(({ cost, cards }) => [cost, cards.map(({ card: { name } }) => name)]),
-    ).toEqual([
-      [3, ['Aqua Hulcus']],
-      [6, ['Bolshack Dragon']],
-      [9, ['Uberdragon Zaschack']],
-    ]);
-    expect(groupByCost(empty)).toEqual([]);
+  describe('groupByType', () => {
+    const typed = (type: string, cost: number) => card(type, `A ${type}`, cost, { type });
+    const shown = (groups: ReturnType<typeof groupByType>) =>
+      groups.map(({ type, total, cards }) => [
+        type,
+        total,
+        cards.map(({ card: { name } }) => name),
+      ]);
+
+    it('counts copies and keeps each type in order of cost, then name', () => {
+      expect(shown(groupByType(draft))).toEqual([
+        ['Creature', 8, ['Aqua Hulcus', 'Bolshack Dragon', 'Uberdragon Zaschack']],
+      ]);
+    });
+
+    it('shows creatures, then evolution creatures, then spells, whatever their costs', () => {
+      let mixed = withCopies(empty, typed('Spell', 1), 2);
+      mixed = withCopies(mixed, typed('Evolution Creature', 2), 1);
+      mixed = withCopies(mixed, typed('Creature', 9), 3);
+
+      expect(groupByType(mixed).map(({ type }) => type)).toEqual([
+        'Creature',
+        'Evolution Creature',
+        'Spell',
+      ]);
+    });
+
+    it('puts a type it does not know last, by name', () => {
+      let mixed = withCopies(empty, typed('Zeta', 1), 1);
+      mixed = withCopies(mixed, typed('Alpha', 1), 1);
+      mixed = withCopies(mixed, typed('Castle', 9), 1);
+
+      expect(groupByType(mixed).map(({ type }) => type)).toEqual(['Castle', 'Alpha', 'Zeta']);
+    });
+
+    it('has no groups for an empty deck', () => {
+      expect(groupByType(empty)).toEqual([]);
+    });
   });
 
   it('counts the mana curve, with the dearest cards together in the last bar', () => {

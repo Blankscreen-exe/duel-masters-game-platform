@@ -122,15 +122,39 @@ export function sameDeck(a: DeckDraft, b: DeckDraft): boolean {
   return key(a) === key(b);
 }
 
-/** The draft's cards grouped by cost, cheapest first. */
-export function groupByCost(draft: DeckDraft): { cost: number; cards: DraftCard[] }[] {
-  const groups: { cost: number; cards: DraftCard[] }[] = [];
+/** The order card types are shown in; any type not named here follows, by name. */
+const TYPE_ORDER: readonly string[] = [
+  'Creature',
+  'Evolution Creature',
+  'Spell',
+  'Castle',
+  'Cross Gear',
+  'Evolution Cross Gear',
+];
+
+/**
+ * The draft's cards grouped by type, each group counting its copies and keeping the draft's order
+ * of cost, then name.
+ */
+export function groupByType(
+  draft: DeckDraft,
+): { type: string; total: number; cards: DraftCard[] }[] {
+  const groups = new Map<string, { type: string; total: number; cards: DraftCard[] }>();
   for (const entry of draft.cards) {
-    const last = groups.at(-1);
-    if (last?.cost === entry.card.cost) last.cards.push(entry);
-    else groups.push({ cost: entry.card.cost, cards: [entry] });
+    const { type } = entry.card;
+    const group = groups.get(type) ?? { type, total: 0, cards: [] };
+    group.total += entry.count;
+    group.cards.push(entry);
+    groups.set(type, group);
   }
-  return groups;
+
+  const rank = (type: string) => {
+    const place = TYPE_ORDER.indexOf(type);
+    return place === -1 ? TYPE_ORDER.length : place;
+  };
+  return [...groups.values()].sort(
+    (a, b) => rank(a.type) - rank(b.type) || compareText(a.type, b.type),
+  );
 }
 
 /** The highest cost shown on its own in the mana curve; dearer cards share its last bar. */

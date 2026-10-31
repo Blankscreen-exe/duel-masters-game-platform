@@ -2,7 +2,7 @@
 
 import { CardImage } from '@/components/cards/card-image';
 import type { Card } from '@/lib/api/client';
-import { groupByCost } from '@/lib/deck-draft';
+import { groupByType } from '@/lib/deck-draft';
 import { DeckCardButtons, type DeckEditing } from './deck-card-buttons';
 import { useCardDrag } from './deck-drag';
 
@@ -12,12 +12,12 @@ interface DeckCardsProps {
 }
 
 /**
- * The deck laid out as cards, by cost: four copies of a card are four cards. Picking one enlarges
+ * The deck laid out as cards, by type: four copies of a card are four cards. Picking one enlarges
  * it and dragging it to the trunk removes it; its buttons, which do the same as dragging, show when
  * pointed at, and always on a touch screen, which cannot point.
  */
 export function DeckCards({ editing, onEnlarge }: DeckCardsProps) {
-  const groups = groupByCost(editing.draft);
+  const groups = groupByType(editing.draft);
 
   if (groups.length === 0) {
     return (
@@ -30,10 +30,10 @@ export function DeckCards({ editing, onEnlarge }: DeckCardsProps) {
 
   return (
     <div className="divide-y divide-slate-800">
-      {groups.map(({ cost, cards }) => (
-        <section key={cost} aria-label={`Cost ${String(cost)}`} className="p-3">
+      {groups.map(({ type, total, cards }) => (
+        <section key={type} aria-label={type} className="p-3">
           <h3 className="mb-2 font-display text-xs font-bold tracking-widest text-slate-500 uppercase">
-            Cost {cost}
+            {type} <span className="text-slate-400">{total}</span>
           </h3>
           <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
             {cards.flatMap(({ card, count }) =>
