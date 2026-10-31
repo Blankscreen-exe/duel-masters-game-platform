@@ -14,35 +14,14 @@ project, maintained here.
 
 ## Screenshots
 
-### Playing a game
-
-| Calling the coin toss | Confirming an attack |
-| :-: | :-: |
-| ![Calling the coin toss](docs/images/coin-toss.png) | ![The attack confirmation, comparing both creatures and showing the result](docs/images/confirm-attack.png) |
-
-Once you choose what to attack, you confirm it: both powers side by side, blue for your side and
-red for your opponent's, with who wins and what gets destroyed. When your opponent attacks and you
-have a blocker, the question opens with the same line:
-
-![Choosing whether to block an attack](docs/images/block-question.png)
-
-The board also fits a phone:
-
-<img src="docs/images/phone.png" alt="The duel board on a phone" width="300">
-
-### The site
-
-| Home, with the lobby chat | Finding a game |
-| :-: | :-: |
-| ![The home page](docs/images/home.png) | ![The play page, with quick match, open games and chat](docs/images/play.png) |
-
-| Building a deck | The card database |
-| :-: | :-: |
-| ![The deck builder](docs/images/deck-builder.png) | ![Searching the card database](docs/images/cards.png) |
-
-### The admin panel
-
-![The admin panel's list of players](docs/images/admin.png)
+| | | |
+| :-: | :-: | :-: |
+| ![Calling the coin toss](docs/images/coin-toss.png) | ![Confirming an attack: both powers and the result](docs/images/confirm-attack.png) | ![Choosing whether to block](docs/images/block-question.png) |
+| Calling the coin toss | Confirming an attack: both powers and the result | Choosing whether to block |
+| ![The board on a phone](docs/images/phone.png) | ![Home, with the lobby chat](docs/images/home.png) | ![Finding a game](docs/images/play.png) |
+| The board on a phone | Home, with the lobby chat | Finding a game |
+| ![Building a deck](docs/images/deck-builder.png) | ![The card database](docs/images/cards.png) | ![The admin panel](docs/images/admin.png) |
+| Building a deck | The card database | The admin panel |
 
 ## Getting the code
 
