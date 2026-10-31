@@ -30,6 +30,7 @@ func migrations() []*gormigrate.Migration {
 		migration0011StarterDecks(),
 		migration0012ComputerAccounts(),
 		migration0013ComputerOpponents(),
+		migration0014FormatRetirement(),
 	}
 }
 

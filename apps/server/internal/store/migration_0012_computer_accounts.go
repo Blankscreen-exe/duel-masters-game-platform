@@ -23,10 +23,10 @@ func migration0012ComputerAccounts() *gormigrate.Migration {
 	return &gormigrate.Migration{
 		ID: "0012_add_computer_accounts",
 		Migrate: func(tx *gorm.DB) error {
-			return addUserColumns(tx, &user0012{}, "Computer")
+			return addColumns(tx, &user0012{}, "Computer")
 		},
 		Rollback: func(tx *gorm.DB) error {
-			return dropUserColumns(tx, &user0012{}, map[string]any{"computer": false}, "Computer")
+			return dropColumns(tx, &user0012{}, map[string]any{"computer": false}, "Computer")
 		},
 	}
 }

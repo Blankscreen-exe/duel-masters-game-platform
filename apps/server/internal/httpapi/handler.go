@@ -50,10 +50,12 @@ type Dependencies struct {
 	Ratings   *ratings.Service
 	Catalogue *cards.Catalogue
 	Formats   *formats.Service
-	Decks     *decks.Service
-	Chat      *chat.Service
-	Games     *games.Service
-	Lobby     *lobby.Service
+	// FormatManager changes the formats, for admins.
+	FormatManager *formats.Manager
+	Decks         *decks.Service
+	Chat          *chat.Service
+	Games         *games.Service
+	Lobby         *lobby.Service
 	// QuickMatch runs quick match.
 	QuickMatch *matchmaking.Service
 	// Rematches runs the rematches of games just ended.
@@ -87,6 +89,7 @@ type handlers struct {
 	ratings       *ratings.Service
 	catalogue     *cards.Catalogue
 	formats       *formats.Service
+	formatManager *formats.Manager
 	decks         *decks.Service
 	chat          *chat.Service
 	games         *games.Service
@@ -120,6 +123,7 @@ func NewHandler(deps Dependencies) http.Handler {
 		ratings:       deps.Ratings,
 		catalogue:     deps.Catalogue,
 		formats:       deps.Formats,
+		formatManager: deps.FormatManager,
 		decks:         deps.Decks,
 		chat:          deps.Chat,
 		games:         deps.Games,

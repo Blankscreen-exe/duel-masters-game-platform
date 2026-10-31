@@ -612,7 +612,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every format, in the order admins set */
+        /** The formats players can choose, in the order admins set */
         get: operations["listFormats"];
         put?: never;
         post?: never;
@@ -854,6 +854,89 @@ export interface paths {
          * @description For a player who has forgotten theirs: the admin passes the new password on. The player's sessions end, and wrong passwords tried before no longer hold them back.
          */
         put: operations["setUserPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/formats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every format, retired or not */
+        get: operations["getAdminFormats"];
+        put?: never;
+        /** Add a format, last in order */
+        post: operations["createFormat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/formats/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put every format in the order given
+         * @description The first format players can choose is what the site picks for them to begin with.
+         */
+        put: operations["reorderFormats"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/formats/{formatId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formatId: components["parameters"]["FormatId"];
+            };
+            cookie?: never;
+        };
+        /** A format, retired or not */
+        get: operations["getAdminFormat"];
+        /**
+         * Change a format
+         * @description Games already running carry on under the rules they started with. Decks, new games and computer opponents follow the new rules at once.
+         */
+        put: operations["updateFormat"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/formats/{formatId}/retired": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formatId: components["parameters"]["FormatId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Retire a format or bring it back
+         * @description Once retired it cannot be chosen for new games and decks are no longer checked against it, and computer opponents in it stop being offered. Running games, open games and past games keep it. The only format left to choose cannot be retired (code "last_format").
+         */
+        put: operations["setFormatRetired"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1206,7 +1289,7 @@ export interface components {
             value: string;
         };
         /** @enum {string} */
-        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped" | "computer_opponent_added" | "computer_opponent_changed" | "computer_opponent_offered" | "computer_opponent_retired";
+        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped" | "computer_opponent_added" | "computer_opponent_changed" | "computer_opponent_offered" | "computer_opponent_retired" | "format_added" | "format_changed" | "format_retired" | "format_restored" | "formats_reordered";
         AdminLogEntry: {
             id: string;
             /** @description The admin who acted; absent once their account is gone. */
@@ -1303,6 +1386,45 @@ export interface components {
             /** @description The banned and limited cards. */
             limits: components["schemas"]["FormatCardLimit"][];
         };
+        /** @description A format as the admin panel shows it. */
+        AdminFormat: {
+            id: string;
+            name: string;
+            description: string;
+            /** @description Cards from every set are allowed, including sets added later. */
+            allSets: boolean;
+            /** @description The allowed sets when allSets is false; empty otherwise. */
+            sets: string[];
+            /** @description The banned and limited cards, by name. */
+            limits: components["schemas"]["AdminFormatLimit"][];
+            /** @description Players can no longer choose it. */
+            retired: boolean;
+            /** @description The names of the computer opponents offered to players in this format. */
+            opponents: string[];
+        };
+        AdminFormatLimit: {
+            cardId: string;
+            /** @description 0 for a banned card, 1 or 2 for a limited one. */
+            maxCopies: number;
+            /** @description Absent for a card that has left the card database. */
+            card?: components["schemas"]["Card"];
+        };
+        /** @description A format as an admin saves it. */
+        FormatInput: {
+            name: string;
+            description: string;
+            allSets: boolean;
+            /** @description The allowed sets when allSets is false, at least one. */
+            sets: string[];
+            limits: components["schemas"]["FormatCardLimit"][];
+        };
+        FormatOrder: {
+            /** @description Each format once, retired or not. */
+            formatIds: string[];
+        };
+        FormatRetired: {
+            retired: boolean;
+        };
         FormatCardLimit: {
             cardId: string;
             /** @description 0 for a banned card, 1 or 2 for a limited one. */
@@ -1378,10 +1500,10 @@ export interface components {
             cardId?: string;
         };
         /**
-         * @description deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not.
+         * @description deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not. format_retired: only for a computer opponent, whose format an admin has retired.
          * @enum {string}
          */
-        DeckProblemCode: "deck_size" | "not_playable" | "not_in_format" | "banned" | "over_limit" | "too_many_copies" | "too_many_civilizations" | "card_type";
+        DeckProblemCode: "deck_size" | "not_playable" | "not_in_format" | "banned" | "over_limit" | "too_many_copies" | "format_retired" | "too_many_civilizations" | "card_type";
         DeckListText: {
             /** @description At most 10,000 characters and 200 lines. */
             text: string;
@@ -1818,6 +1940,24 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description A format already has this name, in any case (code "format_name_taken"). */
+        FormatNameTaken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description This is the only format players can choose (code "last_format"). */
+        LastFormat: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description An account already has this name (code "username_taken"). */
         ComputerOpponentNameTaken: {
             headers: {
@@ -1921,6 +2061,7 @@ export interface components {
         };
     };
     parameters: {
+        FormatId: string;
         OpponentId: string;
         /** @description The account's id. */
         UserId: string;
@@ -3409,6 +3550,169 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["AdminConflict"];
+        };
+    };
+    getAdminFormats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The formats, in order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFormat"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createFormat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormatInput"];
+            };
+        };
+        responses: {
+            /** @description The format as added. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFormat"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["FormatNameTaken"];
+        };
+    };
+    reorderFormats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormatOrder"];
+            };
+        };
+        responses: {
+            /** @description The formats, in their new order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFormat"][];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminFormat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formatId: components["parameters"]["FormatId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The format. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFormat"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateFormat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formatId: components["parameters"]["FormatId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormatInput"];
+            };
+        };
+        responses: {
+            /** @description The format as changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFormat"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["FormatNameTaken"];
+        };
+    };
+    setFormatRetired: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formatId: components["parameters"]["FormatId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormatRetired"];
+            };
+        };
+        responses: {
+            /** @description The format as changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFormat"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["LastFormat"];
         };
     };
     getAdminComputerOpponents: {

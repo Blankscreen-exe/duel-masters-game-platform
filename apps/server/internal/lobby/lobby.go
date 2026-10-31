@@ -514,12 +514,15 @@ func (s *Service) broadcast() {
 // PrepareDeck finds the format and a deck the player may play, one of theirs
 // or a starter deck, and checks the deck keeps to the format, for a player
 // about to play. It returns a *validation.Error naming the field for a format
-// or deck that does not exist (or is someone else's), and a
-// *games.IllegalDeckError for a deck breaking the format.
+// that does not exist or is retired, or a deck that does not exist (or is
+// someone else's), and a *games.IllegalDeckError for a deck breaking the format.
 func (s *Service) PrepareDeck(ctx context.Context, player users.User, formatID, deckID string) (formats.Format, decks.Deck, error) {
 	format, deck, err := s.formatAndDeck(ctx, player.ID, formatID, deckID)
 	if err != nil {
 		return formats.Format{}, decks.Deck{}, err
+	}
+	if format.Retired {
+		return formats.Format{}, decks.Deck{}, validation.New("formatId", "is no longer offered")
 	}
 	if err := s.checkDeck(ctx, player, deck, format); err != nil {
 		return formats.Format{}, decks.Deck{}, err

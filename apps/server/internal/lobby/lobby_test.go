@@ -174,6 +174,33 @@ func TestAPlayerDoesOneThingAtATime(t *testing.T) {
 	})
 }
 
+func TestARetiredFormatCannotBeUsedForNewGamesButOpenOnesCarryOn(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		f := newFixture(t, db)
+		open := f.host(t, lobby.CreateInput{Name: "Friendly", Visible: true, Spectators: true})
+
+		retire := func(id string) {
+			t.Helper()
+			require.NoError(t, db.Table("formats").Where("id = ?", id).Update("retired_at", time.Now()).Error)
+		}
+		retire(f.open.ID)
+
+		_, err := f.lobby.Create(ctx, f.mimi, lobby.CreateInput{FormatID: f.open.ID, DeckID: f.decks[f.mimi.ID].ID})
+		invalid, ok := validation.As(err)
+		require.True(t, ok, "got %v", err)
+		assert.Equal(t, "formatId", invalid.Field)
+
+		_, _, err = f.lobby.PrepareChosenDeck(ctx, f.mimi, f.open.ID, f.decks[f.mimi.ID].ID)
+		var illegal *games.IllegalDeckError
+		assert.ErrorAs(t, err, &illegal, "a deck chosen earlier can no longer be played in it")
+
+		game, err := f.lobby.Join(ctx, f.kokujo, open.ID, f.decks[f.kokujo.ID].ID)
+		require.NoError(t, err, "a game already open can still be joined")
+		assert.Equal(t, "Open", game.FormatName)
+	})
+}
+
 func TestJoiningStartsTheGame(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
 		ctx := context.Background()

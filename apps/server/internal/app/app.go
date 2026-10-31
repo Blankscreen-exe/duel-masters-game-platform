@@ -204,6 +204,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 				Ratings:       ratingService,
 				Catalogue:     catalogue,
 				Formats:       formatService,
+				FormatManager: formats.NewManager(db, formatService, catalogue),
 				Decks:         deckService,
 				Chat:          chat.NewService(db, live, siteSettings, time.Now),
 				Games:         gameService,

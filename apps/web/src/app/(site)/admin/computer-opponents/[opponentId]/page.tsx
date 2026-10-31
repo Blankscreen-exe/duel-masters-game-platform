@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { OpponentEditor } from '@/components/admin/opponent-editor';
 import { serverApi } from '@/lib/api/server';
+import { formatsForOpponent } from '@/lib/formats';
 import { requireAdmin } from '@/lib/session';
 
 export const metadata: Metadata = { title: 'Computer opponent · Admin' };
@@ -15,7 +16,7 @@ export default async function ComputerOpponentPage({
   const [opponent, options, formats, filters] = await Promise.all([
     api.GET('/admin/computer-opponents/{opponentId}', { params: { path: { opponentId } } }),
     api.GET('/admin/computer-opponents/options'),
-    api.GET('/formats'),
+    api.GET('/admin/formats'),
     api.GET('/cards/filters'),
   ]);
 
@@ -30,7 +31,7 @@ export default async function ComputerOpponentPage({
       key={opponent.data.id}
       opponent={opponent.data}
       options={options.data}
-      formats={formats.data}
+      formats={formatsForOpponent(formats.data, opponent.data.formatId)}
       filters={filters.data}
     />
   );

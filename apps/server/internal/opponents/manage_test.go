@@ -3,6 +3,7 @@ package opponents_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -319,6 +320,22 @@ func TestPlayersAreNotOfferedAnOpponentThatCannotPlay(t *testing.T) {
 		offers, err = w.challenges.Offers(ctx)
 		require.NoError(t, err)
 		assert.Empty(t, offers)
+	})
+}
+
+func TestPlayersAreNotOfferedAnOpponentWhoseFormatIsRetired(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		w := newChallengeWorld(t, db)
+
+		require.NoError(t, db.Table("formats").Where("id = ?", w.Open.ID).Update("retired_at", time.Now()).Error)
+
+		offers, err := w.challenges.Offers(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, offers)
+
+		_, err = w.challenges.Start(ctx, w.Shobu, w.grim.ID, w.Legal[w.Shobu.ID].ID)
+		assert.ErrorIs(t, err, opponents.ErrUnavailable)
 	})
 }
 

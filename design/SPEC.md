@@ -268,9 +268,10 @@ Every game, rematches included, starts with a coin toss that both players (and s
 - **Computer opponents**: add, change, retire and bring back the personalities players practise
   against, each with its deck, built as players build theirs (see `docs/computer-opponent.md`).
 - **Formats**: create and edit formats, their sets and their banned/limited cards, and their
-  order. A format no deck or game has used can be deleted; one in use can only be **retired**:
-  it can no longer be picked for new games or shown in the deck builder, and past games keep its
-  name. A retired format can be brought back.
+  order. Formats are never deleted, only **retired**: a retired format can no longer be picked for
+  new games, quick matches or rematches, nor shown in the deck builder, and computer opponents in it
+  stop being offered. Games running or already open carry on, and past games keep its name. The last
+  format players can choose cannot be retired. A retired format can be brought back.
 - **Starter decks**: build them, order them (the first is every player's default) and switch each
   on or off; players are offered the ones switched on (section 5).
 - **Chat**: delete messages, mute players.

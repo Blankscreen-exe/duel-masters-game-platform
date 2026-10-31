@@ -131,6 +131,13 @@ func (c *Challenges) Start(ctx context.Context, player users.User, opponentID, d
 	if err != nil {
 		return games.Game{}, err
 	}
+	offered, err := c.formats.ByID(ctx, opponent.FormatID)
+	if err != nil {
+		return games.Game{}, fmt.Errorf("finding %s's format: %w", opponent.Name, err)
+	}
+	if offered.Retired {
+		return games.Game{}, ErrUnavailable
+	}
 	format, deck, err := c.lobby.PrepareDeck(ctx, player, opponent.FormatID, deckID)
 	if err != nil {
 		return games.Game{}, err

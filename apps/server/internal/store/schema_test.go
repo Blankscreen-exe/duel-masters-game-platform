@@ -235,6 +235,28 @@ func TestUndoingComputerAccountsKeepsEveryonesSessions(t *testing.T) {
 	})
 }
 
+func TestUndoingFormatRetirementKeepsEveryFormatsRules(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		count := func(table string) int64 {
+			var rows int64
+			require.NoError(t, db.Table(table).Count(&rows).Error)
+			return rows
+		}
+		sets := count("format_sets")
+		require.Positive(t, sets)
+		require.NoError(t, db.Table("formats").Where("name = ?", "Open").Update("retired_at", time.Now()).Error)
+
+		require.NoError(t, store.RollbackTo(db, "0013_create_computer_opponents"))
+		assert.Equal(t, sets, count("format_sets"), "undoing the migration takes no format's sets")
+		assert.Equal(t, int64(2), count("formats"))
+
+		require.NoError(t, store.Migrate(db), "and it can run again")
+		var retired int64
+		require.NoError(t, db.Table("formats").Where("retired_at IS NOT NULL").Count(&retired).Error)
+		assert.Zero(t, retired, "as on a database that really dropped the column")
+	})
+}
+
 func TestUndoingRatingsKeepsEveryonesSessions(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
 		require.NoError(t, insertUser(db, "u1", "Shobu", "player"))

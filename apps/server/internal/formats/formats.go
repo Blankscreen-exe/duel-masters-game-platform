@@ -30,6 +30,9 @@ type Format struct {
 	// Limits are the banned and limited cards: the most copies of each card a
 	// deck may have, 0 for a banned card.
 	Limits map[string]int
+	// Retired formats cannot be chosen for new games, and decks are no longer
+	// checked against them; games already in them keep them.
+	Retired bool
 }
 
 // AllowsSet reports whether cards printed in the set may be used.
@@ -52,6 +55,7 @@ type formatRow struct {
 	Description string
 	AllSets     bool
 	SortOrder   int
+	RetiredAt   *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -83,17 +87,27 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
-// List returns every format, in the order admins set.
+// List returns the formats players can choose, in the order admins set.
 func (s *Service) List(ctx context.Context) ([]Format, error) {
+	return s.read(ctx, s.db.WithContext(ctx).Where("retired_at IS NULL"))
+}
+
+// All returns every format, retired or not, in the order admins set.
+func (s *Service) All(ctx context.Context) ([]Format, error) {
+	return s.read(ctx, s.db.WithContext(ctx))
+}
+
+func (s *Service) read(ctx context.Context, query *gorm.DB) ([]Format, error) {
 	var rows []formatRow
-	if err := s.db.WithContext(ctx).Order("sort_order, name").Find(&rows).Error; err != nil {
+	if err := query.Order("sort_order, name").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("listing formats: %w", err)
 	}
 
 	return s.withRules(ctx, rows)
 }
 
-// ByID returns a format. It returns ErrNotFound if there is none.
+// ByID returns a format, retired or not. It returns ErrNotFound if there is
+// none.
 func (s *Service) ByID(ctx context.Context, id string) (Format, error) {
 	var row formatRow
 	err := s.db.WithContext(ctx).Where("id = ?", id).Take(&row).Error
@@ -128,6 +142,7 @@ func (s *Service) withRules(ctx context.Context, rows []formatRow) ([]Format, er
 			AllSets:     row.AllSets,
 			Sets:        []string{},
 			Limits:      map[string]int{},
+			Retired:     row.RetiredAt != nil,
 		}
 	}
 	if len(rows) == 0 {

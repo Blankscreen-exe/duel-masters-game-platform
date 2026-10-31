@@ -1103,7 +1103,7 @@ paths:
   /formats:
     get:
       operationId: listFormats
-      summary: Every format, in the order admins set
+      summary: The formats players can choose, in the order admins set
       tags: [formats]
       responses:
         "200":
@@ -1558,6 +1558,171 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/AdminConflict"
+  /admin/formats:
+    get:
+      operationId: getAdminFormats
+      summary: Every format, retired or not
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The formats, in order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminFormat"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createFormat
+      summary: Add a format, last in order
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormatInput"
+      responses:
+        "201":
+          description: The format as added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminFormat"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/FormatNameTaken"
+  /admin/formats/order:
+    put:
+      operationId: reorderFormats
+      summary: Put every format in the order given
+      description: >-
+        The first format players can choose is what the site picks for them to begin with.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormatOrder"
+      responses:
+        "200":
+          description: The formats, in their new order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminFormat"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/formats/{formatId}:
+    parameters:
+      - $ref: "#/components/parameters/FormatId"
+    get:
+      operationId: getAdminFormat
+      summary: A format, retired or not
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The format.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminFormat"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateFormat
+      summary: Change a format
+      description: >-
+        Games already running carry on under the rules they started with. Decks, new games and
+        computer opponents follow the new rules at once.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormatInput"
+      responses:
+        "200":
+          description: The format as changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminFormat"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/FormatNameTaken"
+  /admin/formats/{formatId}/retired:
+    parameters:
+      - $ref: "#/components/parameters/FormatId"
+    put:
+      operationId: setFormatRetired
+      summary: Retire a format or bring it back
+      description: >-
+        Once retired it cannot be chosen for new games and decks are no longer checked against it,
+        and computer opponents in it stop being offered. Running games, open games and past games
+        keep it. The only format left to choose cannot be retired (code "last_format").
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormatRetired"
+      responses:
+        "200":
+          description: The format as changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminFormat"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/LastFormat"
   /admin/computer-opponents:
     get:
       operationId: getAdminComputerOpponents
@@ -1848,6 +2013,12 @@ components:
       schema:
         type: integer
   parameters:
+    FormatId:
+      name: formatId
+      in: path
+      required: true
+      schema:
+        type: string
     OpponentId:
       name: opponentId
       in: path
@@ -1864,6 +2035,18 @@ components:
   responses:
     Forbidden:
       description: Only admins can do this (code "forbidden").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    FormatNameTaken:
+      description: A format already has this name, in any case (code "format_name_taken").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    LastFormat:
+      description: This is the only format players can choose (code "last_format").
       content:
         application/json:
           schema:
@@ -2319,6 +2502,11 @@ components:
         - computer_opponent_changed
         - computer_opponent_offered
         - computer_opponent_retired
+        - format_added
+        - format_changed
+        - format_retired
+        - format_restored
+        - formats_reordered
     AdminLogEntry:
       type: object
       required: [id, adminName, action, subject, details, at]
@@ -2521,6 +2709,87 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FormatCardLimit"
+    AdminFormat:
+      description: A format as the admin panel shows it.
+      type: object
+      required: [id, name, description, allSets, sets, limits, retired, opponents]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        allSets:
+          description: Cards from every set are allowed, including sets added later.
+          type: boolean
+        sets:
+          description: The allowed sets when allSets is false; empty otherwise.
+          type: array
+          items:
+            type: string
+        limits:
+          description: The banned and limited cards, by name.
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminFormatLimit"
+        retired:
+          description: Players can no longer choose it.
+          type: boolean
+        opponents:
+          description: The names of the computer opponents offered to players in this format.
+          type: array
+          items:
+            type: string
+    AdminFormatLimit:
+      type: object
+      required: [cardId, maxCopies]
+      properties:
+        cardId:
+          type: string
+        maxCopies:
+          description: 0 for a banned card, 1 or 2 for a limited one.
+          type: integer
+        card:
+          description: Absent for a card that has left the card database.
+          $ref: "#/components/schemas/Card"
+    FormatInput:
+      description: A format as an admin saves it.
+      type: object
+      required: [name, description, allSets, sets, limits]
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        description:
+          type: string
+          maxLength: 200
+        allSets:
+          type: boolean
+        sets:
+          description: The allowed sets when allSets is false, at least one.
+          type: array
+          items:
+            type: string
+        limits:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormatCardLimit"
+    FormatOrder:
+      type: object
+      required: [formatIds]
+      properties:
+        formatIds:
+          description: Each format once, retired or not.
+          type: array
+          items:
+            type: string
+    FormatRetired:
+      type: object
+      required: [retired]
+      properties:
+        retired:
+          type: boolean
     FormatCardLimit:
       type: object
       required: [cardId, maxCopies]
@@ -2677,7 +2946,8 @@ components:
         the card database. not_in_format: none of its printings is from an allowed set. banned: the
         format bans it. over_limit: more copies than the format allows. too_many_copies: more than
         4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has
-        more civilizations than its rules allow, or a card of a type they do not.
+        more civilizations than its rules allow, or a card of a type they do not. format_retired:
+        only for a computer opponent, whose format an admin has retired.
       type: string
       enum:
         - deck_size
@@ -2686,6 +2956,7 @@ components:
         - banned
         - over_limit
         - too_many_copies
+        - format_retired
         - too_many_civilizations
         - card_type
     DeckListText:

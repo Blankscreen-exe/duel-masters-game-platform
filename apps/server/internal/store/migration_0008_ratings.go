@@ -49,7 +49,7 @@ func migration0008Ratings() *gormigrate.Migration {
 	return &gormigrate.Migration{
 		ID: "0008_add_ratings",
 		Migrate: func(tx *gorm.DB) error {
-			if err := addUserColumns(tx, &user0008{}, userColumns0008...); err != nil {
+			if err := addColumns(tx, &user0008{}, userColumns0008...); err != nil {
 				return err
 			}
 			for _, field := range gameColumns0008 {
@@ -70,7 +70,7 @@ func migration0008Ratings() *gormigrate.Migration {
 				}
 			}
 			starting := map[string]any{"rating": 1000, "wins": 0, "losses": 0, "streak": 0}
-			return dropUserColumns(tx, &user0008{}, starting, userColumns0008...)
+			return dropColumns(tx, &user0008{}, starting, userColumns0008...)
 		},
 	}
 }

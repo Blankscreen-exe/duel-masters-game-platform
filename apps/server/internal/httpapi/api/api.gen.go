@@ -43,6 +43,11 @@ const (
 	AdminLogActionComputerOpponentChanged AdminLogAction = "computer_opponent_changed"
 	AdminLogActionComputerOpponentOffered AdminLogAction = "computer_opponent_offered"
 	AdminLogActionComputerOpponentRetired AdminLogAction = "computer_opponent_retired"
+	AdminLogActionFormatAdded             AdminLogAction = "format_added"
+	AdminLogActionFormatChanged           AdminLogAction = "format_changed"
+	AdminLogActionFormatRestored          AdminLogAction = "format_restored"
+	AdminLogActionFormatRetired           AdminLogAction = "format_retired"
+	AdminLogActionFormatsReordered        AdminLogAction = "formats_reordered"
 	AdminLogActionGameStopped             AdminLogAction = "game_stopped"
 	AdminLogActionPasswordReset           AdminLogAction = "password_reset"
 	AdminLogActionRoleChanged             AdminLogAction = "role_changed"
@@ -66,6 +71,16 @@ func (e AdminLogAction) Valid() bool {
 	case AdminLogActionComputerOpponentOffered:
 		return true
 	case AdminLogActionComputerOpponentRetired:
+		return true
+	case AdminLogActionFormatAdded:
+		return true
+	case AdminLogActionFormatChanged:
+		return true
+	case AdminLogActionFormatRestored:
+		return true
+	case AdminLogActionFormatRetired:
+		return true
+	case AdminLogActionFormatsReordered:
 		return true
 	case AdminLogActionGameStopped:
 		return true
@@ -173,6 +188,7 @@ const (
 	DeckProblemCodeBanned               DeckProblemCode = "banned"
 	DeckProblemCodeCardType             DeckProblemCode = "card_type"
 	DeckProblemCodeDeckSize             DeckProblemCode = "deck_size"
+	DeckProblemCodeFormatRetired        DeckProblemCode = "format_retired"
 	DeckProblemCodeNotInFormat          DeckProblemCode = "not_in_format"
 	DeckProblemCodeNotPlayable          DeckProblemCode = "not_playable"
 	DeckProblemCodeOverLimit            DeckProblemCode = "over_limit"
@@ -188,6 +204,8 @@ func (e DeckProblemCode) Valid() bool {
 	case DeckProblemCodeCardType:
 		return true
 	case DeckProblemCodeDeckSize:
+		return true
+	case DeckProblemCodeFormatRetired:
 		return true
 	case DeckProblemCodeNotInFormat:
 		return true
@@ -650,6 +668,36 @@ type AdminComputerOpponent struct {
 // AdminComputerOpponentStrength defines model for AdminComputerOpponent.Strength.
 type AdminComputerOpponentStrength string
 
+// AdminFormat A format as the admin panel shows it.
+type AdminFormat struct {
+	// AllSets Cards from every set are allowed, including sets added later.
+	AllSets     bool   `json:"allSets"`
+	Description string `json:"description"`
+	Id          string `json:"id"`
+
+	// Limits The banned and limited cards, by name.
+	Limits []AdminFormatLimit `json:"limits"`
+	Name   string             `json:"name"`
+
+	// Opponents The names of the computer opponents offered to players in this format.
+	Opponents []string `json:"opponents"`
+
+	// Retired Players can no longer choose it.
+	Retired bool `json:"retired"`
+
+	// Sets The allowed sets when allSets is false; empty otherwise.
+	Sets []string `json:"sets"`
+}
+
+// AdminFormatLimit defines model for AdminFormatLimit.
+type AdminFormatLimit struct {
+	Card   *Card  `json:"card,omitempty"`
+	CardId string `json:"cardId"`
+
+	// MaxCopies 0 for a banned card, 1 or 2 for a limited one.
+	MaxCopies int `json:"maxCopies"`
+}
+
 // AdminLogAction defines model for AdminLogAction.
 type AdminLogAction string
 
@@ -1046,14 +1094,14 @@ type DeckProblem struct {
 	// CardId The card at fault; absent for the deck's size.
 	CardId *string `json:"cardId,omitempty"`
 
-	// Code deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not.
+	// Code deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not. format_retired: only for a computer opponent, whose format an admin has retired.
 	Code DeckProblemCode `json:"code"`
 
 	// Message The problem explained to the player.
 	Message string `json:"message"`
 }
 
-// DeckProblemCode deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not.
+// DeckProblemCode deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not. format_retired: only for a computer opponent, whose format an admin has retired.
 type DeckProblemCode string
 
 // DeckSummary defines model for DeckSummary.
@@ -1115,6 +1163,28 @@ type FormatCardLimit struct {
 
 	// MaxCopies 0 for a banned card, 1 or 2 for a limited one.
 	MaxCopies int `json:"maxCopies"`
+}
+
+// FormatInput A format as an admin saves it.
+type FormatInput struct {
+	AllSets     bool              `json:"allSets"`
+	Description string            `json:"description"`
+	Limits      []FormatCardLimit `json:"limits"`
+	Name        string            `json:"name"`
+
+	// Sets The allowed sets when allSets is false, at least one.
+	Sets []string `json:"sets"`
+}
+
+// FormatOrder defines model for FormatOrder.
+type FormatOrder struct {
+	// FormatIds Each format once, retired or not.
+	FormatIds []string `json:"formatIds"`
+}
+
+// FormatRetired defines model for FormatRetired.
+type FormatRetired struct {
+	Retired bool `json:"retired"`
 }
 
 // GamePlayer defines model for GamePlayer.
@@ -1612,6 +1682,9 @@ type Streak = int
 // Tier defines model for Tier.
 type Tier string
 
+// FormatId defines model for FormatId.
+type FormatId = string
+
 // OpponentId defines model for OpponentId.
 type OpponentId = string
 
@@ -1630,6 +1703,9 @@ type ComputerOpponentNameTaken = Error
 // Forbidden Returned with every error status.
 type Forbidden = Error
 
+// FormatNameTaken Returned with every error status.
+type FormatNameTaken = Error
+
 // GamesPaused Returned with every error status.
 type GamesPaused = Error
 
@@ -1638,6 +1714,9 @@ type InvalidDeckOrInput = Error
 
 // InvalidInput Returned with every error status.
 type InvalidInput = Error
+
+// LastFormat Returned with every error status.
+type LastFormat = Error
 
 // NotFound Returned with every error status.
 type NotFound = Error
@@ -1758,6 +1837,18 @@ type UpdateComputerOpponentJSONRequestBody = ComputerOpponentInput
 
 // SetComputerOpponentOfferedJSONRequestBody defines body for SetComputerOpponentOffered for application/json ContentType.
 type SetComputerOpponentOfferedJSONRequestBody = ComputerOpponentOffered
+
+// CreateFormatJSONRequestBody defines body for CreateFormat for application/json ContentType.
+type CreateFormatJSONRequestBody = FormatInput
+
+// ReorderFormatsJSONRequestBody defines body for ReorderFormats for application/json ContentType.
+type ReorderFormatsJSONRequestBody = FormatOrder
+
+// UpdateFormatJSONRequestBody defines body for UpdateFormat for application/json ContentType.
+type UpdateFormatJSONRequestBody = FormatInput
+
+// SetFormatRetiredJSONRequestBody defines body for SetFormatRetired for application/json ContentType.
+type SetFormatRetiredJSONRequestBody = FormatRetired
 
 // SetAdminSettingJSONRequestBody defines body for SetAdminSetting for application/json ContentType.
 type SetAdminSettingJSONRequestBody = AdminSettingInput
@@ -2219,6 +2310,24 @@ type ServerInterface interface {
 	// SetComputerOpponentOffered Offer a computer opponent to players, or retire it
 	// (PUT /admin/computer-opponents/{opponentId}/offered)
 	SetComputerOpponentOffered(w http.ResponseWriter, r *http.Request, opponentId OpponentId)
+	// GetAdminFormats Every format, retired or not
+	// (GET /admin/formats)
+	GetAdminFormats(w http.ResponseWriter, r *http.Request)
+	// CreateFormat Add a format, last in order
+	// (POST /admin/formats)
+	CreateFormat(w http.ResponseWriter, r *http.Request)
+	// ReorderFormats Put every format in the order given
+	// (PUT /admin/formats/order)
+	ReorderFormats(w http.ResponseWriter, r *http.Request)
+	// GetAdminFormat A format, retired or not
+	// (GET /admin/formats/{formatId})
+	GetAdminFormat(w http.ResponseWriter, r *http.Request, formatId FormatId)
+	// UpdateFormat Change a format
+	// (PUT /admin/formats/{formatId})
+	UpdateFormat(w http.ResponseWriter, r *http.Request, formatId FormatId)
+	// SetFormatRetired Retire a format or bring it back
+	// (PUT /admin/formats/{formatId}/retired)
+	SetFormatRetired(w http.ResponseWriter, r *http.Request, formatId FormatId)
 	// GetAdminLog The admin log
 	// (GET /admin/log)
 	GetAdminLog(w http.ResponseWriter, r *http.Request, params GetAdminLogParams)
@@ -2315,7 +2424,7 @@ type ServerInterface interface {
 	// GetDeckText A deck written as text
 	// (GET /decks/{deckId}/text)
 	GetDeckText(w http.ResponseWriter, r *http.Request, deckId string)
-	// ListFormats Every format, in the order admins set
+	// ListFormats The formats players can choose, in the order admins set
 	// (GET /formats)
 	ListFormats(w http.ResponseWriter, r *http.Request)
 	// GetLiveGame A running game, for its players and its spectators
@@ -2509,6 +2618,126 @@ func (siw *ServerInterfaceWrapper) SetComputerOpponentOffered(w http.ResponseWri
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetComputerOpponentOffered(w, r, opponentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminFormats operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminFormats(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminFormats(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateFormat operation middleware
+func (siw *ServerInterfaceWrapper) CreateFormat(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateFormat(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReorderFormats operation middleware
+func (siw *ServerInterfaceWrapper) ReorderFormats(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReorderFormats(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminFormat operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminFormat(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formatId" -------------
+	var formatId FormatId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formatId", r.PathValue("formatId"), &formatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formatId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminFormat(w, r, formatId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateFormat operation middleware
+func (siw *ServerInterfaceWrapper) UpdateFormat(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formatId" -------------
+	var formatId FormatId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formatId", r.PathValue("formatId"), &formatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formatId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateFormat(w, r, formatId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetFormatRetired operation middleware
+func (siw *ServerInterfaceWrapper) SetFormatRetired(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formatId" -------------
+	var formatId FormatId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formatId", r.PathValue("formatId"), &formatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formatId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetFormatRetired(w, r, formatId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4291,6 +4520,12 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/users/{userId}/mute", wrapper.MuteUser)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/users/{userId}/role", wrapper.SetUserRole)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/users/{userId}/password", wrapper.SetUserPassword)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/formats", wrapper.GetAdminFormats)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/formats", wrapper.CreateFormat)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/formats/order", wrapper.ReorderFormats)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/formats/{formatId}", wrapper.GetAdminFormat)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/formats/{formatId}", wrapper.UpdateFormat)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/formats/{formatId}/retired", wrapper.SetFormatRetired)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/computer-opponents", wrapper.GetAdminComputerOpponents)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/computer-opponents", wrapper.CreateComputerOpponent)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/computer-opponents/options", wrapper.GetComputerOpponentOptions)
@@ -4313,11 +4548,15 @@ type ComputerOpponentNameTakenJSONResponse Error
 
 type ForbiddenJSONResponse Error
 
+type FormatNameTakenJSONResponse Error
+
 type GamesPausedJSONResponse Error
 
 type InvalidDeckOrInputJSONResponse Error
 
 type InvalidInputJSONResponse Error
+
+type LastFormatJSONResponse Error
 
 type NotFoundJSONResponse Error
 
@@ -4755,6 +4994,433 @@ func (response SetComputerOpponentOffered404JSONResponse) VisitSetComputerOppone
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminFormatsRequestObject struct {
+}
+
+type GetAdminFormatsResponseObject interface {
+	VisitGetAdminFormatsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminFormats200JSONResponse []AdminFormat
+
+func (response GetAdminFormats200JSONResponse) VisitGetAdminFormatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminFormats401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetAdminFormats401JSONResponse) VisitGetAdminFormatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminFormats403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminFormats403JSONResponse) VisitGetAdminFormatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFormatRequestObject struct {
+	Body *CreateFormatJSONRequestBody
+}
+
+type CreateFormatResponseObject interface {
+	VisitCreateFormatResponse(w http.ResponseWriter) error
+}
+
+type CreateFormat201JSONResponse AdminFormat
+
+func (response CreateFormat201JSONResponse) VisitCreateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFormat400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response CreateFormat400JSONResponse) VisitCreateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFormat401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response CreateFormat401JSONResponse) VisitCreateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFormat403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateFormat403JSONResponse) VisitCreateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFormat409JSONResponse struct{ FormatNameTakenJSONResponse }
+
+func (response CreateFormat409JSONResponse) VisitCreateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReorderFormatsRequestObject struct {
+	Body *ReorderFormatsJSONRequestBody
+}
+
+type ReorderFormatsResponseObject interface {
+	VisitReorderFormatsResponse(w http.ResponseWriter) error
+}
+
+type ReorderFormats200JSONResponse []AdminFormat
+
+func (response ReorderFormats200JSONResponse) VisitReorderFormatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReorderFormats400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response ReorderFormats400JSONResponse) VisitReorderFormatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReorderFormats401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response ReorderFormats401JSONResponse) VisitReorderFormatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReorderFormats403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ReorderFormats403JSONResponse) VisitReorderFormatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminFormatRequestObject struct {
+	FormatId FormatId `json:"formatId"`
+}
+
+type GetAdminFormatResponseObject interface {
+	VisitGetAdminFormatResponse(w http.ResponseWriter) error
+}
+
+type GetAdminFormat200JSONResponse AdminFormat
+
+func (response GetAdminFormat200JSONResponse) VisitGetAdminFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminFormat401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetAdminFormat401JSONResponse) VisitGetAdminFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminFormat403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminFormat403JSONResponse) VisitGetAdminFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminFormat404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAdminFormat404JSONResponse) VisitGetAdminFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFormatRequestObject struct {
+	FormatId FormatId `json:"formatId"`
+	Body     *UpdateFormatJSONRequestBody
+}
+
+type UpdateFormatResponseObject interface {
+	VisitUpdateFormatResponse(w http.ResponseWriter) error
+}
+
+type UpdateFormat200JSONResponse AdminFormat
+
+func (response UpdateFormat200JSONResponse) VisitUpdateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFormat400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response UpdateFormat400JSONResponse) VisitUpdateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFormat401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response UpdateFormat401JSONResponse) VisitUpdateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFormat403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateFormat403JSONResponse) VisitUpdateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFormat404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateFormat404JSONResponse) VisitUpdateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFormat409JSONResponse struct{ FormatNameTakenJSONResponse }
+
+func (response UpdateFormat409JSONResponse) VisitUpdateFormatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFormatRetiredRequestObject struct {
+	FormatId FormatId `json:"formatId"`
+	Body     *SetFormatRetiredJSONRequestBody
+}
+
+type SetFormatRetiredResponseObject interface {
+	VisitSetFormatRetiredResponse(w http.ResponseWriter) error
+}
+
+type SetFormatRetired200JSONResponse AdminFormat
+
+func (response SetFormatRetired200JSONResponse) VisitSetFormatRetiredResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFormatRetired401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SetFormatRetired401JSONResponse) VisitSetFormatRetiredResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFormatRetired403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetFormatRetired403JSONResponse) VisitSetFormatRetiredResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFormatRetired404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetFormatRetired404JSONResponse) VisitSetFormatRetiredResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFormatRetired409JSONResponse struct{ LastFormatJSONResponse }
+
+func (response SetFormatRetired409JSONResponse) VisitSetFormatRetiredResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7962,6 +8628,24 @@ type StrictServerInterface interface {
 	// SetComputerOpponentOffered Offer a computer opponent to players, or retire it
 	// (PUT /admin/computer-opponents/{opponentId}/offered)
 	SetComputerOpponentOffered(ctx context.Context, request SetComputerOpponentOfferedRequestObject) (SetComputerOpponentOfferedResponseObject, error)
+	// GetAdminFormats Every format, retired or not
+	// (GET /admin/formats)
+	GetAdminFormats(ctx context.Context, request GetAdminFormatsRequestObject) (GetAdminFormatsResponseObject, error)
+	// CreateFormat Add a format, last in order
+	// (POST /admin/formats)
+	CreateFormat(ctx context.Context, request CreateFormatRequestObject) (CreateFormatResponseObject, error)
+	// ReorderFormats Put every format in the order given
+	// (PUT /admin/formats/order)
+	ReorderFormats(ctx context.Context, request ReorderFormatsRequestObject) (ReorderFormatsResponseObject, error)
+	// GetAdminFormat A format, retired or not
+	// (GET /admin/formats/{formatId})
+	GetAdminFormat(ctx context.Context, request GetAdminFormatRequestObject) (GetAdminFormatResponseObject, error)
+	// UpdateFormat Change a format
+	// (PUT /admin/formats/{formatId})
+	UpdateFormat(ctx context.Context, request UpdateFormatRequestObject) (UpdateFormatResponseObject, error)
+	// SetFormatRetired Retire a format or bring it back
+	// (PUT /admin/formats/{formatId}/retired)
+	SetFormatRetired(ctx context.Context, request SetFormatRetiredRequestObject) (SetFormatRetiredResponseObject, error)
 	// GetAdminLog The admin log
 	// (GET /admin/log)
 	GetAdminLog(ctx context.Context, request GetAdminLogRequestObject) (GetAdminLogResponseObject, error)
@@ -8058,7 +8742,7 @@ type StrictServerInterface interface {
 	// GetDeckText A deck written as text
 	// (GET /decks/{deckId}/text)
 	GetDeckText(ctx context.Context, request GetDeckTextRequestObject) (GetDeckTextResponseObject, error)
-	// ListFormats Every format, in the order admins set
+	// ListFormats The formats players can choose, in the order admins set
 	// (GET /formats)
 	ListFormats(ctx context.Context, request ListFormatsRequestObject) (ListFormatsResponseObject, error)
 	// GetLiveGame A running game, for its players and its spectators
@@ -8335,6 +9019,184 @@ func (sh *strictHandler) SetComputerOpponentOffered(w http.ResponseWriter, r *ht
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetComputerOpponentOfferedResponseObject); ok {
 		if err := validResponse.VisitSetComputerOpponentOfferedResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminFormats operation middleware
+func (sh *strictHandler) GetAdminFormats(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminFormatsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminFormats(ctx, request.(GetAdminFormatsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminFormats")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminFormatsResponseObject); ok {
+		if err := validResponse.VisitGetAdminFormatsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateFormat operation middleware
+func (sh *strictHandler) CreateFormat(w http.ResponseWriter, r *http.Request) {
+	var request CreateFormatRequestObject
+
+	var body CreateFormatJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateFormat(ctx, request.(CreateFormatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateFormat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateFormatResponseObject); ok {
+		if err := validResponse.VisitCreateFormatResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReorderFormats operation middleware
+func (sh *strictHandler) ReorderFormats(w http.ResponseWriter, r *http.Request) {
+	var request ReorderFormatsRequestObject
+
+	var body ReorderFormatsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReorderFormats(ctx, request.(ReorderFormatsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReorderFormats")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReorderFormatsResponseObject); ok {
+		if err := validResponse.VisitReorderFormatsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminFormat operation middleware
+func (sh *strictHandler) GetAdminFormat(w http.ResponseWriter, r *http.Request, formatId FormatId) {
+	var request GetAdminFormatRequestObject
+
+	request.FormatId = formatId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminFormat(ctx, request.(GetAdminFormatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminFormat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminFormatResponseObject); ok {
+		if err := validResponse.VisitGetAdminFormatResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateFormat operation middleware
+func (sh *strictHandler) UpdateFormat(w http.ResponseWriter, r *http.Request, formatId FormatId) {
+	var request UpdateFormatRequestObject
+
+	request.FormatId = formatId
+
+	var body UpdateFormatJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateFormat(ctx, request.(UpdateFormatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateFormat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateFormatResponseObject); ok {
+		if err := validResponse.VisitUpdateFormatResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetFormatRetired operation middleware
+func (sh *strictHandler) SetFormatRetired(w http.ResponseWriter, r *http.Request, formatId FormatId) {
+	var request SetFormatRetiredRequestObject
+
+	request.FormatId = formatId
+
+	var body SetFormatRetiredJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetFormatRetired(ctx, request.(SetFormatRetiredRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetFormatRetired")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetFormatRetiredResponseObject); ok {
+		if err := validResponse.VisitSetFormatRetiredResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

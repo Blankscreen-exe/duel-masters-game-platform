@@ -18,6 +18,11 @@ export const ADMIN_SECTIONS = [
     description: 'Find players, ban, mute, change roles and passwords.',
   },
   {
+    href: '/admin/formats',
+    label: 'Formats',
+    description: 'Add, change, order and retire the formats games are played in.',
+  },
+  {
     href: '/admin/computer-opponents',
     label: 'Computer opponents',
     description: 'Add, change and retire the personalities players practise against.',
@@ -119,6 +124,11 @@ export const ADMIN_LOG_ACTIONS: Readonly<Record<AdminLogAction, string>> = {
   computer_opponent_changed: 'Changed a computer opponent',
   computer_opponent_offered: 'Offered a computer opponent',
   computer_opponent_retired: 'Retired a computer opponent',
+  format_added: 'Added a format',
+  format_changed: 'Changed a format',
+  format_retired: 'Retired a format',
+  format_restored: 'Brought back a format',
+  formats_reordered: 'Reordered the formats',
 };
 
 /** The admin log as a page address asks for it. */

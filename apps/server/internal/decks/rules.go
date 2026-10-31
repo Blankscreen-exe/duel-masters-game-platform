@@ -50,6 +50,8 @@ const (
 	ProblemTooManyCivilizations ProblemKind = "too_many_civilizations"
 	// ProblemCardType: the deck's Rules do not allow the card's type.
 	ProblemCardType ProblemKind = "card_type"
+	// ProblemFormatRetired: the format the deck keeps to has been retired.
+	ProblemFormatRetired ProblemKind = "format_retired"
 )
 
 // Problem is one way a deck breaks a format's rules.
@@ -90,6 +92,8 @@ func (p Problem) Message() string {
 		return fmt.Sprintf("The deck's cards have %d civilizations, but at most %d %s allowed.", p.Count, p.Limit, plural(p.Limit, "is", "are"))
 	case ProblemCardType:
 		return fmt.Sprintf("%s is a type of card this deck may not have.", name)
+	case ProblemFormatRetired:
+		return "The deck's format has been retired."
 	default:
 		return string(p.Kind)
 	}

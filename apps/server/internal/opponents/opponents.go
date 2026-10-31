@@ -128,7 +128,7 @@ func (s *Service) ByUser(ctx context.Context, userID string) (Opponent, error) {
 }
 
 // Check lists every way an opponent's deck breaks its format's rules or its
-// own, or nothing for a deck it can play.
+// own, or that its format is retired, or nothing for a deck it can play.
 func (s *Service) Check(ctx context.Context, opponent Opponent) ([]decks.Problem, error) {
 	format, err := s.formats.ByID(ctx, opponent.FormatID)
 	if err != nil {
@@ -144,7 +144,11 @@ func (s *Service) Check(ctx context.Context, opponent Opponent) ([]decks.Problem
 		return nil, fmt.Errorf("reading %s's cards: %w", opponent.Name, err)
 	}
 
-	return slices.Concat(decks.Check(opponent.Cards, known, format), decks.CheckRules(opponent.Cards, known, opponent.Rules)), nil
+	var retired []decks.Problem
+	if format.Retired {
+		retired = []decks.Problem{{Kind: decks.ProblemFormatRetired}}
+	}
+	return slices.Concat(retired, decks.Check(opponent.Cards, known, format), decks.CheckRules(opponent.Cards, known, opponent.Rules)), nil
 }
 
 // read reads the opponents the query finds, in order, with their names and

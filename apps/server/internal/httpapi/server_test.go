@@ -134,6 +134,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 			Ratings:       ratingService,
 			Catalogue:     catalogue,
 			Formats:       formatService,
+			FormatManager: formats.NewManager(db, formatService, catalogue),
 			Decks:         deckService,
 			Chat:          chat.NewService(db, live, siteSettings, clock.Now),
 			Games:         gameService,

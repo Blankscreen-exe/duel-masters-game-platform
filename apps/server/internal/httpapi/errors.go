@@ -27,6 +27,8 @@ const (
 	codeTooFast      = "too_fast"
 
 	codeDeckNotLegal         = "deck_not_legal"
+	codeFormatNameTaken      = "format_name_taken"
+	codeLastFormat           = "last_format"
 	codeGamesPaused          = "games_paused"
 	codeBusy                 = "busy"
 	codeNotHost              = "not_host"

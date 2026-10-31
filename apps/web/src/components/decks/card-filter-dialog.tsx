@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { Chips } from '@/components/ui/chips';
 import { FIELD_CONTROL, FIELD_HINT, FIELD_LABEL } from '@/components/ui/field';
 import { Modal, ModalClose } from '@/components/ui/modal';
 import { SelectField } from '@/components/ui/select-field';
@@ -26,10 +27,6 @@ interface CardFilterDialogProps {
   readonly onApply: (choices: CardFilterChoices) => void;
   readonly onClose: () => void;
 }
-
-const CHIP = 'px-2.5 py-1 text-xs font-semibold ring-1 ring-inset transition';
-const CHIP_ON = 'bg-slate-600 text-white ring-accent';
-const CHIP_OFF = 'bg-slate-800/80 text-slate-300 ring-slate-600/60 hover:text-white';
 
 /** Every way of narrowing and ordering the trunk's cards. */
 export function CardFilterDialog({
@@ -308,36 +305,6 @@ interface ManyChoiceProps {
 
 function toggled(chosen: readonly string[], value: string): readonly string[] {
   return chosen.includes(value) ? chosen.filter((c) => c !== value) : [...chosen, value];
-}
-
-/** A few values to pick any number of, all in view. */
-function Chips({
-  label,
-  options,
-  chosen,
-  onChange,
-  className = '',
-}: ManyChoiceProps & { readonly className?: string }) {
-  return (
-    <div role="group" aria-label={label} className={`flex flex-wrap gap-1.5 ${className}`}>
-      {options.map(({ value, label: text }) => {
-        const on = chosen.includes(value);
-        return (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={on}
-            onClick={() => {
-              onChange(toggled(chosen, value));
-            }}
-            className={`${CHIP} ${on ? CHIP_ON : CHIP_OFF}`}
-          >
-            {text}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 /** Many values to pick any number of: a list that scrolls, with a box to find one. */
