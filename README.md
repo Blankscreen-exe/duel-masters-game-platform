@@ -1,16 +1,47 @@
 # Duel Masters Game Platform
 
 A self-hosted, two-player, browser-based Duel Masters site: player accounts, a deck builder, a
-lobby with quick match, ratings and match history, and an admin panel. Games are played with the
-rules engine and duel board from the [`duel-masters`](https://github.com/sindreslungaard/duel-masters)
+lobby with quick match, computer opponents, ratings and match history, and an admin panel. Games
+are played with the rules engine and duel board from the [`duel-masters`](https://github.com/sindreslungaard/duel-masters)
 project, maintained here.
 
-> **Status:** early build. The rules engine (`apps/server/internal/engine`), the duel board
-> (`packages/duel-board`), the server foundation, accounts, the card catalogue, formats, decks
-> and their website pages (`apps/web`: home, sign up, log in, cards, My decks, the deck builder)
-> are in place; the lobby and games come next. The full
-> specification lives in [`design/SPEC.md`](design/SPEC.md) and the reasons behind each decision
-> in [`docs/adr/`](docs/adr/).
+![The duel board in the middle of a game](docs/images/game-board.png)
+
+> **Status:** in active development, not yet ready to run in public. Accounts, decks, the lobby,
+> live games, computer opponents, ratings and most of the admin panel work. The full specification
+> lives in [`design/SPEC.md`](design/SPEC.md) and the reasons behind each decision in
+> [`docs/adr/`](docs/adr/).
+
+## Screenshots
+
+### Playing a game
+
+| Calling the coin toss | Confirming an attack |
+| :-: | :-: |
+| ![Calling the coin toss](docs/images/coin-toss.png) | ![The attack confirmation, with the attacker's power and an arrow to its target](docs/images/confirm-attack.png) |
+
+Every attack shows its power and direction, blue for your side and red for your opponent's. When
+your opponent attacks and you have a blocker, you see the same line:
+
+![Choosing whether to block an attack](docs/images/block-question.png)
+
+The board also fits a phone:
+
+<img src="docs/images/phone.png" alt="The duel board on a phone" width="300">
+
+### The site
+
+| Home, with the lobby chat | Finding a game |
+| :-: | :-: |
+| ![The home page](docs/images/home.png) | ![The play page, with quick match, open games and chat](docs/images/play.png) |
+
+| Building a deck | The card database |
+| :-: | :-: |
+| ![The deck builder](docs/images/deck-builder.png) | ![Searching the card database](docs/images/cards.png) |
+
+### The admin panel
+
+![The admin panel's list of players](docs/images/admin.png)
 
 ## Getting the code
 
