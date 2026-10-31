@@ -7,6 +7,7 @@ import {
   type DuelPlayerBar,
 } from '@duel-masters/duel-board';
 import { useRouter } from 'next/navigation';
+import { CARD_BACK } from '@/lib/card-backs';
 import { playerNamed, type LiveGamePlayers } from '@/lib/live-game';
 import { socketUrl } from '@/lib/live/messages';
 import { GamePlayerBar } from './game-player-bar';
@@ -16,7 +17,7 @@ import type { GameViewer } from './game-viewer';
 /** Card pictures by the engine's card ids, and the site's card back. */
 const PICTURES: CardPictures = {
   card: (imageId) => `/api/cards/images/${encodeURIComponent(imageId)}`,
-  back: '/card-back.svg',
+  back: CARD_BACK,
 };
 
 interface GameBoardProps {
