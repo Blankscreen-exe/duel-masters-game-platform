@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2230"/>
+      <stop offset="1" stop-color="#07090e"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1f5f9"/>
+      <stop offset="0.5" stop-color="#94a3b8"/>
+      <stop offset="1" stop-color="#475569"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#night)"/>
+  <!-- The five civilizations around the site's diamond: light, water, darkness, fire, nature. -->
+  <g fill="none" stroke-width="8" transform="rotate(-90 32 32)">
+    <circle cx="32" cy="32" r="25" pathLength="100" stroke="#fde047" stroke-dasharray="18 82"/>
+    <circle cx="32" cy="32" r="25" pathLength="100" stroke="#3b82f6" stroke-dasharray="18 82" stroke-dashoffset="-20"/>
+    <circle cx="32" cy="32" r="25" pathLength="100" stroke="#71717a" stroke-dasharray="18 82" stroke-dashoffset="-40"/>
+    <circle cx="32" cy="32" r="25" pathLength="100" stroke="#ef4444" stroke-dasharray="18 82" stroke-dashoffset="-60"/>
+    <circle cx="32" cy="32" r="25" pathLength="100" stroke="#22c55e" stroke-dasharray="18 82" stroke-dashoffset="-80"/>
+  </g>
+  <rect x="19" y="19" width="26" height="26" fill="url(#silver)" transform="rotate(45 32 32)"/>
+</svg>
