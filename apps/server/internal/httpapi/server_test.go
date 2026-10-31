@@ -14,6 +14,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/admin"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/announcements"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards/cardstest"
@@ -134,6 +135,7 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 	return testServer{
 		handler: NewHandler(Dependencies{
 			Mail:          mailService,
+			Announcements: announcements.NewService(db, accounts, live, clock.Now, logger),
 			DB:            sqlDB,
 			Auth:          authService,
 			Users:         accounts,

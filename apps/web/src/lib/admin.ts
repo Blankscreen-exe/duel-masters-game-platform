@@ -28,6 +28,11 @@ export const ADMIN_SECTIONS = [
     description: 'Add, change and retire the personalities players practise against.',
   },
   {
+    href: '/admin/notifications',
+    label: 'Notifications',
+    description: 'Tell every player something, with a popup in the lobby if it is important.',
+  },
+  {
     href: '/admin/settings',
     label: 'Settings',
     description: 'Every server setting, which applies at once.',
@@ -138,6 +143,9 @@ export const ADMIN_LOG_ACTIONS: Readonly<Record<AdminLogAction, string>> = {
   formats_reordered: 'Reordered the formats',
   mail_settings_changed: 'Changed the mail server',
   mail_settings_cleared: 'Forgot the mail server',
+  announcement_added: 'Posted a notification',
+  announcement_changed: 'Changed a notification',
+  announcement_deleted: 'Deleted a notification',
 };
 
 /** The admin log as a page address asks for it. */

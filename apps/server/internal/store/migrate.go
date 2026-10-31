@@ -34,6 +34,7 @@ func migrations() []*gormigrate.Migration {
 		migration0015FormatCivilizations(),
 		migration0016UserAvatars(),
 		migration0017Email(),
+		migration0018Announcements(),
 	}
 }
 

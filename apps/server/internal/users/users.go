@@ -85,6 +85,9 @@ type User struct {
 	// VerifyBy is when an account still not confirmed is deleted; nil for one
 	// that has never been sent a code, waiting for the site's mail to work.
 	VerifyBy *time.Time
+	// AnnouncementsSeenAt is when the player last looked at the site's
+	// announcements; nil before they first do.
+	AnnouncementsSeenAt *time.Time
 	Moderation
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -406,6 +409,11 @@ func (s *Service) DeleteUnconfirmed(ctx context.Context, now time.Time) (int64, 
 	}
 
 	return result.RowsAffected, nil
+}
+
+// SetAnnouncementsSeen notes when the player last looked at the announcements.
+func (s *Service) SetAnnouncementsSeen(ctx context.Context, id string, at time.Time) error {
+	return update(s.db.WithContext(ctx), id, "noting announcements as seen", map[string]any{"announcements_seen_at": at})
 }
 
 // ByUsername finds an account by name, in any case. It returns ErrNotFound if

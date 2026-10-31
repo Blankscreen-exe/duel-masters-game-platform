@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { profileHref } from '@/lib/players';
-import { getCurrentAccount } from '@/lib/session';
+import { getCurrentAccount, getMyAnnouncements } from '@/lib/session';
 import { LogOutButton } from './log-out-button';
+import { NotificationsLink } from './notifications-link';
 import { PlayerAvatar } from './players/player-avatar';
 import { RankBadge } from './players/rank-badge';
 import { AccountRefresh } from './players/account-refresh';
@@ -17,6 +18,7 @@ export async function UserMenu() {
   if (!account) {
     return (
       <div className="flex items-center gap-2">
+        <NotificationsLink unread={0} />
         <Link href="/login" className={buttonClasses('quiet')}>
           Log in
         </Link>
@@ -27,9 +29,12 @@ export async function UserMenu() {
     );
   }
 
+  const { unread } = await getMyAnnouncements();
+
   return (
     <div className="flex items-center gap-3">
       <AccountRefresh accountId={account.id} />
+      <NotificationsLink unread={unread} />
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-100">
         <Link
           href={profileHref(account.username)}

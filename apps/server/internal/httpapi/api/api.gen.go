@@ -38,6 +38,9 @@ func (e AdminComputerOpponentStrength) Valid() bool {
 
 // Defines values for AdminLogAction.
 const (
+	AdminLogActionAnnouncementAdded       AdminLogAction = "announcement_added"
+	AdminLogActionAnnouncementChanged     AdminLogAction = "announcement_changed"
+	AdminLogActionAnnouncementDeleted     AdminLogAction = "announcement_deleted"
 	AdminLogActionChatMessageDeleted      AdminLogAction = "chat_message_deleted"
 	AdminLogActionComputerOpponentAdded   AdminLogAction = "computer_opponent_added"
 	AdminLogActionComputerOpponentChanged AdminLogAction = "computer_opponent_changed"
@@ -65,6 +68,12 @@ const (
 // Valid indicates whether the value is a known member of the AdminLogAction enum.
 func (e AdminLogAction) Valid() bool {
 	switch e {
+	case AdminLogActionAnnouncementAdded:
+		return true
+	case AdminLogActionAnnouncementChanged:
+		return true
+	case AdminLogActionAnnouncementDeleted:
+		return true
 	case AdminLogActionChatMessageDeleted:
 		return true
 	case AdminLogActionComputerOpponentAdded:
@@ -372,6 +381,21 @@ const (
 func (e RealtimeAccountChangedType) Valid() bool {
 	switch e {
 	case RealtimeAccountChangedTypeAccountChanged:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RealtimeAnnouncementsChangedType.
+const (
+	RealtimeAnnouncementsChangedTypeAnnouncementsChanged RealtimeAnnouncementsChangedType = "announcements_changed"
+)
+
+// Valid indicates whether the value is a known member of the RealtimeAnnouncementsChangedType enum.
+func (e RealtimeAnnouncementsChangedType) Valid() bool {
+	switch e {
+	case RealtimeAnnouncementsChangedTypeAnnouncementsChanged:
 		return true
 	default:
 		return false
@@ -854,6 +878,38 @@ type AdminUserPage struct {
 
 // AdminUserStatus defines model for AdminUserStatus.
 type AdminUserStatus string
+
+// Announcement Something an admin has told every player, shown as a notification.
+type Announcement struct {
+	// Body Plain text, which may have line breaks.
+	Body string `json:"body"`
+	Id   string `json:"id"`
+
+	// Important Whether it also pops up in the lobby.
+	Important bool `json:"important"`
+
+	// PostedAt When it last went out to players.
+	PostedAt time.Time `json:"postedAt"`
+	Title    string    `json:"title"`
+}
+
+// AnnouncementInput defines model for AnnouncementInput.
+type AnnouncementInput struct {
+	Body      string `json:"body"`
+	Important bool   `json:"important"`
+
+	// ShowAgain On changing an important one, pop it up again for players who have closed it.
+	ShowAgain *bool  `json:"showAgain,omitempty"`
+	Title     string `json:"title"`
+}
+
+// AnnouncementPage defines model for AnnouncementPage.
+type AnnouncementPage struct {
+	Announcements []Announcement `json:"announcements"`
+	Page          int            `json:"page"`
+	PageSize      int            `json:"pageSize"`
+	Total         int            `json:"total"`
+}
 
 // Avatar A picture players can choose for their profile.
 type Avatar struct {
@@ -1453,6 +1509,15 @@ type MuteInput struct {
 	DurationMinutes *int `json:"durationMinutes,omitempty"`
 }
 
+// MyAnnouncements What a player has yet to see. Nothing from before they joined counts.
+type MyAnnouncements struct {
+	// Popups The important ones they have yet to close, the oldest first.
+	Popups []Announcement `json:"popups"`
+
+	// Unread How many have gone out since they last looked.
+	Unread int `json:"unread"`
+}
+
 // NewPassword defines model for NewPassword.
 type NewPassword struct {
 	// Password 8 to 128 characters.
@@ -1641,6 +1706,14 @@ type RealtimeAccountChanged struct {
 
 // RealtimeAccountChangedType defines model for RealtimeAccountChanged.Type.
 type RealtimeAccountChangedType string
+
+// RealtimeAnnouncementsChanged An admin has posted, changed or deleted a notification, so players look again. Sent to players.
+type RealtimeAnnouncementsChanged struct {
+	Type RealtimeAnnouncementsChangedType `json:"type"`
+}
+
+// RealtimeAnnouncementsChangedType defines model for RealtimeAnnouncementsChanged.Type.
+type RealtimeAnnouncementsChangedType string
 
 // RealtimeChatMessage Someone posted to the lobby chat.
 type RealtimeChatMessage struct {
@@ -1863,6 +1936,9 @@ type VerificationCode struct {
 	Code string `json:"code"`
 }
 
+// AnnouncementId defines model for AnnouncementId.
+type AnnouncementId = string
+
 // FormatId defines model for FormatId.
 type FormatId = string
 
@@ -1934,6 +2010,12 @@ type GetAdminUsersParams struct {
 	Status   *AdminUserStatus `form:"status,omitempty" json:"status,omitempty"`
 	Page     *int             `form:"page,omitempty" json:"page,omitempty"`
 	PageSize *int             `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// GetAnnouncementsParams defines parameters for GetAnnouncements.
+type GetAnnouncementsParams struct {
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // SearchCardsParams defines parameters for SearchCards.
@@ -2012,6 +2094,12 @@ type GetRankingsParams struct {
 	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
 	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
+
+// CreateAnnouncementJSONRequestBody defines body for CreateAnnouncement for application/json ContentType.
+type CreateAnnouncementJSONRequestBody = AnnouncementInput
+
+// UpdateAnnouncementJSONRequestBody defines body for UpdateAnnouncement for application/json ContentType.
+type UpdateAnnouncementJSONRequestBody = AnnouncementInput
 
 // CreateComputerOpponentJSONRequestBody defines body for CreateComputerOpponent for application/json ContentType.
 type CreateComputerOpponentJSONRequestBody = ComputerOpponentInput
@@ -2440,6 +2528,40 @@ func (t *RealtimeMessage) MergeRealtimeAccountChanged(v RealtimeAccountChanged) 
 	return err
 }
 
+// AsRealtimeAnnouncementsChanged returns the union data inside the RealtimeMessage as a RealtimeAnnouncementsChanged
+func (t RealtimeMessage) AsRealtimeAnnouncementsChanged() (RealtimeAnnouncementsChanged, error) {
+	var body RealtimeAnnouncementsChanged
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRealtimeAnnouncementsChanged overwrites any union data inside the RealtimeMessage as the provided RealtimeAnnouncementsChanged
+func (t *RealtimeMessage) FromRealtimeAnnouncementsChanged(v RealtimeAnnouncementsChanged) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"announcements_changed"}`))
+	t.union = b
+	return err
+}
+
+// MergeRealtimeAnnouncementsChanged performs a merge with any union data inside the RealtimeMessage, using the provided RealtimeAnnouncementsChanged
+func (t *RealtimeMessage) MergeRealtimeAnnouncementsChanged(v RealtimeAnnouncementsChanged) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"announcements_changed"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t RealtimeMessage) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -2456,6 +2578,8 @@ func (t RealtimeMessage) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "account_changed":
 		return t.AsRealtimeAccountChanged()
+	case "announcements_changed":
+		return t.AsRealtimeAnnouncementsChanged()
 	case "chat_message":
 		return t.AsRealtimeChatMessage()
 	case "game_started":
@@ -2491,6 +2615,15 @@ func (t *RealtimeMessage) UnmarshalJSON(b []byte) error {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// CreateAnnouncement Tell every player something
+	// (POST /admin/announcements)
+	CreateAnnouncement(w http.ResponseWriter, r *http.Request)
+	// DeleteAnnouncement Delete one for good
+	// (DELETE /admin/announcements/{announcementId})
+	DeleteAnnouncement(w http.ResponseWriter, r *http.Request, announcementId AnnouncementId)
+	// UpdateAnnouncement Change one
+	// (PUT /admin/announcements/{announcementId})
+	UpdateAnnouncement(w http.ResponseWriter, r *http.Request, announcementId AnnouncementId)
 	// GetAdminComputerOpponents Every computer opponent, retired or not
 	// (GET /admin/computer-opponents)
 	GetAdminComputerOpponents(w http.ResponseWriter, r *http.Request)
@@ -2575,6 +2708,18 @@ type ServerInterface interface {
 	// SetUserRole Make a player an admin, or an admin a player
 	// (PUT /admin/users/{userId}/role)
 	SetUserRole(w http.ResponseWriter, r *http.Request, userId UserId)
+	// GetAnnouncements What admins have told every player, the latest first
+	// (GET /announcements)
+	GetAnnouncements(w http.ResponseWriter, r *http.Request, params GetAnnouncementsParams)
+	// GetMyAnnouncements What the player has yet to see
+	// (GET /announcements/mine)
+	GetMyAnnouncements(w http.ResponseWriter, r *http.Request)
+	// MarkAnnouncementsSeen Note that the player has looked at them
+	// (POST /announcements/seen)
+	MarkAnnouncementsSeen(w http.ResponseWriter, r *http.Request)
+	// DismissAnnouncement Close the popup of an important one
+	// (POST /announcements/{announcementId}/dismiss)
+	DismissAnnouncement(w http.ResponseWriter, r *http.Request, announcementId AnnouncementId)
 	// SetAvatar Choose your profile picture
 	// (PUT /auth/avatar)
 	SetAvatar(w http.ResponseWriter, r *http.Request)
@@ -2741,6 +2886,72 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// CreateAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) CreateAnnouncement(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAnnouncement(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAnnouncement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId AnnouncementId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", r.PathValue("announcementId"), &announcementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "announcementId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAnnouncement(w, r, announcementId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAnnouncement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId AnnouncementId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", r.PathValue("announcementId"), &announcementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "announcementId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAnnouncement(w, r, announcementId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetAdminComputerOpponents operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminComputerOpponents(w http.ResponseWriter, r *http.Request) {
@@ -3408,6 +3619,106 @@ func (siw *ServerInterfaceWrapper) SetUserRole(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetUserRole(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAnnouncements operation middleware
+func (siw *ServerInterfaceWrapper) GetAnnouncements(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAnnouncementsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAnnouncements(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMyAnnouncements operation middleware
+func (siw *ServerInterfaceWrapper) GetMyAnnouncements(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyAnnouncements(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MarkAnnouncementsSeen operation middleware
+func (siw *ServerInterfaceWrapper) MarkAnnouncementsSeen(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarkAnnouncementsSeen(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DismissAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) DismissAnnouncement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId AnnouncementId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", r.PathValue("announcementId"), &announcementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "announcementId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DismissAnnouncement(w, r, announcementId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4966,6 +5277,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}", wrapper.GetAdminComputerOpponent)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}", wrapper.UpdateComputerOpponent)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/computer-opponents/{opponentId}/offered", wrapper.SetComputerOpponentOffered)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/announcements", wrapper.GetAnnouncements)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/announcements/mine", wrapper.GetMyAnnouncements)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/announcements/seen", wrapper.MarkAnnouncementsSeen)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/announcements/{announcementId}/dismiss", wrapper.DismissAnnouncement)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/announcements", wrapper.CreateAnnouncement)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/announcements/{announcementId}", wrapper.DeleteAnnouncement)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/announcements/{announcementId}", wrapper.UpdateAnnouncement)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/users/{userId}/let-in", wrapper.LetUserIn)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/mail", wrapper.ClearMailSettings)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mail", wrapper.GetMailSettings)
@@ -5022,6 +5340,207 @@ type TooManyAttemptsJSONResponse struct {
 }
 
 type UnauthenticatedJSONResponse Error
+
+type CreateAnnouncementRequestObject struct {
+	Body *CreateAnnouncementJSONRequestBody
+}
+
+type CreateAnnouncementResponseObject interface {
+	VisitCreateAnnouncementResponse(w http.ResponseWriter) error
+}
+
+type CreateAnnouncement201JSONResponse Announcement
+
+func (response CreateAnnouncement201JSONResponse) VisitCreateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAnnouncement400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response CreateAnnouncement400JSONResponse) VisitCreateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAnnouncement401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response CreateAnnouncement401JSONResponse) VisitCreateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAnnouncement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateAnnouncement403JSONResponse) VisitCreateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAnnouncementRequestObject struct {
+	AnnouncementId AnnouncementId `json:"announcementId"`
+}
+
+type DeleteAnnouncementResponseObject interface {
+	VisitDeleteAnnouncementResponse(w http.ResponseWriter) error
+}
+
+type DeleteAnnouncement204Response struct {
+}
+
+func (response DeleteAnnouncement204Response) VisitDeleteAnnouncementResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAnnouncement401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response DeleteAnnouncement401JSONResponse) VisitDeleteAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAnnouncement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteAnnouncement403JSONResponse) VisitDeleteAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAnnouncement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteAnnouncement404JSONResponse) VisitDeleteAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAnnouncementRequestObject struct {
+	AnnouncementId AnnouncementId `json:"announcementId"`
+	Body           *UpdateAnnouncementJSONRequestBody
+}
+
+type UpdateAnnouncementResponseObject interface {
+	VisitUpdateAnnouncementResponse(w http.ResponseWriter) error
+}
+
+type UpdateAnnouncement200JSONResponse Announcement
+
+func (response UpdateAnnouncement200JSONResponse) VisitUpdateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAnnouncement400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response UpdateAnnouncement400JSONResponse) VisitUpdateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAnnouncement401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response UpdateAnnouncement401JSONResponse) VisitUpdateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAnnouncement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateAnnouncement403JSONResponse) VisitUpdateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAnnouncement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateAnnouncement404JSONResponse) VisitUpdateAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type GetAdminComputerOpponentsRequestObject struct {
 }
@@ -7044,6 +7563,150 @@ func (response SetUserRole409JSONResponse) VisitSetUserRoleResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAnnouncementsRequestObject struct {
+	Params GetAnnouncementsParams
+}
+
+type GetAnnouncementsResponseObject interface {
+	VisitGetAnnouncementsResponse(w http.ResponseWriter) error
+}
+
+type GetAnnouncements200JSONResponse AnnouncementPage
+
+func (response GetAnnouncements200JSONResponse) VisitGetAnnouncementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAnnouncements400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response GetAnnouncements400JSONResponse) VisitGetAnnouncementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyAnnouncementsRequestObject struct {
+}
+
+type GetMyAnnouncementsResponseObject interface {
+	VisitGetMyAnnouncementsResponse(w http.ResponseWriter) error
+}
+
+type GetMyAnnouncements200JSONResponse MyAnnouncements
+
+func (response GetMyAnnouncements200JSONResponse) VisitGetMyAnnouncementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyAnnouncements401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response GetMyAnnouncements401JSONResponse) VisitGetMyAnnouncementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkAnnouncementsSeenRequestObject struct {
+}
+
+type MarkAnnouncementsSeenResponseObject interface {
+	VisitMarkAnnouncementsSeenResponse(w http.ResponseWriter) error
+}
+
+type MarkAnnouncementsSeen204Response struct {
+}
+
+func (response MarkAnnouncementsSeen204Response) VisitMarkAnnouncementsSeenResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type MarkAnnouncementsSeen401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response MarkAnnouncementsSeen401JSONResponse) VisitMarkAnnouncementsSeenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissAnnouncementRequestObject struct {
+	AnnouncementId AnnouncementId `json:"announcementId"`
+}
+
+type DismissAnnouncementResponseObject interface {
+	VisitDismissAnnouncementResponse(w http.ResponseWriter) error
+}
+
+type DismissAnnouncement204Response struct {
+}
+
+func (response DismissAnnouncement204Response) VisitDismissAnnouncementResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DismissAnnouncement401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response DismissAnnouncement401JSONResponse) VisitDismissAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissAnnouncement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DismissAnnouncement404JSONResponse) VisitDismissAnnouncementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -9772,6 +10435,15 @@ func (response GetSiteStats200JSONResponse) VisitGetSiteStatsResponse(w http.Res
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// CreateAnnouncement Tell every player something
+	// (POST /admin/announcements)
+	CreateAnnouncement(ctx context.Context, request CreateAnnouncementRequestObject) (CreateAnnouncementResponseObject, error)
+	// DeleteAnnouncement Delete one for good
+	// (DELETE /admin/announcements/{announcementId})
+	DeleteAnnouncement(ctx context.Context, request DeleteAnnouncementRequestObject) (DeleteAnnouncementResponseObject, error)
+	// UpdateAnnouncement Change one
+	// (PUT /admin/announcements/{announcementId})
+	UpdateAnnouncement(ctx context.Context, request UpdateAnnouncementRequestObject) (UpdateAnnouncementResponseObject, error)
 	// GetAdminComputerOpponents Every computer opponent, retired or not
 	// (GET /admin/computer-opponents)
 	GetAdminComputerOpponents(ctx context.Context, request GetAdminComputerOpponentsRequestObject) (GetAdminComputerOpponentsResponseObject, error)
@@ -9856,6 +10528,18 @@ type StrictServerInterface interface {
 	// SetUserRole Make a player an admin, or an admin a player
 	// (PUT /admin/users/{userId}/role)
 	SetUserRole(ctx context.Context, request SetUserRoleRequestObject) (SetUserRoleResponseObject, error)
+	// GetAnnouncements What admins have told every player, the latest first
+	// (GET /announcements)
+	GetAnnouncements(ctx context.Context, request GetAnnouncementsRequestObject) (GetAnnouncementsResponseObject, error)
+	// GetMyAnnouncements What the player has yet to see
+	// (GET /announcements/mine)
+	GetMyAnnouncements(ctx context.Context, request GetMyAnnouncementsRequestObject) (GetMyAnnouncementsResponseObject, error)
+	// MarkAnnouncementsSeen Note that the player has looked at them
+	// (POST /announcements/seen)
+	MarkAnnouncementsSeen(ctx context.Context, request MarkAnnouncementsSeenRequestObject) (MarkAnnouncementsSeenResponseObject, error)
+	// DismissAnnouncement Close the popup of an important one
+	// (POST /announcements/{announcementId}/dismiss)
+	DismissAnnouncement(ctx context.Context, request DismissAnnouncementRequestObject) (DismissAnnouncementResponseObject, error)
 	// SetAvatar Choose your profile picture
 	// (PUT /auth/avatar)
 	SetAvatar(ctx context.Context, request SetAvatarRequestObject) (SetAvatarResponseObject, error)
@@ -10051,6 +10735,96 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// CreateAnnouncement operation middleware
+func (sh *strictHandler) CreateAnnouncement(w http.ResponseWriter, r *http.Request) {
+	var request CreateAnnouncementRequestObject
+
+	var body CreateAnnouncementJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAnnouncement(ctx, request.(CreateAnnouncementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAnnouncement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAnnouncementResponseObject); ok {
+		if err := validResponse.VisitCreateAnnouncementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAnnouncement operation middleware
+func (sh *strictHandler) DeleteAnnouncement(w http.ResponseWriter, r *http.Request, announcementId AnnouncementId) {
+	var request DeleteAnnouncementRequestObject
+
+	request.AnnouncementId = announcementId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAnnouncement(ctx, request.(DeleteAnnouncementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAnnouncement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAnnouncementResponseObject); ok {
+		if err := validResponse.VisitDeleteAnnouncementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAnnouncement operation middleware
+func (sh *strictHandler) UpdateAnnouncement(w http.ResponseWriter, r *http.Request, announcementId AnnouncementId) {
+	var request UpdateAnnouncementRequestObject
+
+	request.AnnouncementId = announcementId
+
+	var body UpdateAnnouncementJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAnnouncement(ctx, request.(UpdateAnnouncementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAnnouncement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAnnouncementResponseObject); ok {
+		if err := validResponse.VisitUpdateAnnouncementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetAdminComputerOpponents operation middleware
@@ -10850,6 +11624,106 @@ func (sh *strictHandler) SetUserRole(w http.ResponseWriter, r *http.Request, use
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetUserRoleResponseObject); ok {
 		if err := validResponse.VisitSetUserRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAnnouncements operation middleware
+func (sh *strictHandler) GetAnnouncements(w http.ResponseWriter, r *http.Request, params GetAnnouncementsParams) {
+	var request GetAnnouncementsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAnnouncements(ctx, request.(GetAnnouncementsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAnnouncements")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAnnouncementsResponseObject); ok {
+		if err := validResponse.VisitGetAnnouncementsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyAnnouncements operation middleware
+func (sh *strictHandler) GetMyAnnouncements(w http.ResponseWriter, r *http.Request) {
+	var request GetMyAnnouncementsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyAnnouncements(ctx, request.(GetMyAnnouncementsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyAnnouncements")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyAnnouncementsResponseObject); ok {
+		if err := validResponse.VisitGetMyAnnouncementsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MarkAnnouncementsSeen operation middleware
+func (sh *strictHandler) MarkAnnouncementsSeen(w http.ResponseWriter, r *http.Request) {
+	var request MarkAnnouncementsSeenRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MarkAnnouncementsSeen(ctx, request.(MarkAnnouncementsSeenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MarkAnnouncementsSeen")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MarkAnnouncementsSeenResponseObject); ok {
+		if err := validResponse.VisitMarkAnnouncementsSeenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DismissAnnouncement operation middleware
+func (sh *strictHandler) DismissAnnouncement(w http.ResponseWriter, r *http.Request, announcementId AnnouncementId) {
+	var request DismissAnnouncementRequestObject
+
+	request.AnnouncementId = announcementId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DismissAnnouncement(ctx, request.(DismissAnnouncementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DismissAnnouncement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DismissAnnouncementResponseObject); ok {
+		if err := validResponse.VisitDismissAnnouncementResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

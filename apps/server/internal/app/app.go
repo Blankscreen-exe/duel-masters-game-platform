@@ -18,6 +18,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/admin"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/announcements"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
@@ -212,6 +213,7 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 		server: &http.Server{
 			Handler: httpapi.NewHandler(httpapi.Dependencies{
 				Mail:          mailService,
+				Announcements: announcements.NewService(db, accounts, live, time.Now, logger.With("component", "announcements")),
 				DB:            sqlDB,
 				Auth:          authService,
 				Users:         accounts,

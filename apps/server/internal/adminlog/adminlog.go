@@ -55,6 +55,10 @@ const (
 
 	MailSettingsChanged Action = "mail_settings_changed"
 	MailSettingsCleared Action = "mail_settings_cleared"
+
+	AnnouncementAdded   Action = "announcement_added"
+	AnnouncementChanged Action = "announcement_changed"
+	AnnouncementDeleted Action = "announcement_deleted"
 )
 
 // Actions lists every action, in the order the admin panel offers them.
@@ -65,6 +69,7 @@ func Actions() []Action {
 		ComputerOpponentAdded, ComputerOpponentChanged, ComputerOpponentOffered, ComputerOpponentRetired,
 		FormatAdded, FormatChanged, FormatRetired, FormatRestored, FormatsReordered,
 		MailSettingsChanged, MailSettingsCleared,
+		AnnouncementAdded, AnnouncementChanged, AnnouncementDeleted,
 	}
 }
 

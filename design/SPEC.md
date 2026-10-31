@@ -290,6 +290,10 @@ Every game, rematches included, starts with a coin toss that both players (and s
   games allowed or paused, rating speed, minimum game length for ratings, quick match rating range,
   disconnect time limit, maximum decks per player, how fast players may chat (lobby and games, each
   counted on its own), and how fast a game connection may send moves (faster ones wait their turn).
+- **Notifications**: post, change and delete what every player is told, as plain text. An important
+  one also pops up in the lobby for every player who joined before it, until they close it. Fixing
+  one stays quiet, unless the admin asks to show it again. Everyone can read them on the
+  Notifications page, reached by a bell in the top bar, which counts the unread for players.
 - **Backup**: export and import all data in one zip, as in Triple Triad, but with each table saved
   in a database-neutral format (not a SQLite file), so a backup from SQLite restores into
   PostgreSQL and the other way round.
@@ -326,6 +330,7 @@ Every page has hover feedback and works on phones (see 11.2).
 | Log in      | `/login`  | Name and password                                                                |
 | Sign up     | `/signup` | Name, email address, password                                                    |
 | Confirm email | `/verify-email` | Enter the code sent, ask for another, correct the address, or wait for the site to be able to send email |
+| Notifications | `/notifications` | What admins have told every player, the latest first; open to visitors |
 | Rules       | `/rules`  | How to play: turn steps, zones, and a keyword list with the board's badge icons  |
 | Card list   | `/cards`  | Every playable card; filters (civilization, cost, type, race, set, keyword, text); card details |
 

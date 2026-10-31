@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/admin"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/announcements"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
@@ -36,12 +37,13 @@ func NewLiveUpdates(hub *realtime.Hub, ratingService *ratings.Service, logger *s
 }
 
 var (
-	_ admin.Listener   = (*LiveUpdates)(nil)
-	_ chat.Listener    = (*LiveUpdates)(nil)
-	_ games.Listener   = (*LiveUpdates)(nil)
-	_ lobby.Listener   = (*LiveUpdates)(nil)
-	_ lobby.Directory  = (*LiveUpdates)(nil)
-	_ rematch.Listener = (*LiveUpdates)(nil)
+	_ admin.Listener         = (*LiveUpdates)(nil)
+	_ announcements.Listener = (*LiveUpdates)(nil)
+	_ chat.Listener          = (*LiveUpdates)(nil)
+	_ games.Listener         = (*LiveUpdates)(nil)
+	_ lobby.Listener         = (*LiveUpdates)(nil)
+	_ lobby.Directory        = (*LiveUpdates)(nil)
+	_ rematch.Listener       = (*LiveUpdates)(nil)
 )
 
 // MessagePosted shows a new chat message to everyone.
@@ -96,6 +98,12 @@ func (l *LiveUpdates) GameClosed(games.Game) {}
 // muting them, so their pages show it.
 func (l *LiveUpdates) AccountChanged(userID string) {
 	l.hub.SendTo(userID, api.RealtimeAccountChanged{Type: api.RealtimeAccountChangedTypeAccountChanged})
+}
+
+// AnnouncementsChanged tells players to look again at what they have yet to see:
+// their unread count, and the popups in the lobby.
+func (l *LiveUpdates) AnnouncementsChanged() {
+	l.hub.BroadcastPlayers(api.RealtimeAnnouncementsChanged{Type: api.RealtimeAnnouncementsChangedTypeAnnouncementsChanged})
 }
 
 // QueueChanged shows players how many wait in each format for a quick match.
