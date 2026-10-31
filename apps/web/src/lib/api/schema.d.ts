@@ -1673,6 +1673,8 @@ export interface components {
             computer: boolean;
             /** @description The player's rank, where the lobby and games show it; absent elsewhere, and if it could not be read for a live update. */
             rank?: components["schemas"]["Rank"];
+            /** @description The picture they chose, on the screen of the game itself; absent elsewhere and until they choose one. */
+            avatarUrl?: string;
         };
         RunningGame: {
             id: string;

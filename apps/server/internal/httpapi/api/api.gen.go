@@ -1224,6 +1224,9 @@ type FormatRetired struct {
 
 // GamePlayer defines model for GamePlayer.
 type GamePlayer struct {
+	// AvatarUrl The picture they chose, on the screen of the game itself; absent elsewhere and until they choose one.
+	AvatarUrl *string `json:"avatarUrl,omitempty"`
+
 	// Computer The computer plays this seat.
 	Computer bool   `json:"computer"`
 	DeckName string `json:"deckName"`

@@ -3262,6 +3262,11 @@ components:
             The player's rank, where the lobby and games show it; absent elsewhere, and if it could
             not be read for a live update.
           $ref: "#/components/schemas/Rank"
+        avatarUrl:
+          description: >-
+            The picture they chose, on the screen of the game itself; absent elsewhere and until
+            they choose one.
+          type: string
     RunningGame:
       type: object
       required: [id, name, formatId, formatName, host, guest, spectators, matchmaking, startedAt]

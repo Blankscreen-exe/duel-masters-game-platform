@@ -45,16 +45,40 @@ func (h *handlers) GetLiveGame(ctx context.Context, request api.GetLiveGameReque
 		return nil, err
 	}
 
+	host, err := h.liveGamePlayer(ctx, game.Host, shownRanks)
+	if err != nil {
+		return nil, err
+	}
+	guest, err := h.liveGamePlayer(ctx, game.Guest, shownRanks)
+	if err != nil {
+		return nil, err
+	}
+
 	return api.GetLiveGame200JSONResponse{
 		Id:          game.ID,
 		Name:        game.Name,
 		FormatName:  game.FormatName,
-		Host:        apiGamePlayer(game.Host, shownRanks),
-		Guest:       apiGamePlayer(game.Guest, shownRanks),
+		Host:        host,
+		Guest:       guest,
 		Spectators:  game.Watchable(),
 		Matchmaking: game.Matchmaking,
 		Role:        api.GameRole(role),
 	}, nil
+}
+
+// liveGamePlayer is a player as the screen of a game shows them, with their
+// picture. An account that has since gone simply has none.
+func (h *handlers) liveGamePlayer(ctx context.Context, player games.Player, shownRanks ranks) (api.GamePlayer, error) {
+	shown := apiGamePlayer(player, shownRanks)
+	account, err := h.users.ByID(ctx, player.ID)
+	if errors.Is(err, users.ErrNotFound) {
+		return shown, nil
+	}
+	if err != nil {
+		return api.GamePlayer{}, err
+	}
+	shown.AvatarUrl = avatarURL(account.AvatarID)
+	return shown, nil
 }
 
 func (h *handlers) OpenGameSocket(ctx context.Context, request api.OpenGameSocketRequestObject) (api.OpenGameSocketResponseObject, error) {

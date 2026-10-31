@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/avatars"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
@@ -260,6 +261,14 @@ func TestTwoPlayersPlayAGameThroughTheSite(t *testing.T) {
 	assert.Equal(t, api.GameRolePlayer, game.Role)
 	assert.Equal(t, "Shobu", game.Host.Username)
 	assert.Equal(t, "Kokujo's deck", game.Guest.DeckName)
+	assert.Nil(t, game.Host.AvatarUrl, "no picture until they choose one")
+
+	picture := avatars.IDs()[0]
+	require.Equal(t, http.StatusOK, site.call(http.MethodPut, avatarPath, api.AvatarChoice{AvatarId: picture}, shobu.session).Code)
+	game = decode[api.LiveGame](t, site.call(http.MethodGet, "/api/games/"+gameID, nil, kokujo.session))
+	require.NotNil(t, game.Host.AvatarUrl, "the opponent sees the picture")
+	assert.Equal(t, "/api/avatars/"+picture, *game.Host.AvatarUrl)
+	assert.Nil(t, game.Guest.AvatarUrl)
 	watching := decode[api.LiveGame](t, site.call(http.MethodGet, "/api/games/"+gameID, nil, mimi.session))
 	assert.Equal(t, api.GameRoleSpectator, watching.Role)
 
