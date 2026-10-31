@@ -1,4 +1,4 @@
-# Duel Masters Game Platform
+![banner](docs/images/banner.png)
 
 A self-hosted, two-player, browser-based Duel Masters site: player accounts, a deck builder, a
 lobby with quick match, computer opponents, ratings and match history, and an admin panel. Games
