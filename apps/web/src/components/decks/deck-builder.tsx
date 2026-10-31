@@ -71,8 +71,8 @@ export function DeckBuilder({ deck, formats, filters }: DeckBuilderProps) {
         onChange={setDraft}
         filters={filters}
         hasCover
-        deckHeader={
-          <div className="space-y-3 border-b border-slate-700/60 p-3">
+        deckActions={
+          <div className="flex min-w-60 flex-1 flex-wrap items-center gap-2">
             <input
               aria-label="Deck name"
               value={draft.name}
@@ -81,17 +81,10 @@ export function DeckBuilder({ deck, formats, filters }: DeckBuilderProps) {
                 const name = event.target.value;
                 setDraft((current) => ({ ...current, name }));
               }}
-              className="block w-full bg-field px-3 py-2 font-display text-lg font-bold tracking-wide text-white ring-1 ring-slate-600/60 ring-inset hover:ring-slate-400/70 focus:ring-accent focus:outline-none"
+              className="block min-w-40 flex-1 bg-field px-3 py-1.5 font-display text-base font-bold tracking-wide text-white ring-1 ring-slate-600/60 ring-inset hover:ring-slate-400/70 focus:ring-accent focus:outline-none"
             />
-            {dropped > 0 && (
-              <p className="text-xs text-amber-300">
-                {dropped} {dropped === 1 ? 'card is' : 'cards are'} no longer in the card database
-                and will be removed when you save.
-              </p>
-            )}
             <div className="flex gap-2">
               <Button
-                className="flex-1"
                 disabled={!unsaved || saving || nameMissing}
                 title={nameMissing ? 'The deck needs a name' : undefined}
                 onClick={() => void save()}
@@ -110,6 +103,14 @@ export function DeckBuilder({ deck, formats, filters }: DeckBuilderProps) {
               </Button>
             </div>
           </div>
+        }
+        deckNotice={
+          dropped > 0 && (
+            <p className="border-b border-slate-700/60 px-4 py-2 text-xs text-amber-300">
+              {dropped} {dropped === 1 ? 'card is' : 'cards are'} no longer in the card database and
+              will be removed when you save.
+            </p>
+          )
         }
         sidePanels={
           <Panel title="Formats">

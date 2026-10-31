@@ -13,44 +13,64 @@ import {
   totalCards,
   type DeckDraft,
 } from '@/lib/deck-draft';
-import { CardBrowser } from './card-browser';
-import { DeckList } from './deck-list';
+import type { DeckEditing } from './deck-card-buttons';
+import { DeckCards } from './deck-cards';
 import { DeckStats } from './deck-stats';
+import { DeckTrunk } from './deck-trunk';
+import { EnlargedCard } from './enlarged-card';
 
 interface DeckWorkbenchProps {
   readonly draft: DeckDraft;
   readonly onChange: (change: (current: DeckDraft) => DeckDraft) => void;
   readonly filters: CardFilters;
-  /** Above the deck's cards, such as its name and the button that saves it. */
-  readonly deckHeader?: ReactNode;
-  /** Above the statistics, such as whether the deck can be played. */
+  /** In the deck's title bar, which stays in view, such as its name and the button that saves it. */
+  readonly deckActions?: ReactNode;
+  /** Above the deck's cards, such as a warning about the deck. */
+  readonly deckNotice?: ReactNode;
+  /** Beside the statistics, such as whether the deck can be played. */
   readonly sidePanels?: ReactNode;
   /** Whether the deck has a cover card to choose. */
   readonly hasCover?: boolean;
 }
 
-type View = 'cards' | 'deck' | 'stats';
+type View = 'trunk' | 'deck' | 'stats';
 
 const PANELS = 'deck-builder';
 
 /**
- * Where a deck is built, whoever it is for: the playable cards on one side, the deck on the other,
- * with its statistics. On phones each is a tab. What holds the deck saves it.
+ * Where a deck is built, whoever it is for: the deck as cards in the main area with its statistics
+ * below, and the trunk of playable cards in the side bar, staying in view while the deck scrolls.
+ * Any card of either can be enlarged. On phones each is a tab. What holds the deck saves it.
  */
 export function DeckWorkbench({
   draft,
   onChange,
   filters,
-  deckHeader,
+  deckActions,
+  deckNotice,
   sidePanels,
   hasCover = false,
 }: DeckWorkbenchProps) {
-  const [view, setView] = useState<View>('cards');
+  const [view, setView] = useState<View>('trunk');
+  const [enlarged, setEnlarged] = useState<Card | null>(null);
   const total = totalCards(draft);
 
-  function add(card: Card) {
-    onChange((current) => addCard(current, card));
-  }
+  const editing: DeckEditing = {
+    draft,
+    onAdd: (card) => {
+      onChange((current) => addCard(current, card));
+    },
+    onRemove: (cardId) => {
+      onChange((current) => removeCard(current, cardId));
+    },
+    ...(hasCover
+      ? {
+          onCover: (cardId: string | null) => {
+            onChange((current) => ({ ...current, coverCardId: cardId }));
+          },
+        }
+      : {}),
+  };
 
   return (
     <>
@@ -59,31 +79,16 @@ export function DeckWorkbench({
         panelIdPrefix={PANELS}
         value={view}
         onChange={setView}
-        className="sticky top-16 z-20 lg:hidden"
+        className="sticky top-[59px] z-20 lg:hidden"
         tabs={[
-          { id: 'cards', label: 'Cards' },
+          { id: 'trunk', label: 'Trunk' },
           { id: 'deck', label: `Deck ${String(total)}/${String(DECK_SIZE)}` },
           { id: 'stats', label: 'Stats' },
         ]}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
-        <div
-          id={`${PANELS}-cards`}
-          role="tabpanel"
-          className={view === 'cards' ? '' : 'max-lg:hidden'}
-        >
-          <Panel title="Cards" className="p-4">
-            <CardBrowser
-              filters={filters}
-              copiesOf={(cardId) => copiesOf(draft, cardId)}
-              cannotAdd={(card) => cannotAdd(draft, card)}
-              onAdd={add}
-            />
-          </Panel>
-        </div>
-
-        <div className="space-y-6">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0 space-y-6 max-lg:contents">
           <div
             id={`${PANELS}-deck`}
             role="tabpanel"
@@ -91,44 +96,62 @@ export function DeckWorkbench({
           >
             <Panel
               title={
-                <span>
+                <span className="whitespace-nowrap">
                   Deck{' '}
                   <span className={total === DECK_SIZE ? 'text-emerald-300' : 'text-amber-300'}>
                     {total}/{DECK_SIZE}
                   </span>
                 </span>
               }
+              actions={deckActions}
+              // Right under the site's header, so no cards show between the two.
+              headerClassName="flex-wrap bg-panel lg:sticky lg:top-[59px] lg:z-10"
               accent="water"
             >
-              {deckHeader}
-              <DeckList
-                draft={draft}
-                onAdd={add}
-                onRemove={(cardId) => {
-                  onChange((current) => removeCard(current, cardId));
-                }}
-                {...(hasCover
-                  ? {
-                      onCover: (cardId: string | null) => {
-                        onChange((current) => ({ ...current, coverCardId: cardId }));
-                      },
-                    }
-                  : {})}
-              />
+              {deckNotice}
+              <DeckCards editing={editing} onEnlarge={setEnlarged} />
             </Panel>
           </div>
           <div
             id={`${PANELS}-stats`}
             role="tabpanel"
-            className={`space-y-6 ${view === 'stats' ? '' : 'max-lg:hidden'}`}
+            className={`grid items-start gap-6 md:grid-cols-2 ${view === 'stats' ? '' : 'max-lg:hidden'}`}
           >
-            {sidePanels}
             <Panel title="Stats">
               <DeckStats draft={draft} />
             </Panel>
+            {sidePanels}
           </div>
         </div>
+
+        <div
+          id={`${PANELS}-trunk`}
+          role="tabpanel"
+          className={`min-w-0 lg:sticky lg:top-20 lg:h-[calc(100dvh-6rem)] ${view === 'trunk' ? '' : 'max-lg:hidden'}`}
+        >
+          <Panel title="Trunk" className="flex h-full flex-col">
+            <div className="min-h-0 flex-1">
+              <DeckTrunk
+                filters={filters}
+                copiesOf={(cardId) => copiesOf(draft, cardId)}
+                cannotAdd={(card) => cannotAdd(draft, card)}
+                onAdd={editing.onAdd}
+                onEnlarge={setEnlarged}
+              />
+            </div>
+          </Panel>
+        </div>
       </div>
+
+      {enlarged && (
+        <EnlargedCard
+          card={enlarged}
+          editing={editing}
+          onClose={() => {
+            setEnlarged(null);
+          }}
+        />
+      )}
     </>
   );
 }

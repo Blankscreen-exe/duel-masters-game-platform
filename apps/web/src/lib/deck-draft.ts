@@ -28,6 +28,13 @@ export interface DeckDraft {
 /** Why a card cannot be added to a draft. */
 export type CannotAdd = 'not_playable' | 'max_copies' | 'deck_full';
 
+/** Why a card cannot be added, in words for the player. */
+export const CANNOT_ADD_TEXT: Record<CannotAdd, string> = {
+  not_playable: 'The game cannot play this card yet',
+  max_copies: `The deck has ${String(MAX_COPIES)} copies already`,
+  deck_full: `The deck has ${String(DECK_SIZE)} cards already`,
+};
+
 /**
  * A saved deck as a draft. Cards that have left the card database cannot be saved again, so they
  * are left out; `dropped` counts their copies, to tell the player.

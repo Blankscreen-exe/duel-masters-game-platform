@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
+import { CardFacts } from '@/components/cards/card-facts';
 import { CardImage } from '@/components/cards/card-image';
 import { Panel } from '@/components/ui/panel';
 import type { Card } from '@/lib/api/client';
 import { serverApi } from '@/lib/api/server';
-import { splitReminder } from '@/lib/abilities';
 import { civilizationKey } from '@/lib/civilizations';
 
 /** The card, asked once per request for both the page and its title. */
@@ -53,33 +53,9 @@ export default async function CardPage({ params }: PageProps<'/cards/[cardId]'>)
             <h1 className="font-display text-3xl font-bold tracking-wide text-white sm:text-4xl">
               {card.name}
             </h1>
-            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-              <Fact label="Civilization" value={card.civilizations.join(' / ')} />
-              <Fact label="Type" value={card.type} />
-              <Fact label="Cost" value={String(card.cost)} />
-              {card.powerText !== '' && <Fact label="Power" value={card.powerText} />}
-              {card.races.length > 0 && (
-                <Fact
-                  label={card.races.length === 1 ? 'Race' : 'Races'}
-                  value={card.races.join(' / ')}
-                />
-              )}
-            </dl>
-
-            {card.abilities.length > 0 && (
-              <ul className="mt-5 space-y-2 border-t border-slate-700/60 pt-4 text-slate-200">
-                {card.abilities.map((ability, index) => {
-                  const { rule, reminder } = splitReminder(ability);
-                  return (
-                    // Abilities have no id of their own and never change order.
-                    <li key={index}>
-                      {rule}
-                      {reminder && <span className="text-slate-400 italic"> {reminder}</span>}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <div className="mt-4">
+              <CardFacts card={card} />
+            </div>
 
             {!card.playable && (
               <p className="mt-5 bg-slate-800/60 px-3 py-2 text-sm text-slate-400 ring-1 ring-slate-600/50 ring-inset">
@@ -119,15 +95,6 @@ export default async function CardPage({ params }: PageProps<'/cards/[cardId]'>)
           </Panel>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Fact({ label, value }: { readonly label: string; readonly value: string }) {
-  return (
-    <div>
-      <dt className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">{label}</dt>
-      <dd className="mt-0.5 font-semibold text-slate-100">{value}</dd>
     </div>
   );
 }
