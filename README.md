@@ -18,10 +18,11 @@ project, maintained here.
 
 | Calling the coin toss | Confirming an attack |
 | :-: | :-: |
-| ![Calling the coin toss](docs/images/coin-toss.png) | ![The attack confirmation, with the attacker's power and an arrow to its target](docs/images/confirm-attack.png) |
+| ![Calling the coin toss](docs/images/coin-toss.png) | ![The attack confirmation, comparing both creatures and showing the result](docs/images/confirm-attack.png) |
 
-Every attack shows its power and direction, blue for your side and red for your opponent's. When
-your opponent attacks and you have a blocker, you see the same line:
+Once you choose what to attack, you confirm it: both powers side by side, blue for your side and
+red for your opponent's, with who wins and what gets destroyed. When your opponent attacks and you
+have a blocker, the question opens with the same line:
 
 ![Choosing whether to block an attack](docs/images/block-question.png)
 

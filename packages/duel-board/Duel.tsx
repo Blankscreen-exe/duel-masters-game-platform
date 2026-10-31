@@ -36,10 +36,10 @@ import { DeckPile, GraveyardPile, HandCount } from "./InfoPiles";
 import { PhaseBar } from "./PhaseBar";
 import { AttackLine } from "./AttackLine";
 import {
+  attackToConfirm,
   blockedAttack,
-  plannedAttack,
+  finishingAttack,
   type AttackNotice,
-  type AttackTargetKind,
 } from "./attackNotice";
 import { PhaseAnnouncer } from "./PhaseAnnouncer";
 import { CardMenu } from "./CardMenu";
@@ -315,6 +315,8 @@ export function Duel({
     label: string;
     /** The attack to confirm; absent for a tap ability. */
     notice: AttackNotice | null;
+    /** The question being answered, which the confirmation stands in for. */
+    prompt?: number;
     /** What going ahead gives up, when the player is to be warned of it. */
     forfeit: AttackForfeit | null;
     run: () => void;
@@ -654,20 +656,43 @@ export function Duel({
     setPendingAttack({ label: "Use tap ability", notice: null, forfeit, run });
   };
 
-  /** Every attack is confirmed first, showing the power it goes in with. */
+  /** Every attack is confirmed once its target is known, comparing the two
+   * sides and showing what will happen. */
   const confirmAttack = (
-    virtualId: string,
-    target: AttackTargetKind,
+    notice: AttackNotice,
     run: () => void,
+    prompt?: number,
   ) => {
     setStopConfirmingAttacks(false);
     setPendingAttack({
       label: "Attack",
-      notice: state ? plannedAttack(state, virtualId, target) : null,
+      notice,
+      prompt,
       forfeit: currentForfeit(),
       run,
     });
   };
+
+  /** With shields left the server asks which to break, and the attack is
+   * confirmed after that. With none left, nothing else would ask. */
+  const attackPlayer = (virtualId: string) => {
+    const notice = state ? finishingAttack(state, virtualId) : null;
+
+    if (notice) {
+      confirmAttack(notice, () => sendAttackPlayer(virtualId));
+    } else {
+      sendAttackPlayer(virtualId);
+    }
+  };
+
+  // A confirmation stands in for the question it came from, which stays open
+  // behind it, so "Back" returns to the choice. If that question has gone, so
+  // has the confirmation.
+  const confirmingPrompt = pendingAttack?.prompt;
+  const confirmingThisQuestion =
+    confirmingPrompt !== undefined && confirmingPrompt === action?.prompt;
+  const confirmationIsStale =
+    confirmingPrompt !== undefined && !confirmingThisQuestion;
 
   const myUsername = state?.me.username;
   const opponentUsername = state?.opponent.username;
@@ -734,12 +759,10 @@ export function Duel({
         sendAddToManazone(virtualId);
         break;
       case "attackPlayer":
-        confirmAttack(virtualId, "player", () => sendAttackPlayer(virtualId));
+        attackPlayer(virtualId);
         break;
       case "attackCreature":
-        confirmAttack(virtualId, "creature", () =>
-          sendAttackCreature(virtualId),
-        );
+        sendAttackCreature(virtualId);
         break;
       case "tapAbility":
         guardTapAbility(() => sendTapAbility(virtualId));
@@ -778,14 +801,12 @@ export function Duel({
       dragState.sourceZone === "myPlayzone" &&
       dropZone === "opponentPlayzone"
     ) {
-      const { virtualId } = dragState;
-      confirmAttack(virtualId, "creature", () => sendAttackCreature(virtualId));
+      sendAttackCreature(dragState.virtualId);
     } else if (
       dragState.sourceZone === "myPlayzone" &&
       dropZone === "opponentShieldzone"
     ) {
-      const { virtualId } = dragState;
-      confirmAttack(virtualId, "player", () => sendAttackPlayer(virtualId));
+      attackPlayer(dragState.virtualId);
     }
 
     setDragState(null);
@@ -1578,7 +1599,7 @@ export function Duel({
         </div>
       </Popup>
 
-      {pendingAttack && (
+      {pendingAttack && !confirmationIsStale && (
         <Popup
           visible={true}
           onClose={() => setPendingAttack(null)}
@@ -1605,7 +1626,11 @@ export function Duel({
             )}
             <div className="flex gap-3 mt-6">
               <Button variant="gray" onClick={() => setPendingAttack(null)}>
-                {pendingAttack.notice ? "Cancel" : "Keep playing"}
+                {pendingAttack.prompt !== undefined
+                  ? "Back"
+                  : pendingAttack.notice
+                    ? "Cancel"
+                    : "Keep playing"}
               </Button>
               <Button
                 onClick={() => {
@@ -1716,7 +1741,7 @@ export function Duel({
         <Action
           key={actionRevision}
           title={action.showCards ? "Card Preview" : "Action Required"}
-          visible={true}
+          visible={!confirmingThisQuestion}
           error={actionError ? actionError.message : undefined}
           actionType={action.actionType}
           cards={Array.isArray(action.cards) ? action.cards : undefined}
@@ -1736,7 +1761,19 @@ export function Duel({
           cancellable={action.cancellable || false}
           unselectableCards={action.unselectableCards}
           choices={action.choices || null}
-          onChoose={(answer) => answerQuestion(action, answer)}
+          onChoose={(answer) => {
+            const notice = attackToConfirm(state, action, answer.cards);
+
+            if (notice) {
+              confirmAttack(
+                notice,
+                () => answerQuestion(action, answer),
+                action.prompt,
+              );
+            } else {
+              answerQuestion(action, answer);
+            }
+          }}
           onClose={() => answerQuestion(action, { cards: [], cancel: true })}
           onDismiss={() => setAction(null)}
           onCardRightClick={(imageId, name) =>
