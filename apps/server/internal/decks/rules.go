@@ -48,6 +48,9 @@ const (
 	// ProblemTooManyCivilizations: the deck's cards have more civilizations
 	// than its Rules allow.
 	ProblemTooManyCivilizations ProblemKind = "too_many_civilizations"
+	// ProblemTooFewCivilizations: the deck's cards have fewer civilizations
+	// than its format needs.
+	ProblemTooFewCivilizations ProblemKind = "too_few_civilizations"
 	// ProblemCardType: the deck's Rules do not allow the card's type.
 	ProblemCardType ProblemKind = "card_type"
 	// ProblemFormatRetired: the format the deck keeps to has been retired.
@@ -62,11 +65,12 @@ type Problem struct {
 	CardID   string
 	CardName string
 	// Count is how many there are: cards in the deck for ProblemSize,
-	// civilizations for ProblemTooManyCivilizations, copies of the card
-	// otherwise.
+	// civilizations for ProblemTooManyCivilizations and
+	// ProblemTooFewCivilizations, copies of the card otherwise.
 	Count int
 	// Limit is how many are allowed, for ProblemSize, ProblemOverLimit,
-	// ProblemTooManyCopies and ProblemTooManyCivilizations.
+	// ProblemTooManyCopies and ProblemTooManyCivilizations, or needed, for
+	// ProblemTooFewCivilizations.
 	Limit int
 }
 
@@ -90,6 +94,8 @@ func (p Problem) Message() string {
 		return fmt.Sprintf("%s: %d copies, but at most %d %s allowed.", name, p.Count, p.Limit, plural(p.Limit, "is", "are"))
 	case ProblemTooManyCivilizations:
 		return fmt.Sprintf("The deck's cards have %d civilizations, but at most %d %s allowed.", p.Count, p.Limit, plural(p.Limit, "is", "are"))
+	case ProblemTooFewCivilizations:
+		return fmt.Sprintf("The deck's cards have %d %s, but at least %d %s needed.", p.Count, plural(p.Count, "civilization", "civilizations"), p.Limit, plural(p.Limit, "is", "are"))
 	case ProblemCardType:
 		return fmt.Sprintf("%s is a type of card this deck may not have.", name)
 	case ProblemFormatRetired:
@@ -109,12 +115,13 @@ func plural(n int, one, many string) string {
 // Check lists every way a deck breaks a format's rules, or nothing for a legal
 // deck. known holds the deck's cards from the catalogue; a card missing from
 // it has left the card database. Problems come in the deck's order, after the
-// deck's size.
+// deck's size and its civilizations.
 func Check(entries []Entry, known map[string]cards.Card, format formats.Format) []Problem {
 	var problems []Problem
 	if total := Count(entries); total != Size {
 		problems = append(problems, Problem{Kind: ProblemSize, Count: total, Limit: Size})
 	}
+	problems = append(problems, civilizationProblems(entries, known, format.MinCivilizations, format.MaxCivilizations)...)
 
 	for _, entry := range entries {
 		card, found := known[entry.CardID]
@@ -158,10 +165,7 @@ type Rules struct {
 // missing from it is left to Check. Problems come with the civilizations
 // first, then in the deck's order.
 func CheckRules(entries []Entry, known map[string]cards.Card, rules Rules) []Problem {
-	var problems []Problem
-	if civilizations := len(Civilizations(entries, known)); rules.MaxCivilizations > 0 && civilizations > rules.MaxCivilizations {
-		problems = append(problems, Problem{Kind: ProblemTooManyCivilizations, Count: civilizations, Limit: rules.MaxCivilizations})
-	}
+	problems := civilizationProblems(entries, known, 0, rules.MaxCivilizations)
 
 	for _, entry := range entries {
 		card, found := known[entry.CardID]
@@ -171,6 +175,21 @@ func CheckRules(entries []Entry, known map[string]cards.Card, rules Rules) []Pro
 	}
 
 	return problems
+}
+
+// civilizationProblems holds a deck's civilizations to the fewest and the most
+// allowed, 0 leaving either open. A deck with no civilizations yet has only begun,
+// which its size already says, so it is not told it has too few as well.
+func civilizationProblems(entries []Entry, known map[string]cards.Card, fewest, most int) []Problem {
+	civilizations := len(Civilizations(entries, known))
+	switch {
+	case most > 0 && civilizations > most:
+		return []Problem{{Kind: ProblemTooManyCivilizations, Count: civilizations, Limit: most}}
+	case civilizations > 0 && civilizations < fewest:
+		return []Problem{{Kind: ProblemTooFewCivilizations, Count: civilizations, Limit: fewest}}
+	default:
+		return nil
+	}
 }
 
 // Count is how many cards the entries hold.

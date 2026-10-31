@@ -16,6 +16,10 @@ import (
 // ErrNotFound is returned for a format that does not exist.
 var ErrNotFound = errors.New("format not found")
 
+// TotalCivilizations is how many civilizations the game has, the most a deck can
+// hold.
+const TotalCivilizations = 5
+
 // Format is a set of deck-building rules on top of the game's own.
 type Format struct {
 	ID          string
@@ -30,6 +34,11 @@ type Format struct {
 	// Limits are the banned and limited cards: the most copies of each card a
 	// deck may have, 0 for a banned card.
 	Limits map[string]int
+	// MinCivilizations and MaxCivilizations are the fewest and the most
+	// civilizations a deck's cards may have together, 0 leaving either open. A
+	// card of two civilizations counts as both.
+	MinCivilizations int
+	MaxCivilizations int
 	// Retired formats cannot be chosen for new games, and decks are no longer
 	// checked against them; games already in them keep them.
 	Retired bool
@@ -56,8 +65,11 @@ type formatRow struct {
 	AllSets     bool
 	SortOrder   int
 	RetiredAt   *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// See Format.
+	MinCivilizations int
+	MaxCivilizations int
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 func (formatRow) TableName() string { return "formats" }
@@ -143,6 +155,9 @@ func (s *Service) withRules(ctx context.Context, rows []formatRow) ([]Format, er
 			Sets:        []string{},
 			Limits:      map[string]int{},
 			Retired:     row.RetiredAt != nil,
+
+			MinCivilizations: row.MinCivilizations,
+			MaxCivilizations: row.MaxCivilizations,
 		}
 	}
 	if len(rows) == 0 {

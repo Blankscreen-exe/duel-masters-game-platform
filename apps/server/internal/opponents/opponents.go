@@ -148,7 +148,17 @@ func (s *Service) Check(ctx context.Context, opponent Opponent) ([]decks.Problem
 	if format.Retired {
 		retired = []decks.Problem{{Kind: decks.ProblemFormatRetired}}
 	}
-	return slices.Concat(retired, decks.Check(opponent.Cards, known, format), decks.CheckRules(opponent.Cards, known, opponent.Rules)), nil
+
+	// When both set a most, the tighter says all there is to say.
+	rules := opponent.Rules
+	if format.MaxCivilizations > 0 && rules.MaxCivilizations > 0 {
+		if rules.MaxCivilizations <= format.MaxCivilizations {
+			format.MaxCivilizations = 0
+		} else {
+			rules.MaxCivilizations = 0
+		}
+	}
+	return slices.Concat(retired, decks.Check(opponent.Cards, known, format), decks.CheckRules(opponent.Cards, known, rules)), nil
 }
 
 // read reads the opponents the query finds, in order, with their names and

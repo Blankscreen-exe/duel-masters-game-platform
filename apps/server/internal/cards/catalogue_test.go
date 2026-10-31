@@ -330,6 +330,8 @@ func TestSearchFilters(t *testing.T) {
 			{"text of nothing but punctuation", Filter{Text: "..."}, []string{}},
 
 			{"a format's sets", Filter{Legal: &Legality{Sets: []string{"DM-10"}}}, []string{"Solar Ray"}},
+			{"a format's most civilizations", Filter{Civilizations: []string{"Fire"}, Legal: &Legality{AllSets: true, MaxCivilizations: 1}}, []string{"Bolshack Dragon", "Future_Card"}},
+			{"a format's most, with room", Filter{Civilizations: []string{"Fire"}, Legal: &Legality{AllSets: true, MaxCivilizations: 2}}, []string{"Bolshack Dragon", "Future_Card", "Überdragon Zaschack"}},
 			{"a format's banned cards", Filter{Legal: &Legality{AllSets: true, Banned: []string{"0079", "0033"}}}, []string{"Future_Card", "Solar Ray", "Überdragon Zaschack"}},
 			{"a format with neither", Filter{Legal: &Legality{AllSets: true}}, []string{"Aqua Hulcus", "Bolshack Dragon", "Future_Card", "Solar Ray", "Überdragon Zaschack"}},
 			{"a format allowing no sets", Filter{Legal: &Legality{}}, []string{}},

@@ -95,7 +95,7 @@ func (h *handlers) legalityIn(ctx context.Context, formatID string) (*cards.Lega
 		return nil, err
 	}
 
-	legal := cards.Legality{AllSets: format.AllSets, Sets: format.Sets}
+	legal := cards.Legality{AllSets: format.AllSets, Sets: format.Sets, MaxCivilizations: format.MaxCivilizations}
 	for cardID, limit := range format.Limits {
 		if limit == 0 {
 			legal.Banned = append(legal.Banned, cardID)

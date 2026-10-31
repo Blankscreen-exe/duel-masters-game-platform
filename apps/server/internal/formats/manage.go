@@ -46,6 +46,10 @@ type Input struct {
 	Sets    []string
 	// Limits are the most copies of each card a deck may have, 0 for banned.
 	Limits map[string]int
+	// MinCivilizations and MaxCivilizations are the fewest and the most a deck
+	// may have, 0 leaving either open.
+	MinCivilizations int
+	MaxCivilizations int
 }
 
 // Manager lets admins change the formats. It is safe for concurrent use.
@@ -96,6 +100,9 @@ func (m *Manager) Create(ctx context.Context, actor users.User, input Input) (Fo
 			SortOrder:   last + 1,
 			CreatedAt:   now,
 			UpdatedAt:   now,
+
+			MinCivilizations: input.MinCivilizations,
+			MaxCivilizations: input.MaxCivilizations,
 		}
 		if err := tx.Create(&row).Error; err != nil {
 			return nameError(err, "adding a format")
@@ -134,8 +141,15 @@ func (m *Manager) Update(ctx context.Context, actor users.User, id string, input
 		}
 
 		err = tx.Model(&formatRow{ID: id}).
-			Select("name", "description", "all_sets", "updated_at").
-			Updates(formatRow{Name: input.Name, Description: input.Description, AllSets: input.AllSets, UpdatedAt: tx.NowFunc()}).Error
+			Select("name", "description", "all_sets", "min_civilizations", "max_civilizations", "updated_at").
+			Updates(formatRow{
+				Name:             input.Name,
+				Description:      input.Description,
+				AllSets:          input.AllSets,
+				MinCivilizations: input.MinCivilizations,
+				MaxCivilizations: input.MaxCivilizations,
+				UpdatedAt:        tx.NowFunc(),
+			}).Error
 		if err != nil {
 			return nameError(err, fmt.Sprintf("changing format %q", current.Name))
 		}
@@ -284,6 +298,9 @@ func (m *Manager) normalize(ctx context.Context, input Input) (Input, error) {
 		return Input{}, validation.New("description", fmt.Sprintf("must be at most %d characters", DescriptionMaxLength))
 	}
 
+	if err := checkCivilizations(input); err != nil {
+		return Input{}, err
+	}
 	if err := m.checkSets(ctx, &input); err != nil {
 		return Input{}, err
 	}
@@ -291,6 +308,21 @@ func (m *Manager) normalize(ctx context.Context, input Input) (Input, error) {
 		return Input{}, err
 	}
 	return input, nil
+}
+
+// checkCivilizations checks the fewest and the most are numbers of civilizations
+// the game has, and that a deck could keep to both.
+func checkCivilizations(input Input) error {
+	inBounds := func(n int) bool { return n >= 0 && n <= TotalCivilizations }
+	switch {
+	case !inBounds(input.MinCivilizations):
+		return validation.New("minCivilizations", fmt.Sprintf("must be from 0, for no fewest, to %d", TotalCivilizations))
+	case !inBounds(input.MaxCivilizations):
+		return validation.New("maxCivilizations", fmt.Sprintf("must be from 0, for no most, to %d", TotalCivilizations))
+	case input.MaxCivilizations > 0 && input.MinCivilizations > input.MaxCivilizations:
+		return validation.New("minCivilizations", "must not be more than the most allowed")
+	}
+	return nil
 }
 
 // checkSets checks the sets are ones the card database has, and leaves each once

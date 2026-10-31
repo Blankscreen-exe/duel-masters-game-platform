@@ -99,10 +99,85 @@ func TestProblemMessages(t *testing.T) {
 		{Kind: decks.ProblemTooManyCopies, CardName: "Basic 01", Count: 5, Limit: decks.MaxCopies}: "Basic 01: 5 copies, but at most 4 are allowed.",
 		{Kind: decks.ProblemTooManyCivilizations, Count: 3, Limit: 1}:                              "The deck's cards have 3 civilizations, but at most 1 is allowed.",
 		{Kind: decks.ProblemTooManyCivilizations, Count: 3, Limit: 2}:                              "The deck's cards have 3 civilizations, but at most 2 are allowed.",
+		{Kind: decks.ProblemTooFewCivilizations, Count: 1, Limit: 2}:                               "The deck's cards have 1 civilization, but at least 2 are needed.",
+		{Kind: decks.ProblemTooFewCivilizations, Count: 2, Limit: 5}:                               "The deck's cards have 2 civilizations, but at least 5 are needed.",
 		{Kind: decks.ProblemCardType, CardName: "Castle of Doom"}:                                  "Castle of Doom is a type of card this deck may not have.",
 	} {
 		assert.Equal(t, message, problem.Message())
 	}
+}
+
+func TestAFormatHoldsADeckToItsCivilizations(t *testing.T) {
+	known := map[string]cards.Card{
+		"light":  {ID: "light", Civilizations: []string{"Light"}},
+		"water":  {ID: "water", Civilizations: []string{"Water"}},
+		"dark":   {ID: "dark", Civilizations: []string{"Darkness"}},
+		"fire":   {ID: "fire", Civilizations: []string{"Fire"}},
+		"nature": {ID: "nature", Civilizations: []string{"Nature"}},
+		"dual":   {ID: "dual", Civilizations: []string{"Fire", "Nature"}},
+	}
+	deck := func(ids ...string) []decks.Entry {
+		entries := make([]decks.Entry, 0, len(ids))
+		for _, id := range ids {
+			entries = append(entries, decks.Entry{CardID: id, Count: 1})
+		}
+		return entries
+	}
+	all := deck("light", "water", "dark", "fire", "nature")
+
+	for _, test := range []struct {
+		name         string
+		fewest, most int
+		deck         []decks.Entry
+		want         []decks.Problem
+	}{
+		{"no rule, one", 0, 0, deck("fire"), nil},
+		{"no rule, all", 0, 0, all, nil},
+		{"exactly 1, keeping to it", 1, 1, deck("fire"), nil},
+		{"exactly 1, with two", 1, 1, deck("fire", "water"), []decks.Problem{{Kind: decks.ProblemTooManyCivilizations, Count: 2, Limit: 1}}},
+		{"exactly 1, a card of two counts as both", 1, 1, deck("dual"), []decks.Problem{{Kind: decks.ProblemTooManyCivilizations, Count: 2, Limit: 1}}},
+		{"exactly 2, keeping to it", 2, 2, deck("fire", "water"), nil},
+		{"exactly 2, from one card of two", 2, 2, deck("dual"), nil},
+		{"exactly 2, the same one twice over", 2, 2, deck("dual", "fire", "nature"), nil},
+		{"exactly 2, with one", 2, 2, deck("fire"), []decks.Problem{{Kind: decks.ProblemTooFewCivilizations, Count: 1, Limit: 2}}},
+		{"exactly 2, with three", 2, 2, deck("dual", "water"), []decks.Problem{{Kind: decks.ProblemTooManyCivilizations, Count: 3, Limit: 2}}},
+		{"exactly 5, keeping to it", 5, 5, all, nil},
+		{"exactly 5, with four", 5, 5, deck("light", "water", "dark", "fire"), []decks.Problem{{Kind: decks.ProblemTooFewCivilizations, Count: 4, Limit: 5}}},
+		{"up to 2, with one", 1, 2, deck("fire"), nil},
+		{"up to 2, with no fewest", 0, 2, deck("fire"), nil},
+		{"up to 2, with three", 1, 2, deck("dual", "water"), []decks.Problem{{Kind: decks.ProblemTooManyCivilizations, Count: 3, Limit: 2}}},
+		{"at least 3, with no most", 3, 0, all, nil},
+		{"at least 3, with two", 3, 0, deck("dual"), []decks.Problem{{Kind: decks.ProblemTooFewCivilizations, Count: 2, Limit: 3}}},
+	} {
+		format := formats.Format{AllSets: true, MinCivilizations: test.fewest, MaxCivilizations: test.most}
+		assert.Equal(t, test.want, civilizationProblemsOf(decks.Check(test.deck, known, format)), test.name)
+	}
+}
+
+func TestAnEmptyDeckIsOnlyToldItsSize(t *testing.T) {
+	format := formats.Format{AllSets: true, MinCivilizations: 5, MaxCivilizations: 5}
+
+	assert.Equal(t, []decks.Problem{{Kind: decks.ProblemSize, Count: 0, Limit: 40}}, decks.Check(nil, nil, format))
+}
+
+func TestCivilizationsComeBeforeTheCardsAtFault(t *testing.T) {
+	cards := known(t)
+	format := formats.Format{AllSets: true, MaxCivilizations: 1, Limits: map[string]int{bolshack: 0}}
+
+	problems := decks.Check([]decks.Entry{{CardID: bolshack, Count: 1}, {CardID: hulcus, Count: 1}}, cards, format)
+	assert.Equal(t, []decks.ProblemKind{decks.ProblemSize, decks.ProblemTooManyCivilizations, decks.ProblemBanned}, []decks.ProblemKind{problems[0].Kind, problems[1].Kind, problems[2].Kind})
+}
+
+// civilizationProblemsOf leaves out everything but the civilizations, as the
+// decks being checked are too small and have cards without printings.
+func civilizationProblemsOf(problems []decks.Problem) []decks.Problem {
+	var kept []decks.Problem
+	for _, problem := range problems {
+		if problem.Kind == decks.ProblemTooManyCivilizations || problem.Kind == decks.ProblemTooFewCivilizations {
+			kept = append(kept, problem)
+		}
+	}
+	return kept
 }
 
 func TestCivilizationsAreInTheGamesOrder(t *testing.T) {

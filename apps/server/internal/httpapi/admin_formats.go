@@ -205,6 +205,9 @@ func formatInput(body api.FormatInput) formats.Input {
 		AllSets:     body.AllSets,
 		Sets:        body.Sets,
 		Limits:      limits,
+
+		MinCivilizations: body.MinCivilizations,
+		MaxCivilizations: body.MaxCivilizations,
 	}
 }
 
@@ -258,6 +261,9 @@ func (h *handlers) apiAdminFormats(ctx context.Context, list []formats.Format) (
 			Limits:      limits,
 			Retired:     format.Retired,
 			Opponents:   offered,
+
+			MinCivilizations: format.MinCivilizations,
+			MaxCivilizations: format.MaxCivilizations,
 		})
 	}
 	return shown, nil

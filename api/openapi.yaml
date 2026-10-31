@@ -2688,7 +2688,7 @@ components:
           type: string
     Format:
       type: object
-      required: [id, name, description, allSets, sets, limits]
+      required: [id, name, description, allSets, sets, limits, minCivilizations, maxCivilizations]
       properties:
         id:
           type: string
@@ -2709,10 +2709,30 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FormatCardLimit"
+        minCivilizations:
+          description: The fewest civilizations a deck's cards may have together; 0 for no fewest.
+          type: integer
+          minimum: 0
+          maximum: 5
+        maxCivilizations:
+          description: The most civilizations a deck's cards may have together; 0 for no most.
+          type: integer
+          minimum: 0
+          maximum: 5
     AdminFormat:
       description: A format as the admin panel shows it.
       type: object
-      required: [id, name, description, allSets, sets, limits, retired, opponents]
+      required:
+        - id
+        - name
+        - description
+        - allSets
+        - sets
+        - limits
+        - minCivilizations
+        - maxCivilizations
+        - retired
+        - opponents
       properties:
         id:
           type: string
@@ -2733,6 +2753,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AdminFormatLimit"
+        minCivilizations:
+          description: The fewest civilizations a deck's cards may have together; 0 for no fewest.
+          type: integer
+          minimum: 0
+          maximum: 5
+        maxCivilizations:
+          description: The most civilizations a deck's cards may have together; 0 for no most.
+          type: integer
+          minimum: 0
+          maximum: 5
         retired:
           description: Players can no longer choose it.
           type: boolean
@@ -2756,7 +2786,7 @@ components:
     FormatInput:
       description: A format as an admin saves it.
       type: object
-      required: [name, description, allSets, sets, limits]
+      required: [name, description, allSets, sets, limits, minCivilizations, maxCivilizations]
       properties:
         name:
           type: string
@@ -2775,6 +2805,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FormatCardLimit"
+        minCivilizations:
+          description: The fewest civilizations a deck's cards may have together; 0 for no fewest.
+          type: integer
+          minimum: 0
+          maximum: 5
+        maxCivilizations:
+          description: The most civilizations a deck's cards may have together; 0 for no most.
+          type: integer
+          minimum: 0
+          maximum: 5
     FormatOrder:
       type: object
       required: [formatIds]
@@ -2945,9 +2985,10 @@ components:
         deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left
         the card database. not_in_format: none of its printings is from an allowed set. banned: the
         format bans it. over_limit: more copies than the format allows. too_many_copies: more than
-        4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has
-        more civilizations than its rules allow, or a card of a type they do not. format_retired:
-        only for a computer opponent, whose format an admin has retired.
+        4 copies. too_many_civilizations: more civilizations than the format, or a computer
+        opponent's rules, allow. too_few_civilizations: fewer civilizations than the format needs.
+        card_type: only for a computer opponent, whose deck has a card of a type its rules do not
+        allow. format_retired: only for a computer opponent, whose format an admin has retired.
       type: string
       enum:
         - deck_size
@@ -2958,6 +2999,7 @@ components:
         - too_many_copies
         - format_retired
         - too_many_civilizations
+        - too_few_civilizations
         - card_type
     DeckListText:
       type: object

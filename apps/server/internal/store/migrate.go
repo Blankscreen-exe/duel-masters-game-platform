@@ -31,6 +31,7 @@ func migrations() []*gormigrate.Migration {
 		migration0012ComputerAccounts(),
 		migration0013ComputerOpponents(),
 		migration0014FormatRetirement(),
+		migration0015FormatCivilizations(),
 	}
 }
 

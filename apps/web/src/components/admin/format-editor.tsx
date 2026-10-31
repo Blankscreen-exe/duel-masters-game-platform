@@ -6,12 +6,15 @@ import { useState } from 'react';
 import { useWarnOnLeaving } from '@/components/decks/deck-workbench';
 import { Button } from '@/components/ui/button';
 import { Chips } from '@/components/ui/chips';
-import { FIELD_LABEL } from '@/components/ui/field';
+import { FIELD_HINT, FIELD_LABEL } from '@/components/ui/field';
 import { Panel } from '@/components/ui/panel';
+import { SelectField } from '@/components/ui/select-field';
 import { TextField } from '@/components/ui/text-field';
 import { createFormat, saveFormat } from '@/lib/admin-actions';
 import type { CardFilters } from '@/lib/api/client';
 import {
+  CIVILIZATION_COUNTS,
+  civilizationRuleText,
   FORMAT_DESCRIPTION_MAX_LENGTH,
   FORMAT_NAME_MAX_LENGTH,
   formatFormProblem,
@@ -140,6 +143,42 @@ export function FormatEditor({ format, filters }: FormatEditorProps) {
                 }}
               />
             )}
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className={FIELD_LABEL}>Civilizations in a deck</legend>
+            <div className="grid gap-4 sm:max-w-md sm:grid-cols-2">
+              <SelectField
+                label="Fewest"
+                value={form.minCivilizations}
+                onChange={(event) => {
+                  change({ minCivilizations: Number(event.target.value) });
+                }}
+              >
+                {CIVILIZATION_COUNTS.map((count) => (
+                  <option key={count} value={count}>
+                    {count === 0 ? 'Any' : count}
+                  </option>
+                ))}
+              </SelectField>
+              <SelectField
+                label="Most"
+                value={form.maxCivilizations}
+                onChange={(event) => {
+                  change({ maxCivilizations: Number(event.target.value) });
+                }}
+              >
+                {CIVILIZATION_COUNTS.map((count) => (
+                  <option key={count} value={count}>
+                    {count === 0 ? 'Any' : count}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+            <p className={FIELD_HINT}>
+              {civilizationRuleText(form) ?? 'Any number'}. A card of two civilizations counts as
+              both. Set both the same for an exact number.
+            </p>
           </fieldset>
 
           <div className="border-t border-slate-700/60 pt-4">

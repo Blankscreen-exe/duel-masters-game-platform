@@ -15,6 +15,12 @@ export const LIMIT_CHOICES = [
   { maxCopies: 2, label: 'Limited to 2' },
 ] as const;
 
+/** How many civilizations the game has, the most a format can ask of a deck. */
+export const TOTAL_CIVILIZATIONS = 5;
+
+/** The choices for the fewest or the most civilizations; 0 leaves that side open. */
+export const CIVILIZATION_COUNTS = [0, 1, 2, 3, 4, TOTAL_CIVILIZATIONS] as const;
+
 /** A card a format bans or limits, in the editor. A card gone from the catalogue has no details. */
 export interface FormatLimit {
   readonly cardId: string;
@@ -30,6 +36,9 @@ export interface FormatForm {
   /** The sets chosen, kept even while every set is allowed, in case that is changed back. */
   readonly sets: readonly string[];
   readonly limits: readonly FormatLimit[];
+  /** The fewest and the most civilizations a deck may have; 0 leaves that side open. */
+  readonly minCivilizations: number;
+  readonly maxCivilizations: number;
 }
 
 export const NEW_FORMAT: FormatForm = {
@@ -38,6 +47,8 @@ export const NEW_FORMAT: FormatForm = {
   allSets: true,
   sets: [],
   limits: [],
+  minCivilizations: 0,
+  maxCivilizations: 0,
 };
 
 export function formOfFormat(format: AdminFormat): FormatForm {
@@ -51,6 +62,8 @@ export function formOfFormat(format: AdminFormat): FormatForm {
       maxCopies,
       ...(card ? { card } : {}),
     })),
+    minCivilizations: format.minCivilizations,
+    maxCivilizations: format.maxCivilizations,
   };
 }
 
@@ -62,6 +75,8 @@ export function toFormatInput(form: FormatForm): FormatInput {
     allSets: form.allSets,
     sets: form.allSets ? [] : [...form.sets],
     limits: form.limits.map(({ cardId, maxCopies }) => ({ cardId, maxCopies })),
+    minCivilizations: form.minCivilizations,
+    maxCivilizations: form.maxCivilizations,
   };
 }
 
@@ -74,6 +89,8 @@ export function sameFormatForm(a: FormatForm, b: FormatForm): boolean {
       form.allSets,
       form.allSets ? [] : [...form.sets].sort(),
       form.limits.map(({ cardId, maxCopies }) => [cardId, maxCopies]).sort(),
+      form.minCivilizations,
+      form.maxCivilizations,
     ]);
   return key(a) === key(b);
 }
@@ -83,6 +100,9 @@ export function formatFormProblem(form: FormatForm): string | null {
   if (form.name.trim() === '') return 'The format needs a name.';
   if (form.description.trim() === '') return 'The format needs a description.';
   if (!form.allSets && form.sets.length === 0) return 'Choose at least one set.';
+  if (form.maxCivilizations > 0 && form.minCivilizations > form.maxCivilizations) {
+    return 'The fewest civilizations cannot be more than the most.';
+  }
   return null;
 }
 
@@ -107,6 +127,24 @@ export function withoutLimit(form: FormatForm, cardId: string): FormatForm {
   return { ...form, limits: form.limits.filter((limit) => limit.cardId !== cardId) };
 }
 
+/**
+ * What a format asks of a deck's civilizations, in a few words, or null when any deck would do: every
+ * deck has at least one and at most all of them, so those ask nothing.
+ */
+export function civilizationRuleText(
+  format: Pick<FormatInput, 'minCivilizations' | 'maxCivilizations'>,
+): string | null {
+  const fewest = Math.max(format.minCivilizations, 1);
+  const most = format.maxCivilizations === 0 ? TOTAL_CIVILIZATIONS : format.maxCivilizations;
+  const unit = most === 1 ? 'civilization' : 'civilizations';
+
+  if (fewest === 1 && most === TOTAL_CIVILIZATIONS) return null;
+  if (fewest === most) return `Exactly ${String(most)} ${unit}`;
+  if (fewest === 1) return `Up to ${String(most)} ${unit}`;
+  if (most === TOTAL_CIVILIZATIONS) return `At least ${String(fewest)} ${unit}`;
+  return `${String(fewest)} to ${String(most)} ${unit}`;
+}
+
 /** What a format allows, in a few words. */
 export function formatRulesText(format: AdminFormat): string {
   const sets = format.allSets
@@ -116,9 +154,11 @@ export function formatRulesText(format: AdminFormat): string {
       : `${String(format.sets.length)} sets`;
   const banned = format.limits.filter(({ maxCopies }) => maxCopies === 0).length;
   const limited = format.limits.length - banned;
+  const rule = civilizationRuleText(format);
 
   return [
     sets,
+    ...(rule ? [rule] : []),
     ...(banned > 0 ? [`${String(banned)} banned`] : []),
     ...(limited > 0 ? [`${String(limited)} limited`] : []),
   ].join(' · ');

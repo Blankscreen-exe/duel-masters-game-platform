@@ -25,7 +25,7 @@ const (
 	DescriptionMaxLength = 200
 	// MaxCivilizationsLimit is the most a deck's rules can ask for: every
 	// civilization there is.
-	MaxCivilizationsLimit = 5
+	MaxCivilizationsLimit = formats.TotalCivilizations
 )
 
 // CardTypes are every card type a deck's rules may allow, as the card database

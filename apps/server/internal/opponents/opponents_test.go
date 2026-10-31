@@ -156,6 +156,36 @@ func TestCheckHoldsADeckToItsOpponentsRules(t *testing.T) {
 		oneCivilization.Rules.MaxCivilizations = 1
 		assert.Equal(t, []decks.ProblemKind{decks.ProblemTooManyCivilizations}, kinds(oneCivilization))
 
+		// Its format can hold it to a number of civilizations too, and when both
+		// set a most, the tighter alone is reported.
+		setFormat := func(fewest, most int) {
+			t.Helper()
+			require.NoError(t, db.Table("formats").Where("id = ?", stormbinder.FormatID).
+				Updates(map[string]any{"min_civilizations": fewest, "max_civilizations": most}).Error)
+		}
+		check := func(opponent opponents.Opponent) []decks.Problem {
+			t.Helper()
+			problems, err := service.Check(ctx, opponent)
+			require.NoError(t, err)
+			return problems
+		}
+		tooMany := func(limit int) []decks.Problem {
+			return []decks.Problem{{Kind: decks.ProblemTooManyCivilizations, Count: 2, Limit: limit}}
+		}
+
+		setFormat(0, 1)
+		assert.Equal(t, tooMany(1), check(stormbinder), "the format's alone")
+		assert.Equal(t, tooMany(1), check(oneCivilization), "both the same")
+		setFormat(0, 2)
+		assert.Equal(t, tooMany(1), check(oneCivilization), "its own is tighter")
+		noneOfItsOwn := stormbinder
+		noneOfItsOwn.Rules.MaxCivilizations = 2
+		setFormat(0, 1)
+		assert.Equal(t, tooMany(1), check(noneOfItsOwn), "the format's is tighter")
+		setFormat(3, 0)
+		assert.Equal(t, []decks.ProblemKind{decks.ProblemTooFewCivilizations}, kinds(stormbinder))
+		setFormat(0, 0)
+
 		// And a card short is no deck.
 		short := stormbinder
 		short.Cards = stormbinder.Cards[1:]

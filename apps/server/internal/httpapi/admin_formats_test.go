@@ -134,6 +134,71 @@ func TestAnAdminManagesAFormat(t *testing.T) {
 	}, actions)
 }
 
+func TestAFormatHoldsPlayersToItsCivilizations(t *testing.T) {
+	site := newPlayServer(t)
+	boss := site.signUp(t, "Boss")
+	shobu := site.player(t, "Shobu")
+
+	addFormat := func(name string, fewest, most int) api.AdminFormat {
+		t.Helper()
+		body := formatBody(name)
+		body.AllSets = true
+		body.Limits = []api.FormatCardLimit{}
+		body.MinCivilizations, body.MaxCivilizations = fewest, most
+		response := site.call(http.MethodPost, adminFormatsPath, body, boss)
+		require.Equal(t, http.StatusCreated, response.Code, response.Body.String())
+		return decode[api.AdminFormat](t, response)
+	}
+
+	// The rule is kept, and players can see it.
+	rainbow := addFormat("Rainbow", 5, 5)
+	assert.Equal(t, 5, rainbow.MinCivilizations)
+	assert.Equal(t, 5, rainbow.MaxCivilizations)
+	public := decode[[]api.Format](t, site.call(http.MethodGet, "/api/formats", nil, nil))
+	assert.Equal(t, 5, public[len(public)-1].MinCivilizations)
+	assert.Zero(t, public[0].MinCivilizations, "the starting formats have no rule")
+	assert.Zero(t, public[0].MaxCivilizations)
+
+	// One no deck could keep to is refused.
+	impossible := formatBody("Impossible")
+	impossible.MinCivilizations, impossible.MaxCivilizations = 3, 2
+	refused := site.call(http.MethodPost, adminFormatsPath, impossible, boss)
+	assert.Equal(t, http.StatusBadRequest, refused.Code)
+	field := decode[api.Error](t, refused).Field
+	require.NotNil(t, field)
+	assert.Equal(t, "minCivilizations", *field)
+
+	// Shobu's deck has too few for it, so it cannot be hosted there.
+	response := site.call(http.MethodPost, "/api/lobby/games", api.OpenGameInput{DeckId: shobu.deckID, FormatId: rainbow.Id}, shobu.session)
+	require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+	answer := decode[api.Error](t, response)
+	assert.Equal(t, codeDeckNotLegal, answer.Code)
+	require.NotNil(t, answer.Problems)
+	require.Len(t, *answer.Problems, 1)
+	assert.Equal(t, api.DeckProblemCodeTooFewCivilizations, (*answer.Problems)[0].Code)
+
+	// And the deck list says so.
+	deck := decode[api.Deck](t, site.call(http.MethodGet, "/api/decks/"+shobu.deckID, nil, shobu.session))
+	var inRainbow *api.DeckLegality
+	for i := range deck.Legality {
+		if deck.Legality[i].FormatId == rainbow.Id {
+			inRainbow = &deck.Legality[i]
+		}
+	}
+	require.NotNil(t, inRainbow)
+	assert.False(t, inRainbow.Legal)
+	require.Len(t, inRainbow.Problems, 1)
+	assert.Equal(t, api.DeckProblemCodeTooFewCivilizations, inRainbow.Problems[0].Code)
+
+	// Taking the rule off makes it legal at once.
+	open := formatBody("Rainbow")
+	open.AllSets = true
+	open.Limits = []api.FormatCardLimit{}
+	require.Equal(t, http.StatusOK, site.call(http.MethodPut, adminFormatsPath+"/"+rainbow.Id, open, boss).Code)
+	game := site.openGame(t, shobu, api.OpenGameInput{FormatId: rainbow.Id, Listed: true})
+	assert.NotEmpty(t, game.Id)
+}
+
 func TestAnOfferedOpponentsFormatSaysSoAndDropsItWhenRetired(t *testing.T) {
 	site := newPlayServer(t)
 	boss := site.signUp(t, "Boss")

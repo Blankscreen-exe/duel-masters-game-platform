@@ -352,6 +352,9 @@ func apiFormat(format formats.Format) api.Format {
 		AllSets:     format.AllSets,
 		Sets:        format.Sets,
 		Limits:      limits,
+
+		MinCivilizations: format.MinCivilizations,
+		MaxCivilizations: format.MaxCivilizations,
 	}
 }
 

@@ -5,6 +5,8 @@ import { parse } from 'yaml';
 import type { Card } from './api/client';
 import {
   changedLimit,
+  CIVILIZATION_COUNTS,
+  civilizationRuleText,
   FORMAT_DESCRIPTION_MAX_LENGTH,
   FORMAT_NAME_MAX_LENGTH,
   formatFormProblem,
@@ -36,6 +38,8 @@ const saved: AdminFormat = {
     { cardId: 'a', maxCopies: 0, card: card('a', 'Aqua') },
     { cardId: 'b', maxCopies: 1 },
   ],
+  minCivilizations: 0,
+  maxCivilizations: 2,
   retired: false,
   opponents: [],
 };
@@ -50,7 +54,12 @@ describe('the limits', () => {
       components: {
         schemas: {
           FormatInput: {
-            properties: { name: { maxLength: number }; description: { maxLength: number } };
+            properties: {
+              name: { maxLength: number };
+              description: { maxLength: number };
+              minCivilizations: { minimum: number; maximum: number };
+              maxCivilizations: { minimum: number; maximum: number };
+            };
           };
           FormatCardLimit: { properties: { maxCopies: { minimum: number; maximum: number } } };
         };
@@ -62,6 +71,13 @@ describe('the limits', () => {
     expect(FORMAT_DESCRIPTION_MAX_LENGTH).toBe(FormatInput.properties.description.maxLength);
     expect(LIMIT_CHOICES[0].maxCopies).toBe(FormatCardLimit.properties.maxCopies.minimum);
     expect(LIMIT_CHOICES.at(-1)?.maxCopies).toBe(FormatCardLimit.properties.maxCopies.maximum);
+    for (const side of [
+      FormatInput.properties.minCivilizations,
+      FormatInput.properties.maxCivilizations,
+    ]) {
+      expect(CIVILIZATION_COUNTS[0]).toBe(side.minimum);
+      expect(CIVILIZATION_COUNTS.at(-1)).toBe(side.maximum);
+    }
   });
 });
 
@@ -76,6 +92,8 @@ describe('formOfFormat and toFormatInput', () => {
         { cardId: 'a', maxCopies: 0 },
         { cardId: 'b', maxCopies: 1 },
       ],
+      minCivilizations: 0,
+      maxCivilizations: 2,
     });
   });
 
@@ -104,6 +122,8 @@ describe('sameFormatForm', () => {
     expect(sameFormatForm({ ...form, allSets: true }, form)).toBe(false);
     expect(sameFormatForm({ ...form, sets: ['DM-01'] }, form)).toBe(false);
     expect(sameFormatForm(changedLimit(form, 'a', 2), form)).toBe(false);
+    expect(sameFormatForm({ ...form, minCivilizations: 1 }, form)).toBe(false);
+    expect(sameFormatForm({ ...form, maxCivilizations: 1 }, form)).toBe(false);
   });
 });
 
@@ -119,6 +139,16 @@ describe('formatFormProblem', () => {
       'The format needs a description.',
     );
     expect(formatFormProblem({ ...form, sets: [] })).toBe('Choose at least one set.');
+  });
+
+  it('refuses a civilization rule no deck could keep to', () => {
+    const impossible = { ...form, minCivilizations: 3, maxCivilizations: 2 };
+
+    expect(formatFormProblem(impossible)).toBe(
+      'The fewest civilizations cannot be more than the most.',
+    );
+    expect(formatFormProblem({ ...impossible, maxCivilizations: 3 })).toBeNull();
+    expect(formatFormProblem({ ...impossible, maxCivilizations: 0 })).toBeNull();
   });
 });
 
@@ -149,9 +179,47 @@ describe('the limits on a form', () => {
 
 describe('formatRulesText', () => {
   it('says what the format allows', () => {
-    expect(formatRulesText(saved)).toBe('2 sets · 1 banned · 1 limited');
-    expect(formatRulesText({ ...saved, allSets: true, sets: [], limits: [] })).toBe('Every set');
-    expect(formatRulesText({ ...saved, sets: ['DM-01'], limits: [] })).toBe('Set DM-01');
+    expect(formatRulesText({ ...saved, maxCivilizations: 0 })).toBe(
+      '2 sets · 1 banned · 1 limited',
+    );
+    expect(
+      formatRulesText({ ...saved, allSets: true, sets: [], limits: [], maxCivilizations: 0 }),
+    ).toBe('Every set');
+    expect(formatRulesText({ ...saved, sets: ['DM-01'], limits: [], maxCivilizations: 0 })).toBe(
+      'Set DM-01',
+    );
+  });
+
+  it('says what it asks of civilizations', () => {
+    expect(formatRulesText(saved)).toBe('2 sets · Up to 2 civilizations · 1 banned · 1 limited');
+  });
+});
+
+describe('civilizationRuleText', () => {
+  const text = (minCivilizations: number, maxCivilizations: number) =>
+    civilizationRuleText({ minCivilizations, maxCivilizations });
+
+  it('says nothing when any deck would do', () => {
+    expect(text(0, 0)).toBeNull();
+    expect(text(1, 0)).toBeNull();
+    expect(text(0, 5)).toBeNull();
+    expect(text(1, 5)).toBeNull();
+  });
+
+  it('says exactly, whichever way it is set', () => {
+    expect(text(1, 1)).toBe('Exactly 1 civilization');
+    expect(text(0, 1)).toBe('Exactly 1 civilization');
+    expect(text(2, 2)).toBe('Exactly 2 civilizations');
+    expect(text(5, 5)).toBe('Exactly 5 civilizations');
+    expect(text(5, 0)).toBe('Exactly 5 civilizations');
+  });
+
+  it('says a range', () => {
+    expect(text(0, 2)).toBe('Up to 2 civilizations');
+    expect(text(1, 3)).toBe('Up to 3 civilizations');
+    expect(text(2, 0)).toBe('At least 2 civilizations');
+    expect(text(2, 5)).toBe('At least 2 civilizations');
+    expect(text(2, 4)).toBe('2 to 4 civilizations');
   });
 });
 

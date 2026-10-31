@@ -126,6 +126,11 @@ func TestAFormatsInputIsChecked(t *testing.T) {
 			{"a negative limit", func(i *formats.Input) { i.Limits = map[string]int{m.CardIDs[0]: -1} }, "limits"},
 			{"too high a limit", func(i *formats.Input) { i.Limits = map[string]int{m.CardIDs[0]: formats.MaxLimit + 1} }, "limits"},
 			{"an unknown card", func(i *formats.Input) { i.Limits = map[string]int{"no-such-card": 0} }, "limits"},
+			{"a negative fewest", func(i *formats.Input) { i.MinCivilizations = -1 }, "minCivilizations"},
+			{"too high a fewest", func(i *formats.Input) { i.MinCivilizations = formats.TotalCivilizations + 1 }, "minCivilizations"},
+			{"a negative most", func(i *formats.Input) { i.MaxCivilizations = -1 }, "maxCivilizations"},
+			{"too high a most", func(i *formats.Input) { i.MaxCivilizations = formats.TotalCivilizations + 1 }, "maxCivilizations"},
+			{"a fewest above the most", func(i *formats.Input) { i.MinCivilizations, i.MaxCivilizations = 3, 2 }, "minCivilizations"},
 		} {
 			input := m.input("Legends")
 			test.change(&input)
@@ -139,6 +144,35 @@ func TestAFormatsInputIsChecked(t *testing.T) {
 		list, err := m.Formats.All(ctx)
 		require.NoError(t, err)
 		assert.Len(t, list, 2, "nothing was added")
+	})
+}
+
+func TestAFormatKeepsItsCivilizationRule(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		m := newManaging(t, db)
+
+		input := m.input("Rainbow")
+		input.MinCivilizations, input.MaxCivilizations = formats.TotalCivilizations, formats.TotalCivilizations
+		added, err := m.manager.Create(ctx, m.admin, input)
+		require.NoError(t, err)
+		assert.Equal(t, formats.TotalCivilizations, added.MinCivilizations)
+		assert.Equal(t, formats.TotalCivilizations, added.MaxCivilizations)
+
+		input.MinCivilizations, input.MaxCivilizations = 2, 0
+		changed, err := m.manager.Update(ctx, m.admin, added.ID, input)
+		require.NoError(t, err)
+		assert.Equal(t, 2, changed.MinCivilizations)
+		assert.Zero(t, changed.MaxCivilizations, "a rule can be taken off again")
+
+		listed, err := m.Formats.List(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 2, listed[2].MinCivilizations)
+
+		opened, err := m.Formats.ByID(ctx, listed[0].ID)
+		require.NoError(t, err)
+		assert.Zero(t, opened.MinCivilizations, "formats with no rule stay open")
+		assert.Zero(t, opened.MaxCivilizations)
 	})
 }
 

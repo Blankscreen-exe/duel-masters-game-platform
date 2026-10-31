@@ -110,6 +110,9 @@ type Legality struct {
 	Sets    []string
 	// Banned are the cards the format does not allow at all.
 	Banned []string
+	// MaxCivilizations is the most a deck may have, 0 for any number. A card
+	// of more than that could never be in a deck there.
+	MaxCivilizations int
 }
 
 // Page is one page of search results, in the order asked for.
@@ -216,6 +219,9 @@ func (c *Catalogue) Search(ctx context.Context, filter Filter) (Page, error) {
 		}
 		if len(filter.Legal.Banned) > 0 {
 			query = query.Where("id NOT IN ?", filter.Legal.Banned)
+		}
+		if most := filter.Legal.MaxCivilizations; most > 0 {
+			query = query.Where("id NOT IN (?)", c.db.Model(&civilizationRow{}).Select("card_id").Group("card_id").Having("COUNT(*) > ?", most))
 		}
 	}
 	if len(filter.OnlyIDs) > 0 {

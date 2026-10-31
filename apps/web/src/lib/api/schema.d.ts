@@ -1385,6 +1385,10 @@ export interface components {
             sets: string[];
             /** @description The banned and limited cards. */
             limits: components["schemas"]["FormatCardLimit"][];
+            /** @description The fewest civilizations a deck's cards may have together; 0 for no fewest. */
+            minCivilizations: number;
+            /** @description The most civilizations a deck's cards may have together; 0 for no most. */
+            maxCivilizations: number;
         };
         /** @description A format as the admin panel shows it. */
         AdminFormat: {
@@ -1397,6 +1401,10 @@ export interface components {
             sets: string[];
             /** @description The banned and limited cards, by name. */
             limits: components["schemas"]["AdminFormatLimit"][];
+            /** @description The fewest civilizations a deck's cards may have together; 0 for no fewest. */
+            minCivilizations: number;
+            /** @description The most civilizations a deck's cards may have together; 0 for no most. */
+            maxCivilizations: number;
             /** @description Players can no longer choose it. */
             retired: boolean;
             /** @description The names of the computer opponents offered to players in this format. */
@@ -1417,6 +1425,10 @@ export interface components {
             /** @description The allowed sets when allSets is false, at least one. */
             sets: string[];
             limits: components["schemas"]["FormatCardLimit"][];
+            /** @description The fewest civilizations a deck's cards may have together; 0 for no fewest. */
+            minCivilizations: number;
+            /** @description The most civilizations a deck's cards may have together; 0 for no most. */
+            maxCivilizations: number;
         };
         FormatOrder: {
             /** @description Each format once, retired or not. */
@@ -1500,10 +1512,10 @@ export interface components {
             cardId?: string;
         };
         /**
-         * @description deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not. format_retired: only for a computer opponent, whose format an admin has retired.
+         * @description deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations: more civilizations than the format, or a computer opponent's rules, allow. too_few_civilizations: fewer civilizations than the format needs. card_type: only for a computer opponent, whose deck has a card of a type its rules do not allow. format_retired: only for a computer opponent, whose format an admin has retired.
          * @enum {string}
          */
-        DeckProblemCode: "deck_size" | "not_playable" | "not_in_format" | "banned" | "over_limit" | "too_many_copies" | "format_retired" | "too_many_civilizations" | "card_type";
+        DeckProblemCode: "deck_size" | "not_playable" | "not_in_format" | "banned" | "over_limit" | "too_many_copies" | "format_retired" | "too_many_civilizations" | "too_few_civilizations" | "card_type";
         DeckListText: {
             /** @description At most 10,000 characters and 200 lines. */
             text: string;

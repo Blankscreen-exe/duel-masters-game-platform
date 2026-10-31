@@ -2,6 +2,7 @@
 
 import { SelectField } from '@/components/ui/select-field';
 import type { Format } from '@/lib/api/client';
+import { civilizationRuleText } from '@/lib/formats';
 
 interface FormatPickerProps {
   readonly formats: readonly Format[];
@@ -21,12 +22,16 @@ export function FormatPicker({ formats, value, onChange, note }: FormatPickerPro
         onChange(event.target.value);
       }}
     >
-      {formats.map((format) => (
-        <option key={format.id} value={format.id}>
-          {format.name}
-          {note?.(format) ?? ''}
-        </option>
-      ))}
+      {formats.map((format) => {
+        const rule = civilizationRuleText(format);
+        return (
+          <option key={format.id} value={format.id}>
+            {format.name}
+            {rule ? ` · ${rule}` : ''}
+            {note?.(format) ?? ''}
+          </option>
+        );
+      })}
     </SelectField>
   );
 }

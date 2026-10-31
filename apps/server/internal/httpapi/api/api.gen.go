@@ -192,6 +192,7 @@ const (
 	DeckProblemCodeNotInFormat          DeckProblemCode = "not_in_format"
 	DeckProblemCodeNotPlayable          DeckProblemCode = "not_playable"
 	DeckProblemCodeOverLimit            DeckProblemCode = "over_limit"
+	DeckProblemCodeTooFewCivilizations  DeckProblemCode = "too_few_civilizations"
 	DeckProblemCodeTooManyCivilizations DeckProblemCode = "too_many_civilizations"
 	DeckProblemCodeTooManyCopies        DeckProblemCode = "too_many_copies"
 )
@@ -212,6 +213,8 @@ func (e DeckProblemCode) Valid() bool {
 	case DeckProblemCodeNotPlayable:
 		return true
 	case DeckProblemCodeOverLimit:
+		return true
+	case DeckProblemCodeTooFewCivilizations:
 		return true
 	case DeckProblemCodeTooManyCivilizations:
 		return true
@@ -677,7 +680,13 @@ type AdminFormat struct {
 
 	// Limits The banned and limited cards, by name.
 	Limits []AdminFormatLimit `json:"limits"`
-	Name   string             `json:"name"`
+
+	// MaxCivilizations The most civilizations a deck's cards may have together; 0 for no most.
+	MaxCivilizations int `json:"maxCivilizations"`
+
+	// MinCivilizations The fewest civilizations a deck's cards may have together; 0 for no fewest.
+	MinCivilizations int    `json:"minCivilizations"`
+	Name             string `json:"name"`
 
 	// Opponents The names of the computer opponents offered to players in this format.
 	Opponents []string `json:"opponents"`
@@ -1094,14 +1103,14 @@ type DeckProblem struct {
 	// CardId The card at fault; absent for the deck's size.
 	CardId *string `json:"cardId,omitempty"`
 
-	// Code deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not. format_retired: only for a computer opponent, whose format an admin has retired.
+	// Code deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations: more civilizations than the format, or a computer opponent's rules, allow. too_few_civilizations: fewer civilizations than the format needs. card_type: only for a computer opponent, whose deck has a card of a type its rules do not allow. format_retired: only for a computer opponent, whose format an admin has retired.
 	Code DeckProblemCode `json:"code"`
 
 	// Message The problem explained to the player.
 	Message string `json:"message"`
 }
 
-// DeckProblemCode deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations and card_type: only for a computer opponent, whose deck has more civilizations than its rules allow, or a card of a type they do not. format_retired: only for a computer opponent, whose format an admin has retired.
+// DeckProblemCode deck_size: not exactly 40 cards. not_playable: the game cannot play the card, or it has left the card database. not_in_format: none of its printings is from an allowed set. banned: the format bans it. over_limit: more copies than the format allows. too_many_copies: more than 4 copies. too_many_civilizations: more civilizations than the format, or a computer opponent's rules, allow. too_few_civilizations: fewer civilizations than the format needs. card_type: only for a computer opponent, whose deck has a card of a type its rules do not allow. format_retired: only for a computer opponent, whose format an admin has retired.
 type DeckProblemCode string
 
 // DeckSummary defines model for DeckSummary.
@@ -1151,7 +1160,13 @@ type Format struct {
 
 	// Limits The banned and limited cards.
 	Limits []FormatCardLimit `json:"limits"`
-	Name   string            `json:"name"`
+
+	// MaxCivilizations The most civilizations a deck's cards may have together; 0 for no most.
+	MaxCivilizations int `json:"maxCivilizations"`
+
+	// MinCivilizations The fewest civilizations a deck's cards may have together; 0 for no fewest.
+	MinCivilizations int    `json:"minCivilizations"`
+	Name             string `json:"name"`
 
 	// Sets The allowed sets when allSets is false; empty otherwise.
 	Sets []string `json:"sets"`
@@ -1170,7 +1185,13 @@ type FormatInput struct {
 	AllSets     bool              `json:"allSets"`
 	Description string            `json:"description"`
 	Limits      []FormatCardLimit `json:"limits"`
-	Name        string            `json:"name"`
+
+	// MaxCivilizations The most civilizations a deck's cards may have together; 0 for no most.
+	MaxCivilizations int `json:"maxCivilizations"`
+
+	// MinCivilizations The fewest civilizations a deck's cards may have together; 0 for no fewest.
+	MinCivilizations int    `json:"minCivilizations"`
+	Name             string `json:"name"`
 
 	// Sets The allowed sets when allSets is false, at least one.
 	Sets []string `json:"sets"`

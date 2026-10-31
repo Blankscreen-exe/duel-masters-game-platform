@@ -1,4 +1,5 @@
 import type { DeckLegality as Legality, Format } from '@/lib/api/client';
+import { civilizationRuleText } from '@/lib/formats';
 
 interface DeckLegalityProps {
   readonly legality: readonly Legality[];
@@ -20,6 +21,7 @@ export function DeckLegality({ legality, formats, unsaved }: DeckLegalityProps) 
       <ul className="space-y-3">
         {legality.map((result) => {
           const format = formats.find(({ id }) => id === result.formatId);
+          const rule = format && civilizationRuleText(format);
           return (
             <li key={result.formatId}>
               <p className="flex items-center justify-between gap-2">
@@ -36,6 +38,7 @@ export function DeckLegality({ legality, formats, unsaved }: DeckLegalityProps) 
                   {result.legal ? 'Legal' : 'Not legal'}
                 </span>
               </p>
+              {rule && <p className="text-xs text-slate-500">{rule}</p>}
               {result.problems.length > 0 && (
                 <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-slate-400">
                   {result.problems.map((problem) => (
