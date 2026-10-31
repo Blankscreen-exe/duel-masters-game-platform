@@ -40,6 +40,18 @@ func TestSearchCards(t *testing.T) {
 		"/api/cards?q=SOLAR":                               {"Solar Ray"},
 		"/api/cards?keyword=blocker&race=Human":            {"Bolshack Dragon", "Solar Ray"},
 		"/api/cards?pageSize=1&page=2":                     {"Solar Ray"},
+		"/api/cards?text=blokcer&civilization=Light":       {"Solar Ray"},
+		"/api/cards?civilization=Fire&civilizationMatch=exactly&civilizationCount=single": {"Bolshack Dragon"},
+		"/api/cards?civilization=Light&civilizationMatch=only":                            {"Solar Ray"},
+		"/api/cards?minPower=5000&maxPower=6000":                                          {"Bolshack Dragon"},
+		"/api/cards?rarity=c":                                                             {"Bolshack Dragon", "Solar Ray"},
+		"/api/cards?rarity=sr":                                                            {},
+		"/api/cards?cardId=0029":                                                          {"Solar Ray"},
+		"/api/cards?cardId=none":                                                          {},
+		"/api/cards?exceptCardId=0029&exceptCardId=0030":                                  {"Bolshack Dragon"},
+		"/api/cards?sort=cost&order=desc":                                                 {"Bolshack Dragon", "Solar Ray"},
+		"/api/cards?sort=name&order=desc":                                                 {"Solar Ray", "Bolshack Dragon"},
+		"/api/cards?sort=power":                                                           {"Bolshack Dragon", "Solar Ray"},
 	} {
 		response := server.call(http.MethodGet, query, nil, nil)
 		require.Equal(t, http.StatusOK, response.Code, "%s: %s", query, response.Body.String())
@@ -47,13 +59,36 @@ func TestSearchCards(t *testing.T) {
 	}
 }
 
+func TestSearchCardsInAFormat(t *testing.T) {
+	server := newTestServer(t, false)
+	open, classic := server.formats(t)
+
+	for _, format := range []api.Format{open, classic} {
+		response := server.call(http.MethodGet, "/api/cards?format="+format.Id, nil, nil)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		assert.Equal(t, []string{"Bolshack Dragon", "Solar Ray"}, cardNames(decode[api.CardPage](t, response)), format.Name)
+	}
+
+	response := server.call(http.MethodGet, "/api/cards?format=no-such-format", nil, nil)
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	body := decode[api.Error](t, response)
+	assert.Equal(t, "invalid_input", body.Code)
+	require.NotNil(t, body.Field)
+	assert.Equal(t, "format", *body.Field)
+}
+
 func TestSearchCardsRefusesBadFilters(t *testing.T) {
 	server := newTestServer(t, false)
 
 	for query, field := range map[string]string{
-		"/api/cards?pageSize=101":        "pageSize",
-		"/api/cards?minCost=5&maxCost=2": "minCost",
-		"/api/cards?q=" + longQuery(101): "q",
+		"/api/cards?pageSize=101":           "pageSize",
+		"/api/cards?minCost=5&maxCost=2":    "minCost",
+		"/api/cards?q=" + longQuery(101):    "q",
+		"/api/cards?text=" + longQuery(101): "text",
+		"/api/cards?minPower=5&maxPower=2":  "minPower",
+		"/api/cards?civilizationMatch=some": "civilizationMatch",
+		"/api/cards?civilizationCount=two":  "civilizationCount",
+		"/api/cards?sort=colour":            "sort",
 	} {
 		response := server.call(http.MethodGet, query, nil, nil)
 		assert.Equal(t, http.StatusBadRequest, response.Code, query)
@@ -123,6 +158,7 @@ func TestGetCardFilters(t *testing.T) {
 	require.NotNil(t, filters.Sets[0].IconUrl)
 	assert.Equal(t, "/api/cards/sets/DM-01/icon", *filters.Sets[0].IconUrl)
 	assert.Nil(t, filters.Sets[1].IconUrl, "DM-10 has no icon")
+	assert.Equal(t, []api.CardRarity{{Code: "c", Name: "Common"}}, filters.Rarities)
 }
 
 func TestGetCardImage(t *testing.T) {

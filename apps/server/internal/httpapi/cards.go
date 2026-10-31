@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
 )
 
 // pictureCacheControl lets browsers keep pictures and icons for a day, then
@@ -24,11 +26,31 @@ func (h *handlers) SearchCards(ctx context.Context, request api.SearchCardsReque
 		Races:         values(params.Race),
 		Keywords:      values(params.Keyword),
 		Sets:          values(params.Set),
+		Rarities:      values(params.Rarity),
+		OnlyIDs:       values(params.CardId),
+		ExceptIDs:     values(params.ExceptCardId),
 		MinCost:       params.MinCost,
 		MaxCost:       params.MaxCost,
+		MinPower:      params.MinPower,
+		MaxPower:      params.MaxPower,
 	}
 	if params.Q != nil {
 		filter.Query = *params.Q
+	}
+	if params.Text != nil {
+		filter.Text = *params.Text
+	}
+	if params.CivilizationMatch != nil {
+		filter.CivilizationMatch = string(*params.CivilizationMatch)
+	}
+	if params.CivilizationCount != nil {
+		filter.CivilizationCount = string(*params.CivilizationCount)
+	}
+	if params.Sort != nil {
+		filter.Sort = string(*params.Sort)
+	}
+	if params.Order != nil {
+		filter.Descending = *params.Order == api.SearchCardsParamsOrderDesc
 	}
 	if params.Playable != nil {
 		filter.PlayableOnly = *params.Playable
@@ -40,7 +62,14 @@ func (h *handlers) SearchCards(ctx context.Context, request api.SearchCardsReque
 		filter.PageSize = *params.PageSize
 	}
 
-	page, err := h.catalogue.Search(ctx, filter)
+	var err error
+	if params.Format != nil {
+		filter.Legal, err = h.legalityIn(ctx, *params.Format)
+	}
+	var page cards.Page
+	if err == nil {
+		page, err = h.catalogue.Search(ctx, filter)
+	}
 	if invalid, ok := invalidInput(err, map[string]string{"query": "q"}); ok {
 		return api.SearchCards400JSONResponse{InvalidInputJSONResponse: invalid}, nil
 	}
@@ -54,6 +83,26 @@ func (h *handlers) SearchCards(ctx context.Context, request api.SearchCardsReque
 	}
 
 	return api.SearchCards200JSONResponse{Cards: found, Total: page.Total, Page: page.Page, PageSize: page.PageSize}, nil
+}
+
+// legalityIn is what a format allows, for a card search to keep to.
+func (h *handlers) legalityIn(ctx context.Context, formatID string) (*cards.Legality, error) {
+	format, err := h.formats.ByID(ctx, formatID)
+	if errors.Is(err, formats.ErrNotFound) {
+		return nil, validation.New("format", "does not exist")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	legal := cards.Legality{AllSets: format.AllSets, Sets: format.Sets}
+	for cardID, limit := range format.Limits {
+		if limit == 0 {
+			legal.Banned = append(legal.Banned, cardID)
+		}
+	}
+
+	return &legal, nil
 }
 
 func (h *handlers) GetCardFilters(ctx context.Context, _ api.GetCardFiltersRequestObject) (api.GetCardFiltersResponseObject, error) {
@@ -72,12 +121,18 @@ func (h *handlers) GetCardFilters(ctx context.Context, _ api.GetCardFiltersReque
 		sets = append(sets, entry)
 	}
 
+	rarities := make([]api.CardRarity, 0, len(filters.Rarities))
+	for _, rarity := range filters.Rarities {
+		rarities = append(rarities, api.CardRarity{Code: rarity.Code, Name: rarity.Name})
+	}
+
 	return api.GetCardFilters200JSONResponse{
 		Civilizations: filters.Civilizations,
 		Types:         filters.Types,
 		Races:         filters.Races,
 		Keywords:      filters.Keywords,
 		Sets:          sets,
+		Rarities:      rarities,
 	}, nil
 }
 

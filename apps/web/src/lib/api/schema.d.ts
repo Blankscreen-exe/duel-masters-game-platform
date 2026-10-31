@@ -124,7 +124,7 @@ export interface paths {
         };
         /**
          * Search the card catalogue
-         * @description Cards in name order. Every filter narrows the search; a list filter, given once per value, matches cards having any of its values.
+         * @description Cards in name order, unless sort says otherwise. Every filter narrows the search; a list filter, given once per value, matches cards having any of its values.
          */
         get: operations["searchCards"];
         put?: never;
@@ -1274,12 +1274,18 @@ export interface components {
             pageSize: number;
         };
         CardFilters: {
+            /** @description From the most common up. */
+            rarities: components["schemas"]["CardRarity"][];
             civilizations: string[];
             types: string[];
             races: string[];
             keywords: string[];
             /** @description In release order. */
             sets: components["schemas"]["CardSet"][];
+        };
+        CardRarity: {
+            code: string;
+            name: string;
         };
         CardSet: {
             code: string;
@@ -2129,7 +2135,13 @@ export interface operations {
             query?: {
                 /** @description Text looked for in the name and rules text, ignoring case and accents. */
                 q?: string;
+                /** @description Words looked for in the rules text alone and forgivingly, in any order and with room for typing mistakes. */
+                text?: string;
                 civilization?: string[];
+                /** @description How civilization is read: cards having any of them, all of them and no others, or no others and at least one. */
+                civilizationMatch?: "any" | "exactly" | "only";
+                /** @description Only cards of a single civilization, or of more than one. */
+                civilizationCount?: "single" | "multi";
                 type?: string[];
                 race?: string[];
                 keyword?: string[];
@@ -2137,8 +2149,23 @@ export interface operations {
                 set?: string[];
                 minCost?: number;
                 maxCost?: number;
+                /** @description Leaves out cards without power, such as spells. */
+                minPower?: number;
+                /** @description Leaves out cards without power, such as spells. */
+                maxPower?: number;
+                /** @description Matches cards with a printing of the rarity, by its code. */
+                rarity?: string[];
                 /** @description Only cards the rules engine can play. */
                 playable?: boolean;
+                /** @description Only cards the format allows, by its id. A limited card still counts. */
+                format?: string;
+                /** @description Only these cards. */
+                cardId?: string[];
+                /** @description Not these cards. */
+                exceptCardId?: string[];
+                /** @description What the cards are listed by. Cards without power come last when by power. */
+                sort?: "name" | "cost" | "power";
+                order?: "asc" | "desc";
                 page?: number;
                 pageSize?: number;
             };

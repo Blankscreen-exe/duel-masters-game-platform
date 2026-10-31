@@ -3,16 +3,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Panel } from '@/components/ui/panel';
 import { TabList } from '@/components/ui/tabs';
-import type { Card, CardFilters } from '@/lib/api/client';
-import {
-  addCard,
-  cannotAdd,
-  copiesOf,
-  DECK_SIZE,
-  removeCard,
-  totalCards,
-  type DeckDraft,
-} from '@/lib/deck-draft';
+import type { Card, CardFilters, Format } from '@/lib/api/client';
+import { addCard, DECK_SIZE, removeCard, totalCards, type DeckDraft } from '@/lib/deck-draft';
 import type { DeckEditing } from './deck-card-buttons';
 import { DeckCards } from './deck-cards';
 import { DeckDrag, DropArea } from './deck-drag';
@@ -24,6 +16,8 @@ interface DeckWorkbenchProps {
   readonly draft: DeckDraft;
   readonly onChange: (change: (current: DeckDraft) => DeckDraft) => void;
   readonly filters: CardFilters;
+  /** The formats the trunk can be narrowed to. */
+  readonly formats: readonly Format[];
   /** In the deck's title bar, which stays in view, such as its name and the button that saves it. */
   readonly deckActions?: ReactNode;
   /** Above the deck's cards, such as a warning about the deck. */
@@ -48,6 +42,7 @@ export function DeckWorkbench({
   draft,
   onChange,
   filters,
+  formats,
   deckActions,
   deckNotice,
   sidePanels,
@@ -137,9 +132,9 @@ export function DeckWorkbench({
           <Panel title="Trunk" className="flex h-full flex-col">
             <div className="min-h-0 flex-1">
               <DeckTrunk
+                draft={draft}
                 filters={filters}
-                copiesOf={(cardId) => copiesOf(draft, cardId)}
-                cannotAdd={(card) => cannotAdd(draft, card)}
+                formats={formats}
                 onAdd={editing.onAdd}
                 onEnlarge={setEnlarged}
               />

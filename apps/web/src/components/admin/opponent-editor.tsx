@@ -220,6 +220,7 @@ export function OpponentEditor({ opponent, options, formats, filters }: Opponent
         draft={draft}
         onChange={setDraft}
         filters={filters}
+        formats={formats}
         sidePanels={
           <Panel title="Can it play?">
             <div className="space-y-2 p-4 text-sm">

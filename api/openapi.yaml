@@ -212,13 +212,21 @@ paths:
       operationId: searchCards
       summary: Search the card catalogue
       description: >-
-        Cards in name order. Every filter narrows the search; a list filter, given once per value,
-        matches cards having any of its values.
+        Cards in name order, unless sort says otherwise. Every filter narrows the search; a list
+        filter, given once per value, matches cards having any of its values.
       tags: [cards]
       parameters:
         - name: q
           in: query
           description: Text looked for in the name and rules text, ignoring case and accents.
+          schema:
+            type: string
+            maxLength: 100
+        - name: text
+          in: query
+          description: >-
+            Words looked for in the rules text alone and forgivingly, in any order and with room for
+            typing mistakes.
           schema:
             type: string
             maxLength: 100
@@ -228,6 +236,21 @@ paths:
             type: array
             items:
               type: string
+        - name: civilizationMatch
+          in: query
+          description: >-
+            How civilization is read: cards having any of them, all of them and no others, or no others
+            and at least one.
+          schema:
+            type: string
+            enum: [any, exactly, only]
+            default: any
+        - name: civilizationCount
+          in: query
+          description: Only cards of a single civilization, or of more than one.
+          schema:
+            type: string
+            enum: [single, multi]
         - name: type
           in: query
           schema:
@@ -263,11 +286,64 @@ paths:
           schema:
             type: integer
             minimum: 0
+        - name: minPower
+          in: query
+          description: Leaves out cards without power, such as spells.
+          schema:
+            type: integer
+            minimum: 0
+        - name: maxPower
+          in: query
+          description: Leaves out cards without power, such as spells.
+          schema:
+            type: integer
+            minimum: 0
+        - name: rarity
+          in: query
+          description: Matches cards with a printing of the rarity, by its code.
+          schema:
+            type: array
+            items:
+              type: string
         - name: playable
           in: query
           description: Only cards the rules engine can play.
           schema:
             type: boolean
+        - name: format
+          in: query
+          description: Only cards the format allows, by its id. A limited card still counts.
+          schema:
+            type: string
+        - name: cardId
+          in: query
+          description: Only these cards.
+          schema:
+            type: array
+            maxItems: 100
+            items:
+              type: string
+        - name: exceptCardId
+          in: query
+          description: Not these cards.
+          schema:
+            type: array
+            maxItems: 100
+            items:
+              type: string
+        - name: sort
+          in: query
+          description: What the cards are listed by. Cards without power come last when by power.
+          schema:
+            type: string
+            enum: [name, cost, power]
+            default: name
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
         - name: page
           in: query
           schema:
@@ -2377,8 +2453,13 @@ components:
           type: integer
     CardFilters:
       type: object
-      required: [civilizations, types, races, keywords, sets]
+      required: [civilizations, types, races, keywords, sets, rarities]
       properties:
+        rarities:
+          description: From the most common up.
+          type: array
+          items:
+            $ref: "#/components/schemas/CardRarity"
         civilizations:
           type: array
           items:
@@ -2400,6 +2481,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CardSet"
+    CardRarity:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
     CardSet:
       type: object
       required: [code]

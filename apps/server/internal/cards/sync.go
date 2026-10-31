@@ -16,7 +16,7 @@ import (
 
 // syncFormat changes whenever Sync starts writing the catalogue differently,
 // so the next start copies it again even though the files are unchanged.
-const syncFormat = "1"
+const syncFormat = "2"
 
 // insertBatchSize bounds how many rows one INSERT writes.
 const insertBatchSize = 500

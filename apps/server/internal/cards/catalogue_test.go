@@ -32,6 +32,8 @@ func testCatalogue(t *testing.T) (dir string, playable []EngineCard) {
 	hulcus["races"] = []string{"Liquid People"}
 	hulcus["keywords"] = []string{}
 	hulcus["rules_text"] = "When you put this creature into the battle zone, you may draw a card."
+	hulcus["rarity"] = "Rare"
+	hulcus["rarity_code"] = "r"
 
 	solar := printing("0029", "Solar Ray", "DM-01", "29/110")
 	solar["card_type"] = "Spell"
@@ -45,6 +47,8 @@ func testCatalogue(t *testing.T) (dir string, playable []EngineCard) {
 	solarReprint := printing("0695", "Solar Ray", "DM-10", "5/110")
 	solarReprint["card_type"] = "Spell"
 	solarReprint["civilizations"] = []string{"Light"}
+	solarReprint["rarity"] = "Super Rare"
+	solarReprint["rarity_code"] = "sr"
 
 	zaschack := printing("9026", "Überdragon Zaschack", "PROMO", "L6/Y2")
 	zaschack["cost"] = 9
@@ -303,12 +307,82 @@ func TestSearchFilters(t *testing.T) {
 			{"_ matches only itself", Filter{Query: "e_c"}, []string{"Future_Card"}},
 			{"filters combine", Filter{Civilizations: []string{"Fire"}, PlayableOnly: true, MaxCost: intPointer(6)}, []string{"Bolshack Dragon"}},
 			{"nothing matches", Filter{Query: "no such card"}, []string{}},
+
+			{"exactly one civilization", Filter{Civilizations: []string{"Fire"}, CivilizationMatch: CivilizationsExactly}, []string{"Bolshack Dragon", "Future_Card"}},
+			{"exactly two civilizations", Filter{Civilizations: []string{"Fire", "Darkness"}, CivilizationMatch: CivilizationsExactly}, []string{"Überdragon Zaschack"}},
+			{"exactly, naming one twice", Filter{Civilizations: []string{"Water", "Water"}, CivilizationMatch: CivilizationsExactly}, []string{"Aqua Hulcus"}},
+			{"only these civilizations", Filter{Civilizations: []string{"Fire", "Darkness"}, CivilizationMatch: CivilizationsOnly}, []string{"Bolshack Dragon", "Future_Card", "Überdragon Zaschack"}},
+			{"only, with a card of another too", Filter{Civilizations: []string{"Darkness"}, CivilizationMatch: CivilizationsOnly}, []string{}},
+			{"how civilizations match means nothing without any", Filter{CivilizationMatch: CivilizationsExactly, Types: []string{"Spell"}}, []string{"Solar Ray"}},
+			{"a single civilization", Filter{CivilizationCount: CivilizationCountSingle}, []string{"Aqua Hulcus", "Bolshack Dragon", "Future_Card", "Solar Ray"}},
+			{"several civilizations", Filter{CivilizationCount: CivilizationCountMulti}, []string{"Überdragon Zaschack"}},
+			{"several, with the one chosen", Filter{Civilizations: []string{"Fire"}, CivilizationCount: CivilizationCountMulti}, []string{"Überdragon Zaschack"}},
+
+			{"at least some power, leaving out spells", Filter{MinPower: intPointer(6000)}, []string{"Bolshack Dragon"}},
+			{"at most some power, leaving out spells", Filter{MaxPower: intPointer(2000)}, []string{"Aqua Hulcus", "Future_Card", "Überdragon Zaschack"}},
+			{"a rarity", Filter{Rarities: []string{"r"}}, []string{"Aqua Hulcus"}},
+			{"a rarity of any printing", Filter{Rarities: []string{"sr"}}, []string{"Solar Ray"}},
+
+			{"text with a typing mistake", Filter{Text: "draw a crad"}, []string{"Aqua Hulcus"}},
+			{"text in another order", Filter{Text: "card draw"}, []string{"Aqua Hulcus"}},
+			{"text is not the name", Filter{Text: "Hulcus"}, []string{}},
+			{"text and another filter", Filter{Text: "blocker", Civilizations: []string{"Darkness"}}, []string{"Überdragon Zaschack"}},
+			{"text of nothing but punctuation", Filter{Text: "..."}, []string{}},
+
+			{"a format's sets", Filter{Legal: &Legality{Sets: []string{"DM-10"}}}, []string{"Solar Ray"}},
+			{"a format's banned cards", Filter{Legal: &Legality{AllSets: true, Banned: []string{"0079", "0033"}}}, []string{"Future_Card", "Solar Ray", "Überdragon Zaschack"}},
+			{"a format with neither", Filter{Legal: &Legality{AllSets: true}}, []string{"Aqua Hulcus", "Bolshack Dragon", "Future_Card", "Solar Ray", "Überdragon Zaschack"}},
+			{"a format allowing no sets", Filter{Legal: &Legality{}}, []string{}},
+
+			{"only these cards", Filter{OnlyIDs: []string{"0079", "0033"}}, []string{"Aqua Hulcus", "Bolshack Dragon"}},
+			{"only a card there is not", Filter{OnlyIDs: []string{"none"}}, []string{}},
+			{"not these cards", Filter{ExceptIDs: []string{"0079", "0033", "1500"}}, []string{"Solar Ray", "Überdragon Zaschack"}},
 		} {
 			page, err := catalogue.Search(ctx, test.filter)
 			require.NoError(t, err, test.name)
 			assert.Equal(t, test.want, names(page.Cards), test.name)
 			assert.Equal(t, len(test.want), page.Total, test.name)
 		}
+	})
+}
+
+func TestSearchSorts(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		catalogue, _ := syncTestCatalogue(t, db)
+
+		for _, test := range []struct {
+			name   string
+			filter Filter
+			want   []string
+		}{
+			{"by name", Filter{Sort: SortByName}, []string{"Aqua Hulcus", "Bolshack Dragon", "Future_Card", "Solar Ray", "Überdragon Zaschack"}},
+			{"by name, backwards", Filter{Sort: SortByName, Descending: true}, []string{"Überdragon Zaschack", "Solar Ray", "Future_Card", "Bolshack Dragon", "Aqua Hulcus"}},
+			{"by cost", Filter{Sort: SortByCost}, []string{"Solar Ray", "Aqua Hulcus", "Future_Card", "Bolshack Dragon", "Überdragon Zaschack"}},
+			{"by cost, backwards", Filter{Sort: SortByCost, Descending: true}, []string{"Überdragon Zaschack", "Bolshack Dragon", "Future_Card", "Aqua Hulcus", "Solar Ray"}},
+			{"by power, ties by name and no power last", Filter{Sort: SortByPower}, []string{"Aqua Hulcus", "Future_Card", "Überdragon Zaschack", "Bolshack Dragon", "Solar Ray"}},
+			{"by power, backwards, no power still last", Filter{Sort: SortByPower, Descending: true}, []string{"Bolshack Dragon", "Aqua Hulcus", "Future_Card", "Überdragon Zaschack", "Solar Ray"}},
+		} {
+			page, err := catalogue.Search(ctx, test.filter)
+			require.NoError(t, err, test.name)
+			assert.Equal(t, test.want, names(page.Cards), test.name)
+		}
+	})
+}
+
+func TestSearchPagesKeepTheSort(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		catalogue, _ := syncTestCatalogue(t, db)
+
+		var seen []string
+		for page := 1; page <= 3; page++ {
+			found, err := catalogue.Search(ctx, Filter{Sort: SortByPower, Page: page, PageSize: 2})
+			require.NoError(t, err)
+			seen = append(seen, names(found.Cards)...)
+		}
+
+		assert.Equal(t, []string{"Aqua Hulcus", "Future_Card", "Überdragon Zaschack", "Bolshack Dragon", "Solar Ray"}, seen)
 	})
 }
 
@@ -354,6 +428,15 @@ func TestSearchRefusesFiltersBeyondTheLimits(t *testing.T) {
 			{Filter{MinCost: intPointer(-1)}, "minCost"},
 			{Filter{MaxCost: intPointer(-1)}, "maxCost"},
 			{Filter{MinCost: intPointer(5), MaxCost: intPointer(4)}, "minCost"},
+			{Filter{Text: string(make([]rune, MaxQueryLength+1))}, "text"},
+			{Filter{MinPower: intPointer(-1)}, "minPower"},
+			{Filter{MaxPower: intPointer(-1)}, "maxPower"},
+			{Filter{MinPower: intPointer(5), MaxPower: intPointer(4)}, "minPower"},
+			{Filter{OnlyIDs: make([]string, MaxListedCards+1)}, "cardId"},
+			{Filter{ExceptIDs: make([]string, MaxListedCards+1)}, "exceptCardId"},
+			{Filter{CivilizationMatch: "some"}, "civilizationMatch"},
+			{Filter{CivilizationCount: "two"}, "civilizationCount"},
+			{Filter{Sort: "colour"}, "sort"},
 		} {
 			_, err := catalogue.Search(context.Background(), test.filter)
 			invalid, ok := validation.As(err)
@@ -380,6 +463,11 @@ func TestFilterValues(t *testing.T) {
 			{Code: "DM-20"},
 			{Code: "PROMO"},
 		}, values.Sets)
+		assert.Equal(t, []Rarity{
+			{Code: "c", Name: "Common"},
+			{Code: "r", Name: "Rare"},
+			{Code: "sr", Name: "Super Rare"},
+		}, values.Rarities)
 	})
 }
 

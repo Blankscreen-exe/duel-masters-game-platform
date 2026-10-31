@@ -525,6 +525,84 @@ func (e Tier) Valid() bool {
 	}
 }
 
+// Defines values for SearchCardsParamsCivilizationMatch.
+const (
+	SearchCardsParamsCivilizationMatchAny     SearchCardsParamsCivilizationMatch = "any"
+	SearchCardsParamsCivilizationMatchExactly SearchCardsParamsCivilizationMatch = "exactly"
+	SearchCardsParamsCivilizationMatchOnly    SearchCardsParamsCivilizationMatch = "only"
+)
+
+// Valid indicates whether the value is a known member of the SearchCardsParamsCivilizationMatch enum.
+func (e SearchCardsParamsCivilizationMatch) Valid() bool {
+	switch e {
+	case SearchCardsParamsCivilizationMatchAny:
+		return true
+	case SearchCardsParamsCivilizationMatchExactly:
+		return true
+	case SearchCardsParamsCivilizationMatchOnly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SearchCardsParamsCivilizationCount.
+const (
+	SearchCardsParamsCivilizationCountMulti  SearchCardsParamsCivilizationCount = "multi"
+	SearchCardsParamsCivilizationCountSingle SearchCardsParamsCivilizationCount = "single"
+)
+
+// Valid indicates whether the value is a known member of the SearchCardsParamsCivilizationCount enum.
+func (e SearchCardsParamsCivilizationCount) Valid() bool {
+	switch e {
+	case SearchCardsParamsCivilizationCountMulti:
+		return true
+	case SearchCardsParamsCivilizationCountSingle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SearchCardsParamsSort.
+const (
+	SearchCardsParamsSortCost  SearchCardsParamsSort = "cost"
+	SearchCardsParamsSortName  SearchCardsParamsSort = "name"
+	SearchCardsParamsSortPower SearchCardsParamsSort = "power"
+)
+
+// Valid indicates whether the value is a known member of the SearchCardsParamsSort enum.
+func (e SearchCardsParamsSort) Valid() bool {
+	switch e {
+	case SearchCardsParamsSortCost:
+		return true
+	case SearchCardsParamsSortName:
+		return true
+	case SearchCardsParamsSortPower:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SearchCardsParamsOrder.
+const (
+	SearchCardsParamsOrderAsc  SearchCardsParamsOrder = "asc"
+	SearchCardsParamsOrderDesc SearchCardsParamsOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the SearchCardsParamsOrder enum.
+func (e SearchCardsParamsOrder) Valid() bool {
+	switch e {
+	case SearchCardsParamsOrderAsc:
+		return true
+	case SearchCardsParamsOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Account defines model for Account.
 type Account struct {
 	CreatedAt time.Time `json:"createdAt"`
@@ -739,6 +817,9 @@ type CardFilters struct {
 	Keywords      []string `json:"keywords"`
 	Races         []string `json:"races"`
 
+	// Rarities From the most common up.
+	Rarities []CardRarity `json:"rarities"`
+
 	// Sets In release order.
 	Sets  []CardSet `json:"sets"`
 	Types []string  `json:"types"`
@@ -764,6 +845,12 @@ type CardPrinting struct {
 	Rarity     string  `json:"rarity"`
 	RarityCode string  `json:"rarityCode"`
 	Set        string  `json:"set"`
+}
+
+// CardRarity defines model for CardRarity.
+type CardRarity struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
 }
 
 // CardSet defines model for CardSet.
@@ -1589,22 +1676,65 @@ type GetAdminUsersParams struct {
 // SearchCardsParams defines parameters for SearchCards.
 type SearchCardsParams struct {
 	// Q Text looked for in the name and rules text, ignoring case and accents.
-	Q            *string   `form:"q,omitempty" json:"q,omitempty"`
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Text Words looked for in the rules text alone and forgivingly, in any order and with room for typing mistakes.
+	Text         *string   `form:"text,omitempty" json:"text,omitempty"`
 	Civilization *[]string `form:"civilization,omitempty" json:"civilization,omitempty"`
-	Type         *[]string `form:"type,omitempty" json:"type,omitempty"`
-	Race         *[]string `form:"race,omitempty" json:"race,omitempty"`
-	Keyword      *[]string `form:"keyword,omitempty" json:"keyword,omitempty"`
+
+	// CivilizationMatch How civilization is read: cards having any of them, all of them and no others, or no others and at least one.
+	CivilizationMatch *SearchCardsParamsCivilizationMatch `form:"civilizationMatch,omitempty" json:"civilizationMatch,omitempty"`
+
+	// CivilizationCount Only cards of a single civilization, or of more than one.
+	CivilizationCount *SearchCardsParamsCivilizationCount `form:"civilizationCount,omitempty" json:"civilizationCount,omitempty"`
+	Type              *[]string                           `form:"type,omitempty" json:"type,omitempty"`
+	Race              *[]string                           `form:"race,omitempty" json:"race,omitempty"`
+	Keyword           *[]string                           `form:"keyword,omitempty" json:"keyword,omitempty"`
 
 	// Set Matches cards with a printing in the set.
 	Set     *[]string `form:"set,omitempty" json:"set,omitempty"`
 	MinCost *int      `form:"minCost,omitempty" json:"minCost,omitempty"`
 	MaxCost *int      `form:"maxCost,omitempty" json:"maxCost,omitempty"`
 
+	// MinPower Leaves out cards without power, such as spells.
+	MinPower *int `form:"minPower,omitempty" json:"minPower,omitempty"`
+
+	// MaxPower Leaves out cards without power, such as spells.
+	MaxPower *int `form:"maxPower,omitempty" json:"maxPower,omitempty"`
+
+	// Rarity Matches cards with a printing of the rarity, by its code.
+	Rarity *[]string `form:"rarity,omitempty" json:"rarity,omitempty"`
+
 	// Playable Only cards the rules engine can play.
 	Playable *bool `form:"playable,omitempty" json:"playable,omitempty"`
-	Page     *int  `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int  `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+
+	// Format Only cards the format allows, by its id. A limited card still counts.
+	Format *string `form:"format,omitempty" json:"format,omitempty"`
+
+	// CardId Only these cards.
+	CardId *[]string `form:"cardId,omitempty" json:"cardId,omitempty"`
+
+	// ExceptCardId Not these cards.
+	ExceptCardId *[]string `form:"exceptCardId,omitempty" json:"exceptCardId,omitempty"`
+
+	// Sort What the cards are listed by. Cards without power come last when by power.
+	Sort     *SearchCardsParamsSort  `form:"sort,omitempty" json:"sort,omitempty"`
+	Order    *SearchCardsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Page     *int                    `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int                    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
+
+// SearchCardsParamsCivilizationMatch defines parameters for SearchCards.
+type SearchCardsParamsCivilizationMatch string
+
+// SearchCardsParamsCivilizationCount defines parameters for SearchCards.
+type SearchCardsParamsCivilizationCount string
+
+// SearchCardsParamsSort defines parameters for SearchCards.
+type SearchCardsParamsSort string
+
+// SearchCardsParamsOrder defines parameters for SearchCards.
+type SearchCardsParamsOrder string
 
 // GetPlayerMatchesParams defines parameters for GetPlayerMatches.
 type GetPlayerMatchesParams struct {
@@ -2833,6 +2963,19 @@ func (siw *ServerInterfaceWrapper) SearchCards(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// ------------- Optional query parameter "text" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "text", r.URL.Query(), &params.Text, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "text"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "text", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "civilization" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "civilization", r.URL.Query(), &params.Civilization, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
@@ -2842,6 +2985,32 @@ func (siw *ServerInterfaceWrapper) SearchCards(w http.ResponseWriter, r *http.Re
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "civilization"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "civilization", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "civilizationMatch" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "civilizationMatch", r.URL.Query(), &params.CivilizationMatch, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "civilizationMatch"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "civilizationMatch", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "civilizationCount" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "civilizationCount", r.URL.Query(), &params.CivilizationCount, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "civilizationCount"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "civilizationCount", Err: err})
 		}
 		return
 	}
@@ -2924,6 +3093,45 @@ func (siw *ServerInterfaceWrapper) SearchCards(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// ------------- Optional query parameter "minPower" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "minPower", r.URL.Query(), &params.MinPower, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "minPower"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "minPower", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "maxPower" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "maxPower", r.URL.Query(), &params.MaxPower, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "maxPower"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "maxPower", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "rarity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "rarity", r.URL.Query(), &params.Rarity, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "rarity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "rarity", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "playable" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "playable", r.URL.Query(), &params.Playable, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
@@ -2933,6 +3141,71 @@ func (siw *ServerInterfaceWrapper) SearchCards(w http.ResponseWriter, r *http.Re
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "playable"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "playable", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "format" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "format", r.URL.Query(), &params.Format, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "format"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "format", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cardId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cardId", r.URL.Query(), &params.CardId, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cardId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cardId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "exceptCardId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "exceptCardId", r.URL.Query(), &params.ExceptCardId, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "exceptCardId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "exceptCardId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "order", r.URL.Query(), &params.Order, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "order", Err: err})
 		}
 		return
 	}

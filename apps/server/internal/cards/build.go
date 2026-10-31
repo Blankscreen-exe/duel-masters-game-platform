@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
@@ -134,7 +135,7 @@ func cardFrom(name string, printings []SourcePrinting) Card {
 		Cost:          first.Cost,
 		Power:         first.Power,
 		Civilizations: nonNil(first.Civilizations),
-		Races:         nonNil(first.Races),
+		Races:         cleanRaces(first.Races),
 		RulesText:     first.RulesText,
 		Abilities:     make([]Ability, 0, len(first.Abilities)),
 		Keywords:      nonNil(first.Keywords),
@@ -275,3 +276,26 @@ func nonNil(values []string) []string {
 	}
 	return values
 }
+
+// cleanRaces tidies a card's races as the card database lists them, where a few
+// run two together ("Angel Command, armorloid"), lose their capitals ("Pandora's
+// box") or name an ability ("Blocker"). It always returns a list, perhaps empty.
+func cleanRaces(races []string) []string {
+	cleaned := make([]string, 0, len(races))
+	for _, listed := range races {
+		for _, race := range strings.Split(listed, ",") {
+			words := strings.Fields(race)
+			for i, word := range words {
+				first, size := utf8.DecodeRuneInString(word)
+				words[i] = string(unicode.ToUpper(first)) + word[size:]
+			}
+			if race := strings.Join(words, " "); race != "" && race != notARace {
+				cleaned = append(cleaned, race)
+			}
+		}
+	}
+	return cleaned
+}
+
+// notARace is an ability the card database lists a race by mistake.
+const notARace = "Blocker"

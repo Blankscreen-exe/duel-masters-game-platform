@@ -1,10 +1,12 @@
 package cards
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -20,36 +22,97 @@ const (
 	DefaultPageSize = 60
 	MaxPageSize     = 100
 	MaxQueryLength  = 100
+	// MaxListedCards is the most card ids a search may name, a whole deck's
+	// and more.
+	MaxListedCards = 100
+)
+
+// How a search treats its Civilizations.
+const (
+	// CivilizationsAny matches cards having any of them, the default.
+	CivilizationsAny = "any"
+	// CivilizationsExactly matches cards having all of them and no others.
+	CivilizationsExactly = "exactly"
+	// CivilizationsOnly matches cards having no others, and at least one.
+	CivilizationsOnly = "only"
+)
+
+// How many civilizations a search wants a card to have.
+const (
+	CivilizationCountSingle = "single"
+	CivilizationCountMulti  = "multi"
+)
+
+// The orders a search can list cards in.
+const (
+	SortByName  = "name"
+	SortByCost  = "cost"
+	SortByPower = "power"
 )
 
 // ErrNotFound is returned for a card, picture or set icon the catalogue does
 // not have.
 var ErrNotFound = errors.New("not in the card catalogue")
 
-// Filter narrows a search. Empty lists and nil costs do not narrow it. A card
+// Filter narrows a search. Empty lists and nil bounds do not narrow it. A card
 // matches a list when it has any of the listed values.
 type Filter struct {
 	// Query is looked for in the name and rules text, ignoring case and
 	// accents.
-	Query         string
+	Query string
+	// Text is looked for in the rules text alone and forgivingly: its words in
+	// any order, with room for typing mistakes.
+	Text          string
 	Civilizations []string
-	Types         []string
-	Races         []string
-	Keywords      []string
+	// CivilizationMatch is one of the Civilizations constants; empty means
+	// CivilizationsAny.
+	CivilizationMatch string
+	// CivilizationCount is one of the CivilizationCount constants; empty means
+	// any number.
+	CivilizationCount string
+	Types             []string
+	Races             []string
+	Keywords          []string
 	// Sets matches cards with a printing in any of them.
 	Sets []string
 	// MinCost and MaxCost bound the mana cost, inclusive.
 	MinCost *int
 	MaxCost *int
+	// MinPower and MaxPower bound the power, inclusive. Either leaves out cards
+	// without power, such as spells.
+	MinPower *int
+	MaxPower *int
+	// Rarities matches cards with a printing of any of these rarity codes.
+	Rarities []string
 	// PlayableOnly keeps the cards the engine can play.
 	PlayableOnly bool
+	// Legal keeps the cards a format allows; nil allows all.
+	Legal *Legality
+	// OnlyIDs keeps just these cards, and ExceptIDs leaves these out. A search
+	// may name at most MaxListedCards in each.
+	OnlyIDs   []string
+	ExceptIDs []string
+	// Sort is one of the SortBy constants; empty means SortByName. Cards without
+	// power come last when sorting by power, whichever way. Descending reverses
+	// the order; ties stay in name order.
+	Sort       string
+	Descending bool
 	// Page counts from 1; 0 means the first page. PageSize is at most
 	// MaxPageSize; 0 means DefaultPageSize.
 	Page     int
 	PageSize int
 }
 
-// Page is one page of search results, in name order.
+// Legality is what a format allows, for a search to keep to.
+type Legality struct {
+	// AllSets allows every set; otherwise a card needs a printing in Sets.
+	AllSets bool
+	Sets    []string
+	// Banned are the cards the format does not allow at all.
+	Banned []string
+}
+
+// Page is one page of search results, in the order asked for.
 type Page struct {
 	Cards    []Card
 	Total    int
@@ -72,7 +135,18 @@ type FilterValues struct {
 	Keywords      []string
 	// Sets are in release order.
 	Sets []Set
+	// Rarities are from the most common up.
+	Rarities []Rarity
 }
+
+// Rarity is how rare a card's printing is.
+type Rarity struct {
+	Code string
+	Name string
+}
+
+// rarityOrder is how the game ranks its rarity codes, the most common first.
+var rarityOrder = []string{"c", "u", "r", "vr", "sr"}
 
 // Catalogue reads the card catalogue. It is safe for concurrent use.
 type Catalogue struct {
@@ -98,9 +172,14 @@ func (c *Catalogue) Search(ctx context.Context, filter Filter) (Page, error) {
 	if filter.Query != "" {
 		query = query.Where(store.Contains("search_text", searchText(filter.Query)))
 	}
-	if len(filter.Civilizations) > 0 {
-		query = query.Where("id IN (?)", c.db.Model(&civilizationRow{}).Select("card_id").Where("civilization IN ?", filter.Civilizations))
+	if filter.Text != "" {
+		matches, err := c.textMatches(ctx, filter.Text)
+		if err != nil {
+			return Page{}, err
+		}
+		query = query.Where("id IN ?", matches)
 	}
+	query = c.withCivilizations(query, filter)
 	if len(filter.Types) > 0 {
 		query = query.Where("type IN ?", filter.Types)
 	}
@@ -119,8 +198,31 @@ func (c *Catalogue) Search(ctx context.Context, filter Filter) (Page, error) {
 	if filter.MaxCost != nil {
 		query = query.Where("cost <= ?", *filter.MaxCost)
 	}
+	if filter.MinPower != nil {
+		query = query.Where("power >= ?", *filter.MinPower)
+	}
+	if filter.MaxPower != nil {
+		query = query.Where("power <= ?", *filter.MaxPower)
+	}
+	if len(filter.Rarities) > 0 {
+		query = query.Where("id IN (?)", c.db.Model(&printingRow{}).Select("card_id").Where("rarity_code IN ?", filter.Rarities))
+	}
 	if filter.PlayableOnly {
 		query = query.Where("engine_id IS NOT NULL")
+	}
+	if filter.Legal != nil {
+		if !filter.Legal.AllSets {
+			query = query.Where("id IN (?)", c.db.Model(&printingRow{}).Select("card_id").Where("set_code IN ?", filter.Legal.Sets))
+		}
+		if len(filter.Legal.Banned) > 0 {
+			query = query.Where("id NOT IN ?", filter.Legal.Banned)
+		}
+	}
+	if len(filter.OnlyIDs) > 0 {
+		query = query.Where("id IN ?", filter.OnlyIDs)
+	}
+	if len(filter.ExceptIDs) > 0 {
+		query = query.Where("id NOT IN ?", filter.ExceptIDs)
 	}
 
 	var total int64
@@ -129,7 +231,7 @@ func (c *Catalogue) Search(ctx context.Context, filter Filter) (Page, error) {
 	}
 
 	var rows []cardRow
-	err := query.Order("sort_order").Limit(filter.PageSize).Offset((filter.Page - 1) * filter.PageSize).Find(&rows).Error
+	err := query.Order(cardOrder(filter)).Limit(filter.PageSize).Offset((filter.Page - 1) * filter.PageSize).Find(&rows).Error
 	if err != nil {
 		return Page{}, fmt.Errorf("searching cards: %w", err)
 	}
@@ -142,13 +244,65 @@ func (c *Catalogue) Search(ctx context.Context, filter Filter) (Page, error) {
 	return Page{Cards: cards, Total: int(total), Page: filter.Page, PageSize: filter.PageSize}, nil
 }
 
+// withCivilizations narrows a search by the civilizations it asks for.
+func (c *Catalogue) withCivilizations(query *gorm.DB, filter Filter) *gorm.DB {
+	// Built afresh for each use: a GORM query keeps state once run.
+	rows := func() *gorm.DB { return c.db.Model(&civilizationRow{}).Select("card_id") }
+
+	if chosen := filter.Civilizations; len(chosen) > 0 {
+		switch filter.CivilizationMatch {
+		case CivilizationsExactly:
+			query = query.
+				Where("id IN (?)", rows().Where("civilization IN ?", chosen).Group("card_id").Having("COUNT(*) = ?", len(unique(chosen)))).
+				Where("id NOT IN (?)", rows().Where("civilization NOT IN ?", chosen))
+		case CivilizationsOnly:
+			query = query.
+				Where("id IN (?)", rows().Where("civilization IN ?", chosen)).
+				Where("id NOT IN (?)", rows().Where("civilization NOT IN ?", chosen))
+		default:
+			query = query.Where("id IN (?)", rows().Where("civilization IN ?", chosen))
+		}
+	}
+
+	switch filter.CivilizationCount {
+	case CivilizationCountSingle:
+		query = query.Where("id IN (?)", rows().Group("card_id").Having("COUNT(*) = 1"))
+	case CivilizationCountMulti:
+		query = query.Where("id IN (?)", rows().Group("card_id").Having("COUNT(*) > 1"))
+	}
+
+	return query
+}
+
+// cardOrder is the order a search lists cards in, always the same one for the
+// same cards so that pages neither repeat nor miss any.
+func cardOrder(filter Filter) string {
+	direction := ""
+	if filter.Descending {
+		direction = " DESC"
+	}
+
+	switch filter.Sort {
+	case SortByCost:
+		return "cost" + direction + ", sort_order"
+	case SortByPower:
+		return "power IS NULL, power" + direction + ", sort_order"
+	default:
+		return "sort_order" + direction
+	}
+}
+
 // normalizeFilter fills in the default page and page size and checks the
 // limits.
 func normalizeFilter(filter *Filter) error {
 	filter.Query = strings.TrimSpace(filter.Query)
+	filter.Text = strings.TrimSpace(filter.Text)
 
 	if utf8.RuneCountInString(filter.Query) > MaxQueryLength {
 		return validation.New("query", fmt.Sprintf("must be at most %d characters", MaxQueryLength))
+	}
+	if utf8.RuneCountInString(filter.Text) > MaxQueryLength {
+		return validation.New("text", fmt.Sprintf("must be at most %d characters", MaxQueryLength))
 	}
 
 	page := paging.Request{Page: filter.Page, PageSize: filter.PageSize}
@@ -164,9 +318,29 @@ func normalizeFilter(filter *Filter) error {
 		return validation.New("maxCost", "must be 0 or more")
 	case filter.MinCost != nil && filter.MaxCost != nil && *filter.MinCost > *filter.MaxCost:
 		return validation.New("minCost", "must not be above maxCost")
+	case filter.MinPower != nil && *filter.MinPower < 0:
+		return validation.New("minPower", "must be 0 or more")
+	case filter.MaxPower != nil && *filter.MaxPower < 0:
+		return validation.New("maxPower", "must be 0 or more")
+	case filter.MinPower != nil && filter.MaxPower != nil && *filter.MinPower > *filter.MaxPower:
+		return validation.New("minPower", "must not be above maxPower")
+	case len(filter.OnlyIDs) > MaxListedCards:
+		return validation.New("cardId", fmt.Sprintf("must name at most %d cards", MaxListedCards))
+	case len(filter.ExceptIDs) > MaxListedCards:
+		return validation.New("exceptCardId", fmt.Sprintf("must name at most %d cards", MaxListedCards))
+	case !oneOf(filter.CivilizationMatch, "", CivilizationsAny, CivilizationsExactly, CivilizationsOnly):
+		return validation.New("civilizationMatch", "is not a known choice")
+	case !oneOf(filter.CivilizationCount, "", CivilizationCountSingle, CivilizationCountMulti):
+		return validation.New("civilizationCount", "is not a known choice")
+	case !oneOf(filter.Sort, "", SortByName, SortByCost, SortByPower):
+		return validation.New("sort", "is not a known choice")
 	}
 
 	return nil
+}
+
+func oneOf(value string, allowed ...string) bool {
+	return slices.Contains(allowed, value)
 }
 
 // Card returns a card still in the card database by its id. It returns
@@ -383,6 +557,18 @@ func (c *Catalogue) FilterValues(ctx context.Context) (FilterValues, error) {
 		}
 	}
 
+	var rarities []printingRow
+	err := db.Model(&printingRow{}).Distinct("rarity_code", "rarity").
+		Where("rarity_code <> ? AND card_id IN (?)", "", inDatabase()).Find(&rarities).Error
+	if err != nil {
+		return FilterValues{}, fmt.Errorf("listing rarities: %w", err)
+	}
+	values.Rarities = make([]Rarity, 0, len(rarities))
+	for _, row := range rarities {
+		values.Rarities = append(values.Rarities, Rarity{Code: row.RarityCode, Name: row.Rarity})
+	}
+	slices.SortFunc(values.Rarities, compareRarities)
+
 	var sets []setRow
 	if err := db.Order("sort_order").Find(&sets).Error; err != nil {
 		return FilterValues{}, fmt.Errorf("listing sets: %w", err)
@@ -393,6 +579,19 @@ func (c *Catalogue) FilterValues(ctx context.Context) (FilterValues, error) {
 	}
 
 	return values, nil
+}
+
+// compareRarities orders rarities from the most common up, any the game does not
+// rank last, by name.
+func compareRarities(a, b Rarity) int {
+	return cmp.Or(cmp.Compare(rarityRank(a.Code), rarityRank(b.Code)), cmp.Compare(a.Name, b.Name))
+}
+
+func rarityRank(code string) int {
+	if rank := slices.Index(rarityOrder, code); rank >= 0 {
+		return rank
+	}
+	return len(rarityOrder)
 }
 
 // ImageFile returns the file holding a picture, by printing id or by engine

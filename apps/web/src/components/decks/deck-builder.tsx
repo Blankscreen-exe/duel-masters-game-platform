@@ -70,6 +70,7 @@ export function DeckBuilder({ deck, formats, filters }: DeckBuilderProps) {
         draft={draft}
         onChange={setDraft}
         filters={filters}
+        formats={formats}
         hasCover
         deckActions={
           <div className="flex min-w-60 flex-1 flex-wrap items-center gap-2">

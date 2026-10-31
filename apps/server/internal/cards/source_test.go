@@ -118,6 +118,36 @@ func TestBuildGroupsReprintsInReleaseOrder(t *testing.T) {
 	assert.False(t, solar.Playable())
 }
 
+func TestCleanRaces(t *testing.T) {
+	for _, test := range []struct {
+		listed []string
+		want   []string
+	}{
+		{nil, []string{}},
+		{[]string{"Armored Dragon"}, []string{"Armored Dragon"}},
+		{[]string{"Human", "Fire Bird"}, []string{"Human", "Fire Bird"}},
+		{[]string{"Angel Command, armorloid"}, []string{"Angel Command", "Armorloid"}},
+		{[]string{"Pandora's box"}, []string{"Pandora's Box"}},
+		{[]string{"Blocker"}, []string{}},
+		{[]string{" "}, []string{}},
+		{[]string{"élan vital"}, []string{"Élan Vital"}},
+	} {
+		assert.Equal(t, test.want, cleanRaces(test.listed), "%v", test.listed)
+	}
+}
+
+func TestBuildCleansRaces(t *testing.T) {
+	messy := printing("0001", "Solar Ray", "DM-01", "29/110")
+	messy["races"] = []string{"Angel Command, armorloid"}
+	source, err := ReadSource(writeCardDatabase(t, []map[string]any{messy}, []string{"0001"}, nil))
+	require.NoError(t, err)
+
+	cards, problems := Build(source, nil)
+	assert.Empty(t, problems)
+	require.Len(t, cards, 1)
+	assert.Equal(t, []string{"Angel Command", "Armorloid"}, cards[0].Races)
+}
+
 func TestBuildKeepsCardsWhoseNamesDifferOnlyInPunctuationApart(t *testing.T) {
 	source, err := ReadSource(writeCardDatabase(t, []map[string]any{
 		printing("0001", "Aqua-Hulcus", "DM-01", "1/1"),
