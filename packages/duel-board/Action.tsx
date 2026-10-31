@@ -5,7 +5,7 @@ import type { ActionAnswer } from "./answers";
 import { Button } from "./Button";
 import { CountInput } from "./CountInput";
 import { SELECTED_CARD_OUTLINE, SelectionMark } from "./SelectionMark";
-import { CARD_ASPECT_RATIO } from "./cardImage";
+import { CARD_ASPECT_RATIO, useCardPictures } from "./cardImage";
 import {
   SHORT_LANDSCAPE_QUERY,
   TOUCH_QUERY,
@@ -63,6 +63,8 @@ export function Action({
   actionType,
   choices,
 }: ActionProps) {
+  const pictures = useCardPictures();
+
   if (actionType === ActionType.Order) {
     minSelections = cards ? cards.length : 0;
     maxSelections = cards ? cards.length : 0;
@@ -292,7 +294,7 @@ export function Action({
                     }}
                     draggable={false}
                     className="w-full rounded-md"
-                    src={`https://scans.shobu.io/${imageId}.jpg`}
+                    src={pictures.url(imageId)}
                     alt="Card preview"
                     style={{ borderRadius: "5%" }}
                   />
@@ -355,7 +357,7 @@ export function Action({
                             ? SELECTED_CARD_OUTLINE
                             : ""
                         }`}
-                        src={`https://scans.shobu.io/${card.uid}.jpg`}
+                        src={pictures.url(card.uid)}
                         alt={card.name}
                         style={{ borderRadius: "5%" }}
                       />
@@ -394,7 +396,7 @@ export function Action({
                             ? SELECTED_CARD_OUTLINE
                             : ""
                         }`}
-                        src={`https://scans.shobu.io/${card.uid}.jpg`}
+                        src={pictures.url(card.uid)}
                         alt={card.name}
                         style={{ borderRadius: "5%" }}
                       />
@@ -415,7 +417,7 @@ export function Action({
                         }}
                         draggable={false}
                         className="w-full cursor-not-allowed rounded-md opacity-50 grayscale"
-                        src={`https://scans.shobu.io/${card.uid}.jpg`}
+                        src={pictures.url(card.uid)}
                         alt={card.name}
                         style={{ borderRadius: "5%" }}
                       />
@@ -459,7 +461,7 @@ export function Action({
                       className={`w-full rounded-md ${
                         isSelected ? SELECTED_CARD_OUTLINE : ""
                       }`}
-                      src={`https://scans.shobu.io/${card.uid}.jpg`}
+                      src={pictures.url(card.uid)}
                       alt={card.name}
                       style={{ borderRadius: "5%" }}
                     />

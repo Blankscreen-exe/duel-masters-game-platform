@@ -1460,7 +1460,7 @@ export function Duel({
               }}
             >
               <img
-                src={`https://scans.shobu.io/${dragState.imageId}.jpg`}
+                src={pictures.card(dragState.imageId)}
                 alt={dragState.name || "Card"}
                 className={`h-[150px] opacity-90 ${
                   dragState.rotated ? "rotate-90" : ""

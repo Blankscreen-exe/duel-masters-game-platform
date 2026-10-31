@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Button } from "./Button";
+import { useCardPictures } from "./cardImage";
 
 interface MultiCardPreviewCard {
   imageId: string;
@@ -47,6 +48,8 @@ export function MultiCardPreview({
   onClose,
   onCardClick,
 }: MultiCardPreviewProps) {
+  const pictures = useCardPictures();
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape" && visible) {
@@ -108,7 +111,7 @@ export function MultiCardPreview({
               {cards.map((card, index) => (
                 <div key={index} className="flex flex-col items-center">
                   <img
-                    src={`https://scans.shobu.io/${card.imageId}.jpg`}
+                    src={pictures.url(card.imageId)}
                     alt={card.name}
                     className="shadow-lg hover:scale-105 transition-transform cursor-pointer"
                     style={{

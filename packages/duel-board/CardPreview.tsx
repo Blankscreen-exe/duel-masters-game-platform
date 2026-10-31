@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Button } from "./Button";
 import { CardDetails } from "./CardDetails";
+import { useCardPictures } from "./cardImage";
 import type { StatusBadge } from "./creatureStatus";
 import type { CreaturePower } from "./types";
 
@@ -23,6 +24,8 @@ export function CardPreview({
   statuses = [],
   onClose,
 }: CardPreviewProps) {
+  const pictures = useCardPictures();
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape" && visible) {
@@ -49,7 +52,7 @@ export function CardPreview({
 
   if (!visible) return null;
 
-  const imageUrl = imageId ? `https://scans.shobu.io/${imageId}.jpg` : "";
+  const imageUrl = pictures.url(imageId);
   // The card gives up some height to the details shown under it, so the
   // close button stays on screen.
   const hasDetails = !!power || statuses.length > 0;
