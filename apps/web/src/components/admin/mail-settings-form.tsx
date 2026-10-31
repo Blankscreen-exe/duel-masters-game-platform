@@ -229,12 +229,14 @@ export function MailSettingsForm({ settings, testAddress }: MailSettingsFormProp
             </Button>
           </form>
           {testError && (
-            <p
-              role="alert"
-              className="mx-4 mb-4 bg-red-500/10 px-3 py-2 text-sm break-words text-red-200 ring-1 ring-red-400/40 ring-inset sm:mx-6 sm:mb-6"
-            >
-              {testError}
-            </p>
+            <div className="px-4 pb-4 sm:px-6 sm:pb-6">
+              <p
+                role="alert"
+                className="bg-red-500/10 px-3 py-2 text-sm break-words text-red-200 ring-1 ring-red-400/40 ring-inset"
+              >
+                {testError}
+              </p>
+            </div>
           )}
         </Panel>
       )}
