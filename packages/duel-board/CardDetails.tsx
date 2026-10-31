@@ -17,7 +17,7 @@ export function CardDetails({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg bg-gray-900/90 px-3 py-2 text-white">
+    <div className="bz-dialog flex flex-col gap-2 px-3 py-2 text-slate-200">
       {power && <PowerLine power={power} />}
       <StatusList badges={statuses} />
     </div>
@@ -35,8 +35,8 @@ function PowerLine({ power }: { power: CreaturePower }) {
       aria-label={describePower(power)}
       className="text-sm font-semibold leading-tight"
     >
-      <span className="text-gray-300">Power </span>
-      {changed && <s className="mr-1 text-gray-400">{power.printed}</s>}
+      <span className="text-slate-300">Power </span>
+      {changed && <s className="mr-1 text-slate-400">{power.printed}</s>}
       <span
         className={
           power.current > power.printed

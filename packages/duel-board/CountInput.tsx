@@ -64,10 +64,10 @@ export function CountInput({
         onClick={() => stepBy(delta)}
         disabled={disabled}
         aria-label={`${delta < 0 ? "Decrease" : "Increase"} by ${Math.abs(delta)}`}
-        className={`h-8 min-w-8 rounded-lg border-2 px-1.5 flex items-center justify-center font-semibold text-sm transition-colors ${
+        className={`h-8 min-w-8 px-1.5 flex items-center justify-center font-semibold text-sm ring-1 ring-inset transition-colors ${
           disabled
-            ? "border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed"
-            : "border-gray-600 bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 active:bg-gray-500 cursor-pointer"
+            ? "bg-slate-800/40 text-slate-600 ring-slate-700 cursor-not-allowed"
+            : "bg-slate-800/80 text-white ring-slate-500/50 hover:bg-slate-700 active:bg-slate-600 cursor-pointer"
         }`}
       >
         {label}
@@ -81,7 +81,7 @@ export function CountInput({
         {coarseStep > 1 && button(-coarseStep, `−${coarseStep}`)}
         {button(-1, "−")}
 
-        <div className="mx-1 h-8 min-w-14 flex-1 rounded-lg border-2 border-gray-600 bg-gray-800 flex items-center justify-center font-semibold text-sm text-white">
+        <div className="bz-field mx-1 h-8 min-w-14 flex-1 flex items-center justify-center font-semibold text-sm">
           {value}
         </div>
 
@@ -101,9 +101,9 @@ export function CountInput({
             value={value}
             onChange={(event) => onChange(clamp(Number(event.target.value)))}
             aria-label="Amount"
-            className="w-full cursor-pointer accent-blue-500"
+            className="w-full cursor-pointer accent-accent"
           />
-          <div className="flex justify-between text-[0.65rem] text-gray-400">
+          <div className="flex justify-between text-[0.65rem] text-slate-400">
             <span>{min}</span>
             <span>{max}</span>
           </div>

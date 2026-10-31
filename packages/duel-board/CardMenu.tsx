@@ -82,7 +82,7 @@ export function CardMenu({
 
   return (
     <motion.div
-      className={`fixed inset-0 z-[35] ${sheet ? "bg-black/70" : "bg-black/40"}`}
+      className={`fixed inset-0 z-[35] ${sheet ? "bz-scrim" : "bg-night/60"}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -222,10 +222,10 @@ function ActionSheet({
     <motion.div
       role="dialog"
       aria-label={label}
-      className={`absolute flex flex-col gap-2 bg-gray-900 p-4 text-white shadow-2xl ${
+      className={`absolute flex flex-col gap-2 bg-panel p-4 text-slate-200 shadow-2xl ring-1 ring-slate-500/40 ${
         fromBottom
-          ? "inset-x-0 bottom-0 rounded-t-2xl"
-          : "inset-y-0 right-0 justify-center rounded-l-2xl"
+          ? "inset-x-0 bottom-0"
+          : "inset-y-0 right-0 justify-center"
       }`}
       style={{
         ...(fromBottom ? { maxHeight: size } : { width: size }),
@@ -248,10 +248,10 @@ function ActionSheet({
       onClick={(event) => event.stopPropagation()}
     >
       {fromBottom && (
-        <div className="mx-auto h-1 w-10 shrink-0 rounded-full bg-gray-600" />
+        <div className="mx-auto h-1 w-10 shrink-0 bg-slate-600" />
       )}
       {name && (
-        <p className="shrink-0 truncate text-base font-semibold">{name}</p>
+        <p className="bz-title shrink-0 truncate text-base">{name}</p>
       )}
       {children}
     </motion.div>
@@ -287,7 +287,7 @@ function ActionList({
             {action.label}
           </Button>
           {explainDisabled && action.disabledReason && (
-            <p className="mt-1 px-1 text-xs leading-tight text-gray-400">
+            <p className="mt-1 px-1 text-xs leading-tight text-slate-400">
               {action.disabledReason}
             </p>
           )}

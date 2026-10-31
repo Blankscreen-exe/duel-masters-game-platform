@@ -16,7 +16,7 @@ function usePileCard() {
 
 function PileLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="text-[clamp(0.6rem,1.2vh,0.85rem)] leading-tight text-white mb-[0.5vh] text-center">
+    <p className="font-display text-[clamp(0.6rem,1.2vh,0.85rem)] font-semibold uppercase leading-tight text-slate-400 mb-[0.5vh] text-center">
       {children}
     </p>
   );

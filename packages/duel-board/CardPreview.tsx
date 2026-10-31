@@ -59,7 +59,7 @@ export function CardPreview({
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+      className="bz-scrim fixed inset-0 flex items-center justify-center p-4"
       style={{ zIndex: 1100 }}
       onClick={handleOverlayClick}
     >

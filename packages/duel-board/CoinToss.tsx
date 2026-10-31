@@ -45,7 +45,7 @@ export function CoinToss({ toss, onCall, onChooseTurn }: CoinTossProps) {
     <div
       role="dialog"
       aria-label="Coin toss"
-      className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-6 bg-black/70 p-6 text-center text-white backdrop-blur-sm"
+      className="bz-backdrop fixed inset-0 z-40 flex flex-col items-center justify-center gap-6 p-6 text-center text-slate-200"
     >
       <Coin outcome={outcome} reduceMotion={!!reduceMotion} />
 
@@ -53,8 +53,8 @@ export function CoinToss({ toss, onCall, onChooseTurn }: CoinTossProps) {
         {toss.step === "calling" ? (
           toss.mine ? (
             <>
-              <p className="text-xl font-semibold">Call the coin toss</p>
-              <p className="text-sm text-gray-300">
+              <p className="bz-title text-2xl">Call the coin toss</p>
+              <p className="text-sm text-slate-400">
                 Win it and you choose whether to play first.
               </p>
               <div className="flex justify-center gap-3">
@@ -83,7 +83,7 @@ export function CoinToss({ toss, onCall, onChooseTurn }: CoinTossProps) {
               {toss.caller.username} called {toss.call}. It is{" "}
               <strong>{toss.outcome}</strong>!
             </p>
-            <p className="text-xl font-semibold">
+            <p className="bz-title text-2xl">
               {toss.winner.username} won the toss
             </p>
             {toss.mine === true && (
@@ -110,7 +110,7 @@ export function CoinToss({ toss, onCall, onChooseTurn }: CoinTossProps) {
               </div>
             )}
             {toss.mine === false && (
-              <p className="text-sm text-gray-300">
+              <p className="text-sm text-slate-400">
                 {toss.winner.username} is choosing who plays first…
               </p>
             )}

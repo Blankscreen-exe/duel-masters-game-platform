@@ -58,9 +58,9 @@ export function PhaseBar({
     (info) => info.phase === currentPhase,
   );
   const highlightClassName = state.spectator
-    ? "bg-gray-500"
+    ? "bg-slate-500"
     : state.myTurn
-      ? "bg-blue-600"
+      ? "bg-action"
       : "bg-red-700";
 
   return (
@@ -73,7 +73,7 @@ export function PhaseBar({
       {turn && (
         <span
           title="Turns so far this duel, counting both players' turns"
-          className={`flex shrink-0 items-baseline gap-1 rounded-full bg-black/40 font-medium leading-none text-gray-400 ${
+          className={`bz-chip flex shrink-0 items-baseline gap-1 font-display font-semibold uppercase leading-none tracking-wide text-slate-400 ${
             slim ? "px-2.5 py-1 text-[11px]" : "px-2 py-2 text-xs sm:px-3"
           }`}
         >
@@ -93,7 +93,7 @@ export function PhaseBar({
         <LayoutGroup id={layoutGroupId}>
           <ol
             aria-label="Turn phases"
-            className={`flex shrink-0 items-center gap-0.5 rounded-full bg-black/40 p-0.5 font-medium leading-none ${slim ? "text-[11px]" : "text-xs"} ${
+            className={`bz-chip flex shrink-0 items-center gap-0.5 p-0.5 font-display font-semibold uppercase leading-none tracking-wide ${slim ? "text-[11px]" : "text-xs"} ${
               compact && hint ? "cursor-pointer" : ""
             }`}
             onClick={compact ? () => setHintAskedAt(Date.now()) : undefined}
@@ -106,18 +106,18 @@ export function PhaseBar({
                   key={info.phase}
                   title={info.description}
                   aria-current={isCurrent ? "step" : undefined}
-                  className={`relative rounded-full ${slim ? "px-2.5 py-0.5" : "px-2 py-1.5 sm:px-3"} ${
+                  className={`relative ${slim ? "px-2.5 py-0.5" : "px-2 py-1.5 sm:px-3"} ${
                     isCurrent
                       ? "text-white"
                       : index < currentIndex
-                        ? "text-gray-500"
-                        : "text-gray-300"
+                        ? "text-slate-600"
+                        : "text-slate-300"
                   }`}
                 >
                   {isCurrent && (
                     <motion.span
                       layoutId="current-phase"
-                      className={`absolute inset-0 rounded-full ${highlightClassName}`}
+                      className={`absolute inset-0 ${highlightClassName}`}
                       transition={{ duration: 0.3, ease: HIGHLIGHT_EASE }}
                     />
                   )}
@@ -131,7 +131,7 @@ export function PhaseBar({
       {hint && !compact && (
         <span
           aria-live="polite"
-          className="hidden min-w-0 truncate text-sm text-gray-300 sm:block"
+          className="hidden min-w-0 truncate text-sm text-slate-300 sm:block"
         >
           {hint}
         </span>
@@ -141,7 +141,7 @@ export function PhaseBar({
           <motion.span
             key={hint}
             role="status"
-            className="pointer-events-none absolute left-1/2 top-full z-[26] mt-1 w-max max-w-[90vw] -translate-x-1/2 rounded-md bg-gray-900/95 px-3 py-1.5 text-center text-xs text-gray-200 shadow-lg"
+            className="pointer-events-none absolute left-1/2 top-full z-[26] mt-1 w-max max-w-[90vw] -translate-x-1/2 bg-panel px-3 py-1.5 text-center text-xs text-slate-200 shadow-lg ring-1 ring-slate-500/40"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -157,7 +157,7 @@ export function PhaseBar({
           onClick={onEndTurn}
           disabled={!state.myTurn}
           title={state.myTurn ? undefined : "It's not your turn"}
-          className="shrink-0 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-1.5 text-xs font-medium leading-none text-white shadow-lg transition-colors hover:from-blue-700 hover:to-blue-800 cursor-pointer disabled:cursor-not-allowed disabled:from-gray-600 disabled:to-gray-700 disabled:opacity-60"
+          className="bz-button bz-button-primary shrink-0 cursor-pointer px-4 py-1.5 text-xs leading-none"
         >
           End turn
         </button>

@@ -47,6 +47,7 @@ export default async function GamePage({ params }: PageProps<'/games/[gameId]'>)
     <GameScreen
       gameId={game.id}
       viewer={{ id: account.id, username: account.username, isPlayer, decks }}
+      players={[game.host, game.guest]}
     />
   );
 }

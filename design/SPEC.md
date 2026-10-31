@@ -359,6 +359,10 @@ Chosen 2026-10-24. Reference mockup: `design/themes/theme-battle-zone.html` (the
 | Fonts          | **Rajdhani** (headings, buttons, labels, uppercase with wide spacing), **Inter** (body) |                         |
 
 - Fonts are bundled with the app, not loaded from Google at runtime.
+- The site's components and the duel board share these looks: the `bz-*` styles in
+  `apps/web/src/app/globals.css`.
+- A game keeps the whole screen for the cards: no site header, and a slim name bar per player with
+  their picture, name and rank, marking whose turn it is. Their deck stays hidden.
 
 ### 11.2 Interaction and phones
 

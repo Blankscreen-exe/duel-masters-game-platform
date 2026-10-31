@@ -12,4 +12,5 @@ export type {
   DuelChatUserTriggerProps,
   DuelChatUserTriggerRenderer,
   DuelFinishedMessage,
+  DuelPlayerBar,
 } from "./types";

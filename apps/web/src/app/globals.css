@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 
-/* The duel board's components, whose classes the site's stylesheet must include. */
+/* The duel board's components, whose classes the site's stylesheet must include. They use the
+   bz-* looks below, the same ones as the site's own components. */
 @source '../../../../packages/duel-board';
 
 /*
@@ -73,6 +74,76 @@
   );
 }
 
+/*
+ * The looks the site's components and the duel board share, so a change here reaches both. Each
+ * says how a thing looks; how big it is stays with whoever uses it.
+ */
+@utility bz-page {
+  background-color: var(--color-night);
+  background-image: radial-gradient(
+    ellipse at top,
+    var(--color-night-glow) 0%,
+    var(--color-night) 60%
+  );
+}
+
+/* The playing surface: a faint grid over a blue glow, as in the theme's mockup. */
+@utility bz-mat {
+  background-image:
+    linear-gradient(rgb(148 163 184 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(148 163 184 / 0.05) 1px, transparent 1px),
+    radial-gradient(ellipse at center, #16233a 0%, #0b1018 70%);
+  background-size:
+    32px 32px,
+    32px 32px,
+    100% 100%;
+}
+
+@utility bz-button {
+  @apply inline-flex items-center justify-center gap-2 font-display font-bold tracking-wider uppercase transition disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+@utility bz-button-primary {
+  @apply cut-corners-sm bg-linear-to-b from-slate-100 via-slate-300 to-slate-500 text-slate-900 hover:from-white hover:shadow-[0_0_18px_rgb(56_189_248/0.35)];
+}
+
+@utility bz-button-secondary {
+  @apply cut-corners-sm bg-slate-800/80 text-slate-200 ring-1 ring-slate-500/50 ring-inset hover:bg-slate-700 hover:text-white;
+}
+
+@utility bz-button-danger {
+  @apply cut-corners-sm bg-red-900/70 text-red-100 ring-1 ring-red-400/50 ring-inset hover:bg-red-800;
+}
+
+@utility bz-backdrop {
+  @apply bg-night/80 backdrop-blur-sm;
+}
+
+/* Behind what opens during a game: dimmed, not blurred, so the board can still be read. */
+@utility bz-scrim {
+  @apply bg-night/70;
+}
+
+@utility bz-dialog {
+  @apply cut-corners bg-panel shadow-[0_10px_30px_rgb(0_0_0/0.6)] ring-1 ring-slate-500/40 ring-inset;
+}
+
+@utility bz-dialog-header {
+  @apply border-b border-slate-600/40 bg-linear-to-r from-white/[0.07] to-transparent;
+}
+
+@utility bz-title {
+  @apply font-display font-bold tracking-[0.15em] text-slate-100 uppercase;
+}
+
+@utility bz-field {
+  @apply bg-field text-slate-100 ring-1 ring-slate-600/60 ring-inset placeholder:text-slate-500 hover:ring-slate-400/70 focus:ring-accent focus:outline-none;
+}
+
+@utility bz-chip {
+  @apply bg-black/50 ring-1 ring-slate-600/50;
+}
+
 @layer base {
   html {
     color-scheme: dark;
@@ -80,12 +151,7 @@
 
   body {
     min-height: 100dvh;
-    background-color: var(--color-night);
-    background-image: radial-gradient(
-      ellipse at top,
-      var(--color-night-glow) 0%,
-      var(--color-night) 60%
-    );
+    @apply bz-page;
     background-attachment: fixed;
     color: var(--color-slate-200);
     font-family: var(--font-sans);

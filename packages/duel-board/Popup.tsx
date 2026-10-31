@@ -161,13 +161,13 @@ export function Popup({
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4"
+      className="bz-scrim fixed inset-0 flex items-center justify-center p-2 sm:p-4"
       style={{ zIndex }}
       onClick={handleOverlayClick}
     >
       <div
         ref={popupRef}
-        className="bg-gray-900 rounded-lg shadow-2xl relative w-full overflow-hidden flex flex-col"
+        className="bz-dialog relative flex w-full flex-col overflow-hidden text-slate-200"
         style={{
           maxWidth,
           maxHeight,
@@ -178,11 +178,11 @@ export function Popup({
         {/* Header */}
         {title && (
           <div
-            className="flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 [@media(max-height:500px)]:!py-2 border-b border-gray-800 cursor-move select-none"
+            className="bz-dialog-header flex-shrink-0 px-4 py-3 sm:px-5 [@media(max-height:500px)]:!py-2 cursor-move select-none"
             style={{ touchAction: "none" }}
             onPointerDown={handlePointerDown}
           >
-            <h2 className="pr-10 text-base font-semibold text-white sm:text-xl [@media(max-height:500px)]:!text-base">
+            <h2 className="bz-title pr-10 text-base sm:text-lg [@media(max-height:500px)]:!text-base">
               {title}
             </h2>
           </div>
@@ -192,7 +192,7 @@ export function Popup({
         {showCloseButton && onClose && (
           <button
             onClick={onClose}
-            className="cursor-pointer absolute top-3 right-3 [@media(max-height:500px)]:!top-1.5 w-8 h-8 flex items-center justify-center rounded-full bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white z-10"
+            className="cursor-pointer absolute top-2.5 right-3 [@media(max-height:500px)]:!top-1 w-8 h-8 flex items-center justify-center text-slate-400 transition hover:bg-white/10 hover:text-white z-10"
             aria-label="Close"
           >
             <svg

@@ -5,7 +5,9 @@ fixes in progress. Paths are relative to `packages/duel-board/` unless they say 
 
 ---
 
-### [ ] 1. The duel's pop-ups keep the old demo look
+### [x] 1. The duel's pop-ups keep the old demo look
+- **Status:** Fixed, with the rest of the board. The site and the board share one set of looks, the
+  `bz-*` styles in `apps/web/src/app/globals.css`.
 - **Where:** `Popup.tsx`, `Action.tsx` and the other pop-ups the board opens during a game
   (questions, card previews, waiting, warnings, forfeit).
 - **Problem:** they still use the design of the original demo board instead of the site's Battle

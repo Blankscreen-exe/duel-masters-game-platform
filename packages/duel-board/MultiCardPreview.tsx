@@ -87,14 +87,14 @@ export function MultiCardPreview({
     <>
       <style>{scrollbarStyles}</style>
       <div
-        className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+        className="bz-scrim fixed inset-0 flex items-center justify-center p-4"
         style={{ zIndex: 1000 }}
         onClick={handleOverlayClick}
       >
         <div className="flex flex-col items-center gap-4 max-w-[90vw] max-h-[90vh]">
-          <h2 className="text-white text-2xl font-bold">{title}</h2>
+          <h2 className="bz-title text-2xl">{title}</h2>
           <div
-            className="overflow-y-auto p-4 bg-black/40 rounded-lg custom-scrollbar"
+            className="bz-dialog overflow-y-auto p-4 custom-scrollbar"
             style={{
               maxHeight: "calc(90vh - 120px)",
             }}

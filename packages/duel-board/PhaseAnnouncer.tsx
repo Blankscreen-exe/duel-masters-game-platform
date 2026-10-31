@@ -28,9 +28,9 @@ function bannerTimes(banner: PhaseBanner): number[] {
 const BANNER_GRACE_MS = 500;
 
 const TONE_CLASSES: Record<PhaseBanner["tone"], string> = {
-  mine: "text-blue-300 drop-shadow-[0_0_14px_rgba(59,130,246,0.9)]",
+  mine: "text-sky-300 drop-shadow-[0_0_14px_rgba(56,189,248,0.9)]",
   theirs: "text-red-300 drop-shadow-[0_0_14px_rgba(239,68,68,0.9)]",
-  neutral: "text-gray-100 drop-shadow-[0_0_14px_rgba(255,255,255,0.6)]",
+  neutral: "text-slate-100 drop-shadow-[0_0_14px_rgba(255,255,255,0.6)]",
 };
 
 interface QueuedBanner extends PhaseBanner {
@@ -110,7 +110,7 @@ function Banner({
           transition={transition}
         />
         <motion.p
-          className={`relative whitespace-nowrap text-center font-black uppercase italic tracking-wider ${
+          className={`relative whitespace-nowrap text-center font-display font-bold uppercase tracking-[0.2em] ${
             kind === "turn" ? "text-3xl sm:text-5xl" : "text-2xl sm:text-4xl"
           } ${TONE_CLASSES[tone]}`}
           initial={reduceMotion ? { opacity: 0 } : { x: "-100vw" }}

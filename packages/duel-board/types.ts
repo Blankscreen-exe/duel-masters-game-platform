@@ -55,6 +55,14 @@ export type DuelChatUserResolver = (
   username: string,
 ) => Promise<DuelChatUser | null | undefined>;
 
+/** The player a name bar on the board is for. */
+export interface DuelPlayerBar {
+  username: string;
+  side: "me" | "opponent";
+  /** Whether it is this player's turn. */
+  active: boolean;
+}
+
 export interface DuelChatUserTriggerProps {
   user: DuelChatUser;
   children: ReactNode;

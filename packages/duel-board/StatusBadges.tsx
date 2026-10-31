@@ -66,7 +66,7 @@ export function StatusBadges({
         <Badge key={badge.id} badge={badge} />
       ))}
       {badges.more > 0 && (
-        <span className="flex h-[1.6em] items-center rounded-full bg-gray-800 px-1.5 font-bold leading-none text-white shadow-[0_1px_4px_rgba(0,0,0,0.9)] ring-1 ring-white/40">
+        <span className="flex h-[1.6em] items-center rounded-full bg-slate-800 px-1.5 font-bold leading-none text-white shadow-[0_1px_4px_rgba(0,0,0,0.9)] ring-1 ring-white/40">
           +{badges.more}
         </span>
       )}
@@ -88,7 +88,7 @@ export function StatusList({ badges }: { badges: StatusBadge[] }) {
           <span className="text-sm">
             <Badge badge={badge} />
           </span>
-          <span className="text-gray-200">
+          <span className="text-slate-200">
             {badge.label}
             {badge.granted && (
               <span className="text-amber-300"> (from an effect)</span>

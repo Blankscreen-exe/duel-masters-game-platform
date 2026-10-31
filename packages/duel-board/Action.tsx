@@ -278,11 +278,11 @@ export function Action({
           className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 [@media(max-height:500px)]:!py-2"
           onPointerMove={handlePointerMove}
         >
-          <div className="text-sm text-gray-100">{text}</div>
+          <div className="text-sm text-slate-200">{text}</div>
 
           {actionType === ActionType.ShowCards && (
             <div
-              className="mt-4 grid w-full gap-2 rounded-md bg-black/30 p-2 [@media(max-height:500px)]:!mt-2"
+              className="mt-4 grid w-full gap-2 bg-field p-2 ring-1 ring-slate-600/40 ring-inset [@media(max-height:500px)]:!mt-2"
               style={cardGridStyle}
             >
               {showCards?.cards.map((imageId, index) => (
@@ -308,7 +308,7 @@ export function Action({
               {cardsObject && (
                 <div className="mt-4 flex gap-4">
                   <select
-                    className="bg-gray-800 text-white pl-2 pr-8 py-[0.4rem] rounded border border-gray-700 focus:outline-none focus:border-blue-500 text-xs appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M6%209L1%204h10z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_12px] bg-[position:right_0.5rem_center] bg-no-repeat"
+                    className="bz-field pl-2 pr-8 py-[0.4rem] text-xs appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M6%209L1%204h10z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_12px] bg-[position:right_0.5rem_center] bg-no-repeat"
                     id="action-card-group-selector"
                     value={selectedCardsObjectKey || ""}
                     onChange={(event) =>
@@ -325,7 +325,7 @@ export function Action({
               )}
 
               <div
-                className="mt-4 grid w-full gap-2 rounded-md bg-black/30 p-2 [@media(max-height:500px)]:!mt-2"
+                className="mt-4 grid w-full gap-2 bg-field p-2 ring-1 ring-slate-600/40 ring-inset [@media(max-height:500px)]:!mt-2"
                 style={cardGridStyle}
               >
                 {cardsObject &&
@@ -367,7 +367,7 @@ export function Action({
                   ))}
 
                 {cardsObject && !selectedCardsObjectCards.length && (
-                  <div className="text-sm text-gray-400">No cards to show</div>
+                  <div className="text-sm text-slate-400">No cards to show</div>
                 )}
 
                 {!cardsObject &&
@@ -430,7 +430,7 @@ export function Action({
 
           {actionType === ActionType.Order && (
             <div
-              className="mt-4 grid w-full gap-2 rounded-md bg-black/30 p-2 [@media(max-height:500px)]:!mt-2"
+              className="mt-4 grid w-full gap-2 bg-field p-2 ring-1 ring-slate-600/40 ring-inset [@media(max-height:500px)]:!mt-2"
               style={cardGridStyle}
             >
               {cards?.map((card) => {
@@ -473,7 +473,7 @@ export function Action({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-gray-800 bg-gray-900 px-4 py-3 sm:px-6 sm:py-4 [@media(max-height:500px)]:!py-2">
+        <div className="shrink-0 border-t border-slate-600/40 px-4 py-3 sm:px-5 [@media(max-height:500px)]:!py-2">
           {actionType === ActionType.ShowCards && (
             <div className="flex">
               <Button onClick={acknowledgeShowCards}>
@@ -501,7 +501,7 @@ export function Action({
                 </Button>
               )}
               {!inStrip && (
-                <div className="hidden flex-1 text-right text-xs italic text-gray-300 sm:block">
+                <div className="hidden flex-1 text-right text-xs text-slate-400 sm:block">
                   {usesTouch ? "Tap" : "Click"} and drag to (de)select faster
                 </div>
               )}
@@ -566,7 +566,7 @@ export function Action({
             choices.length > 0 && (
               <div className="flex gap-4">
                 <select
-                  className="bg-gray-800 text-white pl-2 pr-8 py-[0.4rem] rounded border border-gray-700 focus:outline-none focus:border-blue-500 text-xs appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M6%209L1%204h10z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_12px] bg-[position:right_0.5rem_center] bg-no-repeat"
+                  className="bz-field pl-2 pr-8 py-[0.4rem] text-xs appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M6%209L1%204h10z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_12px] bg-[position:right_0.5rem_center] bg-no-repeat"
                   id="action-searchable-selector"
                   value={selectedSearchValue}
                   onChange={(event) =>
@@ -600,7 +600,7 @@ export function Action({
             )}
 
           {error && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-red-500">
+            <div className="mt-3 flex items-center gap-2 text-sm text-red-300">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"

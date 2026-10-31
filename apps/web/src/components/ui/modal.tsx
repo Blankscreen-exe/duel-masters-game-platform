@@ -59,15 +59,11 @@ export function Modal({
         // A click on the backdrop lands on the dialog itself.
         if (event.target === event.currentTarget) event.currentTarget.close();
       }}
-      className={`m-auto bg-transparent p-0 text-slate-200 backdrop:bg-night/80 backdrop:backdrop-blur-sm ${sized.dialog} ${className}`}
+      className={`m-auto bg-transparent p-0 text-slate-200 backdrop:bz-backdrop ${sized.dialog} ${className}`}
     >
-      <div
-        className={`cut-corners bg-panel shadow-[0_10px_30px_rgb(0_0_0/0.6)] ring-1 ring-slate-500/40 ring-inset ${sized.frame}`}
-      >
-        <header className="flex items-center justify-between gap-3 border-b border-slate-600/40 bg-linear-to-r from-white/[0.07] to-transparent px-5 py-3">
-          <h2 className="font-display text-lg font-bold tracking-[0.15em] text-slate-100 uppercase">
-            {title}
-          </h2>
+      <div className={`bz-dialog ${sized.frame}`}>
+        <header className="bz-dialog-header flex items-center justify-between gap-3 px-5 py-3">
+          <h2 className="bz-title text-lg">{title}</h2>
           {actions}
         </header>
         <div className={sized.body}>{children}</div>

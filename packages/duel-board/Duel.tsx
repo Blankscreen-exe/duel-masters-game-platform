@@ -20,6 +20,7 @@ import {
   DuelChatUserResolver,
   DuelChatUserTriggerRenderer,
   DuelFinishedMessage,
+  DuelPlayerBar,
   MatchState,
   PLAYABLE_FLAG,
   ShieldState,
@@ -126,6 +127,12 @@ export interface DuelProps {
    * onDuelFinished; with it, onDuelFinished is called at once.
    */
   renderDuelFinished?: (message: DuelFinishedMessage) => ReactNode;
+  /**
+   * Draws a player's name bar, over the opponent's half of the board and just
+   * above the hand. Left out on a phone on its side, which has height for
+   * little more than its cards.
+   */
+  renderPlayerBar?: (player: DuelPlayerBar) => ReactNode;
 }
 
 interface DragState {
@@ -173,7 +180,7 @@ function ForfeitButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       aria-label="Forfeit"
       title="Forfeit"
-      className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md bg-gray-800 text-red-500 transition-colors hover:bg-gray-700 hover:text-red-400"
+      className="bz-button-danger flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center transition-colors"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -203,7 +210,7 @@ function ChatButton({
       type="button"
       onClick={onClick}
       aria-label="Open chat"
-      className={`flex shrink-0 cursor-pointer items-center justify-center bg-gray-800 text-gray-200 transition-colors hover:bg-gray-700 ${className}`}
+      className={`bz-button-secondary flex shrink-0 cursor-pointer items-center justify-center transition-colors ${className}`}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -256,8 +263,8 @@ function DevToolSection({
   children: React.ReactNode;
 }) {
   return (
-    <fieldset className="border border-gray-700 rounded px-3 pb-3 pt-2">
-      <legend className="px-2 text-xs text-gray-500">{title}</legend>
+    <fieldset className="border border-slate-600/40 px-3 pb-3 pt-2">
+      <legend className="px-2 text-xs text-slate-500">{title}</legend>
       {children}
     </fieldset>
   );
@@ -275,6 +282,7 @@ export function Duel({
   onLeaveDuel,
   onDuelFinished,
   renderDuelFinished,
+  renderPlayerBar,
   onNewTurn,
 }: DuelProps) {
   const [action, setAction] = useState<ActionMessage | null>(null);
@@ -791,7 +799,7 @@ export function Duel({
 
   if (!state) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-[linear-gradient(45deg,rgb(29,33,42),rgb(20,16,21))] text-gray-300">
+      <div className="bz-page flex h-dvh items-center justify-center text-slate-300">
         <p role="status">Waiting for both players to join...</p>
         {coinTossOverlay}
       </div>
@@ -882,6 +890,17 @@ export function Duel({
   const battleHeight = (cards: unknown[]) =>
     cards.length > 0 ? zoneHeights.battle : zoneHeights.emptyBattle;
 
+  const playerBar = (side: DuelPlayerBar["side"]) =>
+    renderPlayerBar && !isShortLandscape ? (
+      <div className="shrink-0 py-0.5">
+        {renderPlayerBar({
+          side,
+          username: side === "me" ? state.me.username : state.opponent.username,
+          active: side === "me" ? state.myTurn : !state.myTurn,
+        })}
+      </div>
+    ) : null;
+
   const boardClearance =
     compactControls && !isSpectating
       ? compactControls === "rail"
@@ -897,12 +916,13 @@ export function Duel({
         liftedCardIds={liftedCardIds}
       >
         <div
-          className="w-full h-screen text-white flex bg-[linear-gradient(45deg,rgb(29,33,42),rgb(20,16,21))] bg-cover bg-no-repeat gap-2 p-1 custom-scrollbar"
+          className="bz-mat w-full h-screen text-slate-200 flex gap-2 p-1 custom-scrollbar"
           style={{
             height: "100dvh",
             ...(playmat && {
-              backgroundImage: `url(${JSON.stringify(playmat)}), linear-gradient(45deg, rgb(29, 33, 42), rgb(20, 16, 21))`,
+              backgroundImage: `url(${JSON.stringify(playmat)})`,
               backgroundPosition: "center",
+              backgroundSize: "cover",
             }),
             ...(dragState && { cursor: "grabbing" }),
           }}
@@ -912,19 +932,19 @@ export function Duel({
           <div
             className={
               isCompact
-                ? "fixed inset-y-0 left-0 z-40 flex w-[86vw] max-w-[340px] flex-col gap-2 bg-[rgb(20,16,21)] p-2 shadow-2xl transition-transform duration-200" +
+                ? "fixed inset-y-0 left-0 z-40 flex w-[86vw] max-w-[340px] flex-col gap-2 bg-panel p-2 shadow-2xl ring-1 ring-slate-500/40 transition-transform duration-200" +
                   (chatOpen ? " translate-x-0" : " -translate-x-full")
                 : "w-[300px] flex flex-col gap-2"
             }
           >
             {isCompact && (
               <div className="flex shrink-0 items-center justify-between">
-                <span className="text-sm font-semibold">Chat</span>
+                <span className="bz-title text-sm">Chat</span>
                 <button
                   type="button"
                   onClick={() => setChatOpen(false)}
                   aria-label="Close chat"
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-gray-800 text-gray-300 transition-colors hover:bg-gray-700"
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center text-slate-400 transition hover:bg-white/10 hover:text-white"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -944,7 +964,7 @@ export function Duel({
 
             {/* Devtools */}
             {devTools && (
-              <div className="bg-black/30 rounded-md overflow-hidden p-3 text-sm">
+              <div className="overflow-hidden bg-panel/95 p-3 text-sm ring-1 ring-slate-500/40 ring-inset">
                 <p className="mb-3 font-semibold">Development Tools</p>
 
                 <DevToolSection title="Player Switch">
@@ -997,7 +1017,7 @@ export function Duel({
                     <div className="flex gap-2">
                       <div className="flex-1">
                         <select
-                          className="w-full bg-gray-800 text-white pl-2 pr-8 py-[0.4rem] rounded border border-gray-700 focus:outline-none focus:border-blue-500 text-xs appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M6%209L1%204h10z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_12px] bg-[position:right_0.5rem_center] bg-no-repeat"
+                          className="bz-field w-full pl-2 pr-8 py-[0.4rem] text-xs appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M6%209L1%204h10z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_12px] bg-[position:right_0.5rem_center] bg-no-repeat"
                           id="card-selector"
                           defaultValue=""
                         >
@@ -1034,7 +1054,7 @@ export function Duel({
             )}
 
             {/* Chat */}
-            <div className="flex-1 bg-black/30 rounded-md overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden bg-panel/95 ring-1 ring-slate-500/40 ring-inset cut-corners">
               <Chat
                 messages={chatMessages}
                 onSendMessage={sendChat}
@@ -1050,7 +1070,7 @@ export function Duel({
           {/* Tapping the dimmed board closes the drawer */}
           {isCompact && chatOpen && (
             <div
-              className="fixed inset-0 z-30 bg-black/60"
+              className="bz-scrim fixed inset-0 z-30"
               onClick={() => setChatOpen(false)}
             />
           )}
@@ -1063,6 +1083,7 @@ export function Duel({
             }`}
             style={boardClearance}
           >
+            {playerBar("opponent")}
             <BoardZone
               zone="opponentManazone"
               anchor={anchorId("opponent", "manazone")}
@@ -1174,21 +1195,22 @@ export function Duel({
                 }),
               )}
             </BoardZone>
+            {playerBar("me")}
             {isSpectating ? (
               <div
                 className={`relative w-full ${zoneHeights.hand}`}
                 data-dropzone="hand"
               >
-                <div className="absolute inset-0 bg-black/30 rounded-md flex items-center justify-center">
+                <div className="absolute inset-0 bg-panel/60 ring-1 ring-slate-500/30 ring-inset flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3 text-center">
-                    <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                    <span className="bz-title text-xs text-slate-400">
                       Spectating
                     </span>
                     <div className="flex items-center gap-8">
                       <span className="text-sm font-semibold text-white">
                         {state.me.username}
                       </span>
-                      <span className="text-gray-500 text-lg font-bold">vs</span>
+                      <span className="font-display text-slate-500 text-lg font-bold uppercase">vs</span>
                       <span className="text-sm font-semibold text-white">
                         {state.opponent.username}
                       </span>
@@ -1233,10 +1255,10 @@ export function Duel({
               they never cover the cards. */}
           {compactControls && !isSpectating && (
             <div
-              className={`fixed z-30 flex items-center gap-2 bg-[rgb(20,16,21)]/95 ${
+              className={`fixed z-30 flex items-center gap-2 bg-panel/95 ${
                 compactControls === "rail"
-                  ? "inset-y-0 left-0 flex-col border-r border-white/10 py-2"
-                  : "inset-x-0 bottom-0 border-t border-white/10 px-2"
+                  ? "inset-y-0 left-0 flex-col border-r border-slate-600/40 py-2"
+                  : "inset-x-0 bottom-0 border-t border-slate-600/40 px-2"
               }`}
               style={
                 compactControls === "rail"
@@ -1253,7 +1275,7 @@ export function Duel({
             >
               <ChatButton
                 onClick={() => setChatOpen(true)}
-                className="h-9 w-9 rounded-md"
+                className="h-9 w-9"
               />
 
               <div className="min-h-0 min-w-0 flex-1" />
@@ -1279,14 +1301,14 @@ export function Duel({
           )}
 
           {isUpright && !rotateHintDismissed && (
-            <div className="fixed inset-x-2 top-2 z-30 flex items-center gap-3 rounded-lg bg-gray-900/95 px-3 py-2 text-xs text-gray-200 shadow-lg">
+            <div className="fixed inset-x-2 top-2 z-30 flex items-center gap-3 bg-panel px-3 py-2 text-xs text-slate-200 shadow-lg ring-1 ring-slate-500/40">
               <span className="min-w-0 flex-1">
                 Turn your phone sideways for a bigger board.
               </span>
               <button
                 type="button"
                 onClick={() => setRotateHintDismissed(true)}
-                className="shrink-0 cursor-pointer rounded-md bg-gray-700 px-2.5 py-1 font-medium text-white hover:bg-gray-600"
+                className="bz-button bz-button-secondary shrink-0 cursor-pointer px-2.5 py-1"
               >
                 Got it
               </button>
@@ -1297,7 +1319,7 @@ export function Duel({
           {isCompact && isSpectating && (
             <ChatButton
               onClick={() => setChatOpen(true)}
-              className="fixed bottom-2 left-2 z-30 h-10 w-10 rounded-full shadow-lg"
+              className="fixed bottom-2 left-2 z-30 h-10 w-10"
             />
           )}
 
@@ -1319,14 +1341,14 @@ export function Duel({
               would otherwise have to give up width it does not have. */}
           {isCompact && infoPanelOpen && (
             <div
-              className="fixed inset-0 z-[39] bg-black/50"
+              className="bz-scrim fixed inset-0 z-[39]"
               onClick={() => setInfoPanelOpen(false)}
             />
           )}
           <div
             className={
               isCompact
-                ? `fixed inset-y-0 right-0 z-40 flex items-stretch bg-[rgb(20,16,21)] shadow-2xl transition-transform duration-200 ${
+                ? `fixed inset-y-0 right-0 z-40 flex items-stretch bg-panel shadow-2xl transition-transform duration-200 ${
                     infoPanelOpen ? "translate-x-0" : "translate-x-full"
                   }`
                 : "relative -my-1 -mr-1 flex shrink-0 items-stretch"
@@ -1349,11 +1371,11 @@ export function Duel({
               /* The bump sits entirely outside the panel rather than overlapping
                  it: the panel's background is translucent, so any overlap would
                  stack into a darker patch instead of matching it. */
-              className={`absolute left-0 top-1/2 z-30 flex -translate-x-full -translate-y-1/2 cursor-pointer items-center justify-center rounded-l-full pl-1 text-gray-300 focus:outline-none ${
+              className={`absolute left-0 top-1/2 z-30 flex -translate-x-full -translate-y-1/2 cursor-pointer items-center justify-center text-slate-300 transition hover:text-white ${
                 // A finger needs a bigger tab, and the drawer a solid one.
                 isCompact
-                  ? "h-16 w-8 bg-[rgb(20,16,21)]"
-                  : "h-10 w-5 bg-black/30"
+                  ? "h-16 w-8 bg-panel"
+                  : "h-10 w-5 bg-panel/80"
               }`}
             >
               <svg
@@ -1374,7 +1396,7 @@ export function Duel({
                 it is still there and to give the toggle an edge to bud from
                 rather than floating over the board. */}
             {!infoPanelOpen && !isCompact && (
-              <div className="w-2 shrink-0 bg-black/30" />
+              <div className="w-2 shrink-0 bg-panel/80" />
             )}
 
             {/* A drawer keeps its contents while closed, so it can slide. */}
@@ -1384,14 +1406,14 @@ export function Duel({
                  text needs ~8vh. The pixel bounds match where the label's own
                  clamp() bottoms out and tops off, plus the 1rem of padding. */
               <div
-                className="flex w-[calc(8.8vh+1rem)] min-w-[90px] max-w-[116px] shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-black/30 px-2 custom-scrollbar"
+                className="flex w-[calc(8.8vh+1rem)] min-w-[90px] max-w-[116px] shrink-0 flex-col overflow-y-auto overflow-x-hidden border-l border-slate-600/40 bg-panel/80 px-2 custom-scrollbar"
                 {...CLIPS_CARDS_PROPS}
               >
                 {/* m-auto rather than justify-center so the top stays reachable
                     when the two sections are taller than the screen */}
                 <div className="m-auto flex w-full flex-col gap-[0.5vh] py-1 md:gap-[5vh]">
                   {/* Opponent Section */}
-                  <div className="rounded-lg flex flex-col gap-[1vh]">
+                  <div className="flex flex-col gap-[1vh]">
                     <HandCount side="opponent" count={state.opponent.handCount} />
                     <DeckPile side="opponent" count={state.opponent.deck} />
                     <GraveyardPile
@@ -1407,7 +1429,7 @@ export function Duel({
                   </div>
 
                   {/* Player Section */}
-                  <div className="rounded-lg flex flex-col gap-[1vh]">
+                  <div className="flex flex-col gap-[1vh]">
                     {/* A player sees their own hand on the board instead */}
                     {isSpectating && (
                       <HandCount side="me" count={state.me.handCount} />
@@ -1482,13 +1504,13 @@ export function Duel({
         {duelFinished && renderDuelFinished ? (
           renderDuelFinished(duelFinished)
         ) : (
-          <div className="p-6 text-white">
+          <div className="p-6">
             <p className="text-lg font-semibold">
               {duelFinishedWinner} won the duel
             </p>
-            <p className="mt-3 text-sm text-gray-400">{duelFinishedStatusText}</p>
+            <p className="mt-3 text-sm text-slate-400">{duelFinishedStatusText}</p>
             {duelFinishedRedirectFailed && (
-              <p className="mt-3 text-sm text-gray-400">
+              <p className="mt-3 text-sm text-slate-400">
                 Failed to redirect, please close the page manually
               </p>
             )}
@@ -1503,7 +1525,7 @@ export function Duel({
         maxWidth="500px"
         closeOnOutsideClick={true}
       >
-        <div className="p-6 text-white">
+        <div className="p-6">
           <p>
             Are you sure you want to forfeit? Your opponent wins the duel
             immediately.
@@ -1533,9 +1555,9 @@ export function Duel({
           maxWidth="500px"
           closeOnOutsideClick={true}
         >
-          <div className="p-6 text-white">
+          <div className="p-6">
             <p>{describeAttackForfeit(pendingAttack.forfeit)}</p>
-            <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-gray-400">
+            <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-slate-400">
               <input
                 type="checkbox"
                 checked={stopConfirmingAttacks}
@@ -1570,7 +1592,7 @@ export function Duel({
         closeOnOutsideClick={false}
         showCloseButton={false}
       >
-        <div className="p-6 text-white ">
+        <div className="p-6">
           <p>Attempting to reconnect{dots}</p>
           <div className="flex mt-6">
             <Button variant="destructive" onClick={onLeaveDuel}>
@@ -1587,7 +1609,7 @@ export function Duel({
         closeOnOutsideClick={false}
         showCloseButton={false}
       >
-        <div className="p-6 text-white">
+        <div className="p-6">
           <p>
             Your opponent disconnected or left the match. Waiting for them to
             reconnect{dots}
@@ -1635,7 +1657,7 @@ export function Duel({
         maxWidth="500px"
         closeOnOutsideClick={false}
       >
-        <div className="p-6 text-white ">{warningMessage}</div>
+        <div className="p-6">{warningMessage}</div>
       </Popup>
 
       <Popup
@@ -1646,7 +1668,7 @@ export function Duel({
         closeOnOutsideClick={false}
         showCloseButton={false}
       >
-        <div className="p-6 text-white ">
+        <div className="p-6">
           {wait}
           {dots}
         </div>

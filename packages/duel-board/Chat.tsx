@@ -280,7 +280,7 @@ function ChatComponent({
     if (sender === "server") {
       return {
         container: "flex justify-center",
-        bubble: "text-gray-400 text-center px-3 py-2",
+        bubble: "text-center px-3 py-1",
         gameLog: false,
       };
     }
@@ -288,7 +288,7 @@ function ChatComponent({
     if (sender === "server_1") {
       return {
         container: "flex justify-start",
-        bubble: "bg-orange-200/30 max-w-[80%] rounded-sm px-2 py-1",
+        bubble: "bg-sky-400/10 ring-1 ring-sky-300/20 ring-inset max-w-[80%] px-2 py-1",
         gameLog: true,
       };
     }
@@ -296,7 +296,7 @@ function ChatComponent({
     if (sender === "server_2") {
       return {
         container: "flex justify-end",
-        bubble: "bg-gray-400/30 max-w-[80%] rounded-sm px-2 py-1",
+        bubble: "bg-white/[0.06] ring-1 ring-slate-500/30 ring-inset max-w-[80%] px-2 py-1",
         gameLog: true,
       };
     }
@@ -318,6 +318,9 @@ function ChatComponent({
 
   return (
     <div className="flex flex-col h-full">
+      <h2 className="bz-dialog-header bz-title shrink-0 px-4 py-2.5 text-sm">
+        Game log
+      </h2>
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-1 min-h-0 custom-scrollbar">
         {visibleMessages.map(({ message, originalIndex }, index) => {
@@ -403,8 +406,8 @@ function ChatComponent({
                     onCardClick={onCardClick}
                   />
                 ) : (
-                  <div className="text-sm">
-                    <span className="text-white">{message.message}</span>
+                  <div className="text-xs">
+                    <span className="text-slate-400">{message.message}</span>
                   </div>
                 )}
               </div>
@@ -415,14 +418,14 @@ function ChatComponent({
       </div>
 
       {/* Input area */}
-      <div className="p-2">
+      <div className="shrink-0 p-2">
         <input
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="Type to chat"
-          className="text-sm w-full bg-black/30 text-white placeholder-gray-400 rounded-md px-3 py-2 outline-none focus:ring-1 focus:ring-white/30"
+          className="bz-field w-full px-3 py-2 text-sm"
         />
       </div>
     </div>
