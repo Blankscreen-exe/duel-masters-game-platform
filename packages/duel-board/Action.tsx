@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Popup } from "./Popup";
 import { ActionType, CardState } from "./types";
 import type { ActionAnswer } from "./answers";
+import { AttackLine } from "./AttackLine";
+import type { AttackNotice } from "./attackNotice";
 import { Button } from "./Button";
 import { CountInput } from "./CountInput";
 import { SELECTED_CARD_OUTLINE, SelectionMark } from "./SelectionMark";
@@ -36,6 +38,8 @@ export interface ActionProps {
     dismissable: boolean;
   };
   text: string;
+  /** The attack the question is about, shown above its text. */
+  attack?: AttackNotice;
   minSelections: number;
   maxSelections: number;
   cancellable: boolean;
@@ -46,6 +50,7 @@ export interface ActionProps {
 export function Action({
   title,
   text,
+  attack,
   error,
   cards,
   unselectableCards,
@@ -278,6 +283,7 @@ export function Action({
           className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 [@media(max-height:500px)]:!py-2"
           onPointerMove={handlePointerMove}
         >
+          {attack && <AttackLine notice={attack} className="mb-3" />}
           <div className="text-sm text-slate-200">{text}</div>
 
           {actionType === ActionType.ShowCards && (

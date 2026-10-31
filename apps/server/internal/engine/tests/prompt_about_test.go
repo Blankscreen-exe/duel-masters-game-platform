@@ -106,6 +106,9 @@ func TestQuestionsSayWhatTheyAreAbout(t *testing.T) {
 	block, err := scn.WaitForAction(defender, blockAsked)
 	require.NoError(t, err)
 	assertAbout(t, block.PromptAbout, match.PromptBlock, creature, nil, "blocking")
+	assert.Equal(t, &server.PromptAttack{
+		Attacker: server.PromptFighter{Name: creature.Name, Power: scn.Match.GetPower(creature, true)},
+	}, block.Attack, "blocking an attack on the player names the attacker alone")
 
 	triggerAsked, err := scn.MessageCount(defender)
 	require.NoError(t, err)
@@ -156,5 +159,55 @@ func TestChoosingWhatToAttackSaysWhatItIsAbout(t *testing.T) {
 	require.NoError(t, err)
 	assertAbout(t, choosing.PromptAbout, match.PromptAttackTarget, creature, []string{target.ID}, "choosing what to attack")
 	require.NoError(t, scn.CancelAction(attacker))
+	require.NoError(t, scn.WaitForEventLoop())
+}
+
+func TestBlockQuestionNamesTheCreatureAttacked(t *testing.T) {
+	scn := scenario.New(scenario.WithDeck(scenario.DeckEntry{UID: brokenShieldsCreatureUID, Count: 40}))
+	attacker := scn.Match.CurrentPlayer()
+	defender := scn.Match.PlayerRef(scn.Match.Opponent(attacker.Player))
+
+	for range 4 {
+		_, err := attacker.Player.SpawnCard(brokenShieldsCreatureUID, match.MANAZONE)
+		require.NoError(t, err)
+	}
+	creature, err := attacker.Player.SpawnCard(brokenShieldsCreatureUID, match.HAND)
+	require.NoError(t, err)
+	require.NoError(t, scn.ActionPlayCard(attacker, creature.ID))
+	require.NoError(t, scn.WaitForEventLoop())
+	require.NoError(t, scn.ActionEndTurn(attacker))
+
+	_, err = defender.Player.SpawnCard(brokenShieldsCreatureUID, match.MANAZONE)
+	require.NoError(t, err)
+	for range 5 {
+		_, err := defender.Player.SpawnCard(promptAboutTerrorPitUID, match.MANAZONE)
+		require.NoError(t, err)
+	}
+	blocker, err := defender.Player.SpawnCard(promptAboutBlockerUID, match.HAND)
+	require.NoError(t, err)
+	require.NoError(t, scn.ActionPlayCard(defender, blocker.ID))
+	require.NoError(t, scn.WaitForEventLoop())
+	target, err := defender.Player.SpawnCard(brokenShieldsCreatureUID, match.HAND)
+	require.NoError(t, err)
+	_, err = defender.Player.MoveCard(target.ID, match.HAND, match.BATTLEZONE, target.ID)
+	require.NoError(t, err)
+	require.NoError(t, scn.ActionEndTurn(defender))
+	defender.Player.TapCard(target)
+
+	_, err = scn.ActionAttackCreaturePrompt(attacker, creature.ID)
+	require.NoError(t, err)
+	blockAsked, err := scn.MessageCount(defender)
+	require.NoError(t, err)
+	require.NoError(t, scn.SubmitAction(attacker, target.ID))
+	block, err := scn.WaitForAction(defender, blockAsked)
+	require.NoError(t, err)
+
+	assert.Equal(t, string(match.PromptBlock), block.Kind)
+	assert.Equal(t, &server.PromptAttack{
+		Attacker: server.PromptFighter{Name: creature.Name, Power: scn.Match.GetPower(creature, true)},
+		Target:   &server.PromptFighter{Name: target.Name, Power: scn.Match.GetPower(target, false)},
+	}, block.Attack)
+
+	require.NoError(t, scn.CancelAction(defender))
 	require.NoError(t, scn.WaitForEventLoop())
 }

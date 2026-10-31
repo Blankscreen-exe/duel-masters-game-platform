@@ -33,6 +33,23 @@ const (
 	PromptTapAbility PromptKind = "tap_ability"
 )
 
+// NewBlockAction asks the attacked player whether to block an attack, and with
+// which of the blockers. The target is the creature attacked, or nil when the
+// player is attacked. Both creatures are in play, so telling them gives nothing
+// away.
+func (m *Match) NewBlockAction(player *Player, blockers []*Card, attacker *Card, target *Card) {
+	msg := m.actionMessage(player, PromptBlock, blockers, 1, 1, "Choose a creature to block the attack with or close to not block the attack.", true, nil)
+	msg.Attack = &server.PromptAttack{
+		Attacker: server.PromptFighter{Name: attacker.Name, Power: m.GetPower(attacker, true)},
+	}
+
+	if target != nil {
+		msg.Attack.Target = &server.PromptFighter{Name: target.Name, Power: m.GetPower(target, false)}
+	}
+
+	m.ask(player, msg)
+}
+
 // promptAbout says what a question to player is about, offering cards.
 func (m *Match) promptAbout(player *Player, kind PromptKind, cards []*Card) server.PromptAbout {
 	about := server.PromptAbout{Kind: string(kind)}

@@ -34,6 +34,13 @@ import { CLIPS_CARDS_PROPS } from "./cardPositions";
 import { anchorId } from "./flights";
 import { DeckPile, GraveyardPile, HandCount } from "./InfoPiles";
 import { PhaseBar } from "./PhaseBar";
+import { AttackLine } from "./AttackLine";
+import {
+  blockedAttack,
+  plannedAttack,
+  type AttackNotice,
+  type AttackTargetKind,
+} from "./attackNotice";
 import { PhaseAnnouncer } from "./PhaseAnnouncer";
 import { CardMenu } from "./CardMenu";
 import { findCreaturePower } from "./creaturePower";
@@ -306,7 +313,10 @@ export function Duel({
   );
   const [pendingAttack, setPendingAttack] = useState<{
     label: string;
-    forfeit: AttackForfeit;
+    /** The attack to confirm; absent for a tap ability. */
+    notice: AttackNotice | null;
+    /** What going ahead gives up, when the player is to be warned of it. */
+    forfeit: AttackForfeit | null;
     run: () => void;
   } | null>(null);
   const [stopConfirmingAttacks, setStopConfirmingAttacks] = useState(false);
@@ -625,11 +635,15 @@ export function Duel({
     setDropZone(foundZone);
   };
 
-  /** Attacking or using a tap ability ends the summon step for the rest of
-   * the turn. While that would still cost the player something, they are asked
-   * first, unless they chose not to be. */
-  const guardAttack = (label: string, run: () => void) => {
-    const forfeit = confirmAttacks && state ? attackForfeit(state) : null;
+  /** What the player is warned of before attacking or using a tap ability,
+   * which ends the summon step for the rest of the turn. They can choose not to
+   * be warned. */
+  const currentForfeit = () =>
+    confirmAttacks && state ? attackForfeit(state) : null;
+
+  /** A tap ability only asks first while it would cost the player something. */
+  const guardTapAbility = (run: () => void) => {
+    const forfeit = currentForfeit();
 
     if (!forfeit) {
       run();
@@ -637,7 +651,22 @@ export function Duel({
     }
 
     setStopConfirmingAttacks(false);
-    setPendingAttack({ label, forfeit, run });
+    setPendingAttack({ label: "Use tap ability", notice: null, forfeit, run });
+  };
+
+  /** Every attack is confirmed first, showing the power it goes in with. */
+  const confirmAttack = (
+    virtualId: string,
+    target: AttackTargetKind,
+    run: () => void,
+  ) => {
+    setStopConfirmingAttacks(false);
+    setPendingAttack({
+      label: "Attack",
+      notice: state ? plannedAttack(state, virtualId, target) : null,
+      forfeit: currentForfeit(),
+      run,
+    });
   };
 
   const myUsername = state?.me.username;
@@ -705,13 +734,15 @@ export function Duel({
         sendAddToManazone(virtualId);
         break;
       case "attackPlayer":
-        guardAttack("Attack", () => sendAttackPlayer(virtualId));
+        confirmAttack(virtualId, "player", () => sendAttackPlayer(virtualId));
         break;
       case "attackCreature":
-        guardAttack("Attack", () => sendAttackCreature(virtualId));
+        confirmAttack(virtualId, "creature", () =>
+          sendAttackCreature(virtualId),
+        );
         break;
       case "tapAbility":
-        guardAttack("Use tap ability", () => sendTapAbility(virtualId));
+        guardTapAbility(() => sendTapAbility(virtualId));
         break;
       case "view":
         showCardPreview(card);
@@ -748,13 +779,13 @@ export function Duel({
       dropZone === "opponentPlayzone"
     ) {
       const { virtualId } = dragState;
-      guardAttack("Attack", () => sendAttackCreature(virtualId));
+      confirmAttack(virtualId, "creature", () => sendAttackCreature(virtualId));
     } else if (
       dragState.sourceZone === "myPlayzone" &&
       dropZone === "opponentShieldzone"
     ) {
       const { virtualId } = dragState;
-      guardAttack("Attack", () => sendAttackPlayer(virtualId));
+      confirmAttack(virtualId, "player", () => sendAttackPlayer(virtualId));
     }
 
     setDragState(null);
@@ -1551,23 +1582,30 @@ export function Duel({
         <Popup
           visible={true}
           onClose={() => setPendingAttack(null)}
-          title="End your summon step?"
+          title={pendingAttack.notice ? "Confirm attack" : "End your summon step?"}
           maxWidth="500px"
           closeOnOutsideClick={true}
         >
           <div className="p-6">
-            <p>{describeAttackForfeit(pendingAttack.forfeit)}</p>
-            <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-slate-400">
-              <input
-                type="checkbox"
-                checked={stopConfirmingAttacks}
-                onChange={(e) => setStopConfirmingAttacks(e.target.checked)}
-              />
-              Don't ask me again
-            </label>
+            {pendingAttack.notice && <AttackLine notice={pendingAttack.notice} />}
+            {pendingAttack.forfeit && (
+              <>
+                <p className={pendingAttack.notice ? "mt-4" : undefined}>
+                  {describeAttackForfeit(pendingAttack.forfeit)}
+                </p>
+                <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={stopConfirmingAttacks}
+                    onChange={(e) => setStopConfirmingAttacks(e.target.checked)}
+                  />
+                  Don't warn me about this again
+                </label>
+              </>
+            )}
             <div className="flex gap-3 mt-6">
               <Button variant="gray" onClick={() => setPendingAttack(null)}>
-                Keep playing
+                {pendingAttack.notice ? "Cancel" : "Keep playing"}
               </Button>
               <Button
                 onClick={() => {
@@ -1692,6 +1730,7 @@ export function Duel({
           shieldMap={{ ...state.opponent.shieldMap, ...state.me.shieldMap }}
           showCards={action.showCards}
           text={action.text}
+          attack={action.attack && blockedAttack(action.attack)}
           minSelections={action.minSelections || 0}
           maxSelections={action.maxSelections || 0}
           cancellable={action.cancellable || false}

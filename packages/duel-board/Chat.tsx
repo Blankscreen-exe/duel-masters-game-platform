@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import {
+  CARD_SIDE_CLASSES,
   cardSide,
   logKind,
   logLook,
@@ -39,12 +40,6 @@ interface ChatProps {
   /** Opens a card a game log line names. */
   onCardClick?: (card: ChatCard) => void;
 }
-
-const CARD_SIDE_CLASSES: Record<CardSide, string> = {
-  mine: "text-sky-300",
-  theirs: "text-red-300",
-  unknown: "text-white",
-};
 
 /** A game log line: an icon for what happened, then the line with the cards it
  * names coloured by whose they are, each opening the card. */

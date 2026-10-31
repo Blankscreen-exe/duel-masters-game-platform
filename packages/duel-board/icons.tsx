@@ -138,6 +138,7 @@ const ICONS = {
   ),
   untap: <path d="M20 12a8 8 0 11-3-6.2M20 4v5h-5" />,
   arrowUp: <path d="M12 19V5M6 11l6-6 6 6" />,
+  arrowRight: <path d="M3 12h18M14 5l7 7-7 7" />,
   dot: <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />,
 } satisfies Record<string, ReactNode>;
 

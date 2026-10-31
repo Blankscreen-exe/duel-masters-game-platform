@@ -250,6 +250,19 @@ export interface PromptSource {
   name: string;
 }
 
+/** A creature in an attack, with its power in that attack. */
+export interface PromptFighter {
+  name: string;
+  power: number;
+}
+
+/** The attack a block question is about. */
+export interface PromptAttack {
+  attacker: PromptFighter;
+  /** The creature attacked; absent when the player is attacked. */
+  target?: PromptFighter;
+}
+
 /** What a question is about, for programs that answer as a player does. */
 export interface PromptAbout {
   kind?: PromptKind;
@@ -257,6 +270,8 @@ export interface PromptAbout {
   source?: PromptSource;
   /** The offered cards, by virtualId, that are the opponent's. */
   opponentCards?: string[];
+  /** The attack a block question is about. */
+  attack?: PromptAttack;
 }
 
 export interface ActionMessage extends PromptAbout {

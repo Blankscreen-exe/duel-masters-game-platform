@@ -153,6 +153,13 @@ export function logSegments(
 /** Whose side a named card is on, for its colour. */
 export type CardSide = "mine" | "theirs" | "unknown";
 
+/** The colour of a card, by whose side it is on. */
+export const CARD_SIDE_CLASSES: Record<CardSide, string> = {
+  mine: "text-sky-300",
+  theirs: "text-red-300",
+  unknown: "text-white",
+};
+
 export function cardSide(
   card: ChatCard,
   players: { me: string; opponent: string } | undefined,

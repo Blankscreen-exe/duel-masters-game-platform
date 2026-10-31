@@ -222,6 +222,19 @@ type PromptSource struct {
 	Name    string `json:"name"`
 }
 
+// PromptFighter is a creature in an attack, with its power in that attack.
+type PromptFighter struct {
+	Name  string `json:"name"`
+	Power int    `json:"power"`
+}
+
+// PromptAttack is the attack a block question is about.
+type PromptAttack struct {
+	Attacker PromptFighter `json:"attacker"`
+	// Target is the creature attacked; nil when the player is attacked.
+	Target *PromptFighter `json:"target,omitempty"`
+}
+
 // PromptAbout says what a question is about, for programs that answer
 // questions as a player does, such as the computer opponent, which cannot go
 // by the words meant for people.
@@ -235,6 +248,8 @@ type PromptAbout struct {
 	// OpponentCards lists, by virtualId, the cards offered that belong to the
 	// opponent of the player asked; the others are their own.
 	OpponentCards []string `json:"opponentCards,omitempty"`
+	// Attack is the attack a block question is about.
+	Attack *PromptAttack `json:"attack,omitempty"`
 }
 
 // ActionMessage is used to prompt the user to make a selection of the specified cards

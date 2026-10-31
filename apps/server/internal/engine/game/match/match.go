@@ -1072,8 +1072,12 @@ func (m *Match) NewAction(player *Player, kind PromptKind, cards []*Card, minSel
 }
 
 func (m *Match) NewActionFullList(player *Player, kind PromptKind, cards []*Card, minSelections int, maxSelections int, text string, cancellable bool, unselectableCards []*Card) {
+	m.ask(player, m.actionMessage(player, kind, cards, minSelections, maxSelections, text, cancellable, unselectableCards))
+}
 
-	msg := &server.ActionMessage{
+// actionMessage is the question that asks a player to select from cards.
+func (m *Match) actionMessage(player *Player, kind PromptKind, cards []*Card, minSelections int, maxSelections int, text string, cancellable bool, unselectableCards []*Card) *server.ActionMessage {
+	return &server.ActionMessage{
 		PromptAbout:       m.promptAbout(player, kind, cards),
 		Header:            "action",
 		Cards:             denormalizeCards(cards, false),
@@ -1083,9 +1087,6 @@ func (m *Match) NewActionFullList(player *Player, kind PromptKind, cards []*Card
 		Cancellable:       cancellable,
 		UnselectableCards: denormalizeCards(unselectableCards, false),
 	}
-
-	m.ask(player, msg)
-
 }
 
 // NewBacksideAction prompts the user to make a selection of the specified cards without their names or images
