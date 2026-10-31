@@ -76,14 +76,17 @@ paths:
     post:
       operationId: signUp
       summary: Create an account and log it in
-      description: The first account ever created becomes the admin.
+      description: >-
+        The first account ever created becomes the admin, and needs no code. Any other is kept out
+        of everything but confirming its email address until that is done: a code is sent straight
+        away when the site can send email, and the account waits when it cannot.
       tags: [auth]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Credentials"
+              $ref: "#/components/schemas/SignUpInput"
       responses:
         "201":
           description: The account was created and is logged in.
@@ -103,11 +106,128 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "409":
-          description: The username is taken, in any case (code "username_taken").
+          description: >-
+            The username or email address is taken, in any case (code "username_taken" or
+            "email_taken").
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /auth/verification:
+    get:
+      operationId: getVerification
+      summary: How confirming the player's email address stands
+      tags: [auth]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: How it stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verification"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+    post:
+      operationId: confirmEmail
+      summary: Confirm the player's email address with the code sent to it
+      description: Wrong guesses use up a code, after which a new one is needed.
+      tags: [auth]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationCode"
+      responses:
+        "200":
+          description: The address is confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          description: >-
+            Not a code (code "invalid_input"), the wrong one (code "wrong_code"), or one too old or
+            tried too often (code "code_expired").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "409":
+          $ref: "#/components/responses/EmailConfirmed"
+  /auth/verification/code:
+    post:
+      operationId: sendVerificationCode
+      summary: Send a new code to the player's email address
+      tags: [auth]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The code was sent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verification"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "409":
+          description: >-
+            The address is already confirmed (code "email_confirmed"), or the site cannot send email
+            yet (code "mail_unavailable").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyAttempts"
+        "502":
+          description: The mail server would not take it (code "mail_failed").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/verification/email:
+    put:
+      operationId: changeVerificationEmail
+      summary: Correct the email address of an account not yet confirmed
+      description: A code is sent to the new address when the site can send email.
+      tags: [auth]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailChange"
+      responses:
+        "200":
+          description: The address was changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verification"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "409":
+          description: >-
+            The address is taken (code "email_taken"), or the player's is already confirmed (code
+            "email_confirmed").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyAttempts"
   /auth/login:
     post:
       operationId: logIn
@@ -1412,7 +1532,7 @@ paths:
             maxLength: 20
         - name: status
           in: query
-          description: Keeps the accounts banned now, muted now, or the admins.
+          description: Keeps the accounts banned now, muted now, the admins, or those not yet confirmed.
           schema:
             $ref: "#/components/schemas/AdminUserStatus"
         - name: page
@@ -1939,6 +2059,134 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /admin/users/{userId}/let-in:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    post:
+      operationId: letUserIn
+      summary: Let a player in without confirming their email address
+      description: For a player waiting while the site cannot send email. Letting in one already in changes nothing.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The account, now let in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/AdminConflict"
+  /admin/mail:
+    get:
+      operationId: getMailSettings
+      summary: The mail server's settings
+      description: Never includes the password, only whether there is one.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailSettings"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      operationId: setMailSettings
+      summary: Set up the mail server
+      description: Stored encrypted with the server's APP_SECRET_KEY.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MailSettingsInput"
+      responses:
+        "200":
+          description: The settings as stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailSettings"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: The server has no APP_SECRET_KEY to encrypt them with (code "no_secret_key").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: clearMailSettings
+      summary: Forget the mail server
+      description: New players then wait, as they do before one is set up.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The settings, now empty.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailSettings"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/mail/test:
+    post:
+      operationId: sendTestMail
+      summary: Send a test email through the mail server
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestMailInput"
+      responses:
+        "204":
+          description: The mail server took the email.
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: No mail server is set up (code "mail_unavailable").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The mail server would not take it, with its reason (code "mail_failed").
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /admin/settings:
     get:
       operationId: getAdminSettings
@@ -2188,9 +2436,16 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    EmailConfirmed:
+      description: The player's email address is already confirmed (code "email_confirmed").
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     TooManyAttempts:
       description: >-
-        Too many wrong passwords for this account; try again later (code "too_many_attempts").
+        Too many wrong passwords for this account, or asking for codes too quickly; try again later
+        (code "too_many_attempts").
       headers:
         Retry-After:
           $ref: "#/components/headers/RetryAfter"
@@ -2230,6 +2485,144 @@ components:
           format: password
           minLength: 8
           maxLength: 128
+    SignUpInput:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          description: >-
+            3 to 20 letters, numbers, underscores or hyphens, after surrounding spaces are
+            trimmed. Unique regardless of case.
+          type: string
+          minLength: 3
+          maxLength: 20
+          pattern: "^[A-Za-z0-9_-]+$"
+        email:
+          description: An email address, unique regardless of case.
+          type: string
+          maxLength: 254
+        password:
+          description: 8 to 128 characters.
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+    Verification:
+      description: How confirming the player's email address stands.
+      type: object
+      required: [email, mailWorks, resendInSeconds]
+      properties:
+        email:
+          type: string
+        mailWorks:
+          description: Whether the site can send a code right now. A player waits while it cannot.
+          type: boolean
+        codeSentAt:
+          description: When the last code was sent; absent before the first.
+          type: string
+          format: date-time
+        codeExpiresAt:
+          description: When the last code stops working; absent before the first.
+          type: string
+          format: date-time
+        resendInSeconds:
+          description: How long until another code may be asked for.
+          type: integer
+        deleteAt:
+          description: When the account is deleted if still not confirmed; absent before the first code.
+          type: string
+          format: date-time
+    VerificationCode:
+      type: object
+      required: [code]
+      properties:
+        code:
+          description: The digits from the email.
+          type: string
+          maxLength: 20
+    EmailChange:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          maxLength: 254
+    MailSecurity:
+      description: >-
+        How the connection to the mail server is protected: STARTTLS, usually on port 587; TLS from
+        the start, usually on port 465; or none, for a server on the same machine.
+      type: string
+      enum: [starttls, tls, none]
+    MailSettings:
+      description: The mail server's settings as the admin panel shows them, without the password.
+      type: object
+      required: [configured, keyAvailable, unreadable, hasPassword]
+      properties:
+        configured:
+          description: Whether a mail server is set up and can be used.
+          type: boolean
+        keyAvailable:
+          description: Whether the server has an APP_SECRET_KEY to store settings with.
+          type: boolean
+        unreadable:
+          description: Whether settings are stored that this APP_SECRET_KEY cannot read, so they must be set again.
+          type: boolean
+        hasPassword:
+          description: Whether a password is stored.
+          type: boolean
+        host:
+          type: string
+        port:
+          type: integer
+        security:
+          $ref: "#/components/schemas/MailSecurity"
+        username:
+          type: string
+        fromAddress:
+          type: string
+        fromName:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    MailSettingsInput:
+      type: object
+      required: [host, port, security, username, fromAddress, fromName]
+      properties:
+        host:
+          type: string
+          maxLength: 253
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        security:
+          $ref: "#/components/schemas/MailSecurity"
+        username:
+          description: Empty for a server that needs no login.
+          type: string
+          maxLength: 254
+        password:
+          description: Absent keeps the stored password; empty removes it.
+          type: string
+          format: password
+          maxLength: 1024
+        fromAddress:
+          description: The address email comes from.
+          type: string
+          maxLength: 254
+        fromName:
+          description: The name email comes from; may be empty.
+          type: string
+          maxLength: 100
+    TestMailInput:
+      type: object
+      required: [to]
+      properties:
+        to:
+          description: The address to send the test email to.
+          type: string
+          maxLength: 254
     PasswordChange:
       type: object
       required: [currentPassword, newPassword]
@@ -2245,12 +2638,20 @@ components:
           maxLength: 128
     Account:
       type: object
-      required: [id, username, role, createdAt, rank]
+      required: [id, username, role, createdAt, rank, emailVerified]
       properties:
         id:
           type: string
         username:
           type: string
+        email:
+          description: The player's email address, which only they and admins see.
+          type: string
+        emailVerified:
+          description: >-
+            Whether the player may use the site. Until then only confirming their email address
+            works, and everything else answers as if they were not logged in.
+          type: boolean
         role:
           $ref: "#/components/schemas/Role"
         createdAt:
@@ -2312,12 +2713,18 @@ components:
     AdminUser:
       description: An account as the admin panel shows it.
       type: object
-      required: [id, username, role, computer, joinedAt, rank, wins, losses, online]
+      required: [id, username, role, computer, joinedAt, rank, wins, losses, online, emailVerified]
       properties:
         id:
           type: string
         username:
           type: string
+        email:
+          description: The player's email address; absent for an account without one.
+          type: string
+        emailVerified:
+          description: Whether the player may use the site, by a confirmed address or an admin letting them in.
+          type: boolean
         role:
           $ref: "#/components/schemas/Role"
         computer:
@@ -2345,7 +2752,7 @@ components:
           $ref: "#/components/schemas/Penalty"
     AdminUserStatus:
       type: string
-      enum: [banned, muted, admin]
+      enum: [banned, muted, admin, unverified]
     AdminUserPage:
       type: object
       required: [users, total, page, pageSize]
@@ -2588,6 +2995,9 @@ components:
         - format_retired
         - format_restored
         - formats_reordered
+        - player_let_in
+        - mail_settings_changed
+        - mail_settings_cleared
     AdminLogEntry:
       type: object
       required: [id, adminName, action, subject, details, at]

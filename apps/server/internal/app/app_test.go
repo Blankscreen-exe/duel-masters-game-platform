@@ -102,7 +102,7 @@ func TestNewWarnsWhileThereAreNoAccounts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, logs.String(), warning)
 
-	_, _, err = app.auth.SignUp(context.Background(), "Shobu", "correct horse battery staple")
+	_, _, err = app.auth.SignUp(context.Background(), "Shobu", "shobu@example.test", "correct horse battery staple")
 	require.NoError(t, err)
 	require.NoError(t, store.Close(app.db))
 
@@ -117,7 +117,7 @@ func TestServeDeletesExpiredSessions(t *testing.T) {
 	app, err := New(context.Background(), testConfig(t), quietLogger())
 	require.NoError(t, err)
 
-	_, live, err := app.auth.SignUp(context.Background(), "Shobu", "correct horse battery staple")
+	_, live, err := app.auth.SignUp(context.Background(), "Shobu", "shobu@example.test", "correct horse battery staple")
 	require.NoError(t, err)
 
 	var userID string

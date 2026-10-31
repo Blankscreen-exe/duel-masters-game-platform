@@ -32,9 +32,67 @@ export interface paths {
         put?: never;
         /**
          * Create an account and log it in
-         * @description The first account ever created becomes the admin.
+         * @description The first account ever created becomes the admin, and needs no code. Any other is kept out of everything but confirming its email address until that is done: a code is sent straight away when the site can send email, and the account waits when it cannot.
          */
         post: operations["signUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How confirming the player's email address stands */
+        get: operations["getVerification"];
+        put?: never;
+        /**
+         * Confirm the player's email address with the code sent to it
+         * @description Wrong guesses use up a code, after which a new one is needed.
+         */
+        post: operations["confirmEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/verification/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a new code to the player's email address */
+        post: operations["sendVerificationCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/verification/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Correct the email address of an account not yet confirmed
+         * @description A code is sent to the new address when the site can send email.
+         */
+        put: operations["changeVerificationEmail"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1081,6 +1139,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/users/{userId}/let-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Let a player in without confirming their email address
+         * @description For a player waiting while the site cannot send email. Letting in one already in changes nothing.
+         */
+        post: operations["letUserIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/mail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The mail server's settings
+         * @description Never includes the password, only whether there is one.
+         */
+        get: operations["getMailSettings"];
+        /**
+         * Set up the mail server
+         * @description Stored encrypted with the server's APP_SECRET_KEY.
+         */
+        put: operations["setMailSettings"];
+        post?: never;
+        /**
+         * Forget the mail server
+         * @description New players then wait, as they do before one is set up.
+         */
+        delete: operations["clearMailSettings"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/mail/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test email through the mail server */
+        post: operations["sendTestMail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/settings": {
         parameters: {
             query?: never;
@@ -1165,6 +1291,91 @@ export interface components {
              */
             password: string;
         };
+        SignUpInput: {
+            /** @description 3 to 20 letters, numbers, underscores or hyphens, after surrounding spaces are trimmed. Unique regardless of case. */
+            username: string;
+            /** @description An email address, unique regardless of case. */
+            email: string;
+            /**
+             * Format: password
+             * @description 8 to 128 characters.
+             */
+            password: string;
+        };
+        /** @description How confirming the player's email address stands. */
+        Verification: {
+            email: string;
+            /** @description Whether the site can send a code right now. A player waits while it cannot. */
+            mailWorks: boolean;
+            /**
+             * Format: date-time
+             * @description When the last code was sent; absent before the first.
+             */
+            codeSentAt?: string;
+            /**
+             * Format: date-time
+             * @description When the last code stops working; absent before the first.
+             */
+            codeExpiresAt?: string;
+            /** @description How long until another code may be asked for. */
+            resendInSeconds: number;
+            /**
+             * Format: date-time
+             * @description When the account is deleted if still not confirmed; absent before the first code.
+             */
+            deleteAt?: string;
+        };
+        VerificationCode: {
+            /** @description The digits from the email. */
+            code: string;
+        };
+        EmailChange: {
+            email: string;
+        };
+        /**
+         * @description How the connection to the mail server is protected: STARTTLS, usually on port 587; TLS from the start, usually on port 465; or none, for a server on the same machine.
+         * @enum {string}
+         */
+        MailSecurity: "starttls" | "tls" | "none";
+        /** @description The mail server's settings as the admin panel shows them, without the password. */
+        MailSettings: {
+            /** @description Whether a mail server is set up and can be used. */
+            configured: boolean;
+            /** @description Whether the server has an APP_SECRET_KEY to store settings with. */
+            keyAvailable: boolean;
+            /** @description Whether settings are stored that this APP_SECRET_KEY cannot read, so they must be set again. */
+            unreadable: boolean;
+            /** @description Whether a password is stored. */
+            hasPassword: boolean;
+            host?: string;
+            port?: number;
+            security?: components["schemas"]["MailSecurity"];
+            username?: string;
+            fromAddress?: string;
+            fromName?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        MailSettingsInput: {
+            host: string;
+            port: number;
+            security: components["schemas"]["MailSecurity"];
+            /** @description Empty for a server that needs no login. */
+            username: string;
+            /**
+             * Format: password
+             * @description Absent keeps the stored password; empty removes it.
+             */
+            password?: string;
+            /** @description The address email comes from. */
+            fromAddress: string;
+            /** @description The name email comes from; may be empty. */
+            fromName: string;
+        };
+        TestMailInput: {
+            /** @description The address to send the test email to. */
+            to: string;
+        };
         PasswordChange: {
             /** Format: password */
             currentPassword: string;
@@ -1177,6 +1388,10 @@ export interface components {
         Account: {
             id: string;
             username: string;
+            /** @description The player's email address, which only they and admins see. */
+            email?: string;
+            /** @description Whether the player may use the site. Until then only confirming their email address works, and everything else answers as if they were not logged in. */
+            emailVerified: boolean;
             role: components["schemas"]["Role"];
             /** Format: date-time */
             createdAt: string;
@@ -1222,6 +1437,10 @@ export interface components {
         AdminUser: {
             id: string;
             username: string;
+            /** @description The player's email address; absent for an account without one. */
+            email?: string;
+            /** @description Whether the player may use the site, by a confirmed address or an admin letting them in. */
+            emailVerified: boolean;
             role: components["schemas"]["Role"];
             /** @description Whether the account is a computer opponent's, which nobody logs in to and admins cannot change. */
             computer: boolean;
@@ -1238,7 +1457,7 @@ export interface components {
             mute?: components["schemas"]["Penalty"];
         };
         /** @enum {string} */
-        AdminUserStatus: "banned" | "muted" | "admin";
+        AdminUserStatus: "banned" | "muted" | "admin" | "unverified";
         AdminUserPage: {
             users: components["schemas"]["AdminUser"][];
             /** @description How many accounts match, on every page. */
@@ -1354,7 +1573,7 @@ export interface components {
             value: string;
         };
         /** @enum {string} */
-        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped" | "computer_opponent_added" | "computer_opponent_changed" | "computer_opponent_offered" | "computer_opponent_retired" | "format_added" | "format_changed" | "format_retired" | "format_restored" | "formats_reordered";
+        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped" | "computer_opponent_added" | "computer_opponent_changed" | "computer_opponent_offered" | "computer_opponent_retired" | "format_added" | "format_changed" | "format_retired" | "format_restored" | "formats_reordered" | "player_let_in" | "mail_settings_changed" | "mail_settings_cleared";
         AdminLogEntry: {
             id: string;
             /** @description The admin who acted; absent once their account is gone. */
@@ -2130,7 +2349,16 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Too many wrong passwords for this account; try again later (code "too_many_attempts"). */
+        /** @description The player's email address is already confirmed (code "email_confirmed"). */
+        EmailConfirmed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Too many wrong passwords for this account, or asking for codes too quickly; try again later (code "too_many_attempts"). */
         TooManyAttempts: {
             headers: {
                 "Retry-After": components["headers"]["RetryAfter"];
@@ -2198,7 +2426,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Credentials"];
+                "application/json": components["schemas"]["SignUpInput"];
             };
         };
         responses: {
@@ -2222,7 +2450,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description The username is taken, in any case (code "username_taken"). */
+            /** @description The username or email address is taken, in any case (code "username_taken" or "email_taken"). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2231,6 +2459,138 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    getVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How it stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Verification"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    confirmEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerificationCode"];
+            };
+        };
+        responses: {
+            /** @description The address is confirmed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description Not a code (code "invalid_input"), the wrong one (code "wrong_code"), or one too old or tried too often (code "code_expired"). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            409: components["responses"]["EmailConfirmed"];
+        };
+    };
+    sendVerificationCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The code was sent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Verification"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The address is already confirmed (code "email_confirmed"), or the site cannot send email yet (code "mail_unavailable"). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyAttempts"];
+            /** @description The mail server would not take it (code "mail_failed"). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    changeVerificationEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailChange"];
+            };
+        };
+        responses: {
+            /** @description The address was changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Verification"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description The address is taken (code "email_taken"), or the player's is already confirmed (code "email_confirmed"). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyAttempts"];
         };
     };
     logIn: {
@@ -3504,7 +3864,7 @@ export interface operations {
             query?: {
                 /** @description Keeps the accounts whose name contains it, ignoring case. */
                 search?: string;
-                /** @description Keeps the accounts banned now, muted now, or the admins. */
+                /** @description Keeps the accounts banned now, muted now, the admins, or those not yet confirmed. */
                 status?: components["schemas"]["AdminUserStatus"];
                 page?: number;
                 pageSize?: number;
@@ -4028,6 +4388,156 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    letUserIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The account's id. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account, now let in. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["AdminConflict"];
+        };
+    };
+    getMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailSettings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    setMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MailSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description The settings as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailSettings"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description The server has no APP_SECRET_KEY to encrypt them with (code "no_secret_key"). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    clearMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings, now empty. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailSettings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    sendTestMail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestMailInput"];
+            };
+        };
+        responses: {
+            /** @description The mail server took the email. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description No mail server is set up (code "mail_unavailable"). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The mail server would not take it, with its reason (code "mail_failed"). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getAdminSettings: {

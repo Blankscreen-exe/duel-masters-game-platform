@@ -3,6 +3,7 @@ import { api } from './api/client';
 import { attempt, attemptEmpty, type Outcome } from './api/outcome';
 import type { components } from './api/schema';
 import type { AdminComputerOpponent, ComputerOpponentInput } from './computer-opponents';
+import type { MailSettings, MailSettingsInput } from './mail-settings';
 import type { AdminFormat, FormatInput } from './formats';
 
 type Role = components['schemas']['Role'];
@@ -21,6 +22,24 @@ export function banUser(
       body: durationMinutes === undefined ? { reason } : { reason, durationMinutes },
     }),
   );
+}
+
+/** Lets a player in without confirming their email address. */
+export function letUserIn(userId: string): Promise<Outcome<AdminUser>> {
+  return attempt(() => api.POST('/admin/users/{userId}/let-in', user(userId)));
+}
+
+export function saveMailSettings(input: MailSettingsInput): Promise<Outcome<MailSettings>> {
+  return attempt(() => api.PUT('/admin/mail', { body: input }));
+}
+
+export function clearMailSettings(): Promise<Outcome<MailSettings>> {
+  return attempt(() => api.DELETE('/admin/mail'));
+}
+
+/** Sends a test email through the mail server; a failure says why. */
+export function sendTestMail(to: string): Promise<Outcome<null>> {
+  return attemptEmpty(() => api.POST('/admin/mail/test', { body: { to } }));
 }
 
 export function unbanUser(userId: string): Promise<Outcome<AdminUser>> {

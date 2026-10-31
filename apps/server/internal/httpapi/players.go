@@ -170,13 +170,15 @@ func (h *handlers) account(ctx context.Context, user users.User) (api.Account, e
 		return api.Account{}, fmt.Errorf("reading %s's rank: %w", user.Username, err)
 	}
 	return api.Account{
-		Id:        user.ID,
-		Username:  user.Username,
-		Role:      api.Role(user.Role),
-		CreatedAt: user.CreatedAt.UTC(),
-		Rank:      apiRank(standing.Rank),
-		Mute:      apiMute(user, h.now()),
-		AvatarUrl: avatarURL(user.AvatarID),
+		Id:            user.ID,
+		Username:      user.Username,
+		Email:         nonEmpty(user.Email),
+		EmailVerified: user.IsVerified(),
+		Role:          api.Role(user.Role),
+		CreatedAt:     user.CreatedAt.UTC(),
+		Rank:          apiRank(standing.Rank),
+		Mute:          apiMute(user, h.now()),
+		AvatarUrl:     avatarURL(user.AvatarID),
 	}, nil
 }
 

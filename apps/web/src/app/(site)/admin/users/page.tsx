@@ -145,7 +145,17 @@ function UserRow({ user, isYou }: { readonly user: AdminUser; readonly isYou: bo
             Computer
           </span>
         )}
+        {!user.emailVerified && (
+          <span className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider whitespace-nowrap text-amber-300 uppercase ring-1 ring-amber-400/50 ring-inset">
+            Not confirmed
+          </span>
+        )}
         {isYou && <span className="text-xs text-accent">(you)</span>}
+        {user.email && (
+          <span title={user.email} className="min-w-0 truncate text-xs text-slate-500">
+            {user.email}
+          </span>
+        )}
       </div>
       <div>
         <RankBadge rank={user.rank} withRating />

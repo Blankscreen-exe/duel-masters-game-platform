@@ -41,6 +41,7 @@ func (c *clock) advance(d time.Duration) {
 }
 
 type fixture struct {
+	mail     *fakeMailer
 	auth     *auth.Service
 	users    *users.Service
 	settings *settings.Service
@@ -57,8 +58,11 @@ func newFixture(t *testing.T, db *gorm.DB) fixture {
 	accounts := users.NewService(db, storetest.Logger())
 	c := &clock{t: time.Now().UTC()}
 
+	sent := &fakeMailer{configured: true}
+
 	return fixture{
-		auth:     auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(4), c.now, storetest.Logger()),
+		mail:     sent,
+		auth:     auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(4), sent, c.now, storetest.Logger()),
 		users:    accounts,
 		settings: siteSettings,
 		clock:    c,
@@ -69,8 +73,14 @@ func newFixture(t *testing.T, db *gorm.DB) fixture {
 func (f fixture) signUp(t *testing.T, username string) (users.User, auth.Session) {
 	t.Helper()
 
-	user, session, err := f.auth.SignUp(context.Background(), username, password)
+	user, session, err := f.auth.SignUp(context.Background(), username, username+"@example.test", password)
 	require.NoError(t, err)
+
+	if !user.IsVerified() {
+		require.NoError(t, users.ConfirmEmailIn(f.db, user.ID, f.clock.now().UTC()))
+		user, err = f.users.ByID(context.Background(), user.ID)
+		require.NoError(t, err)
+	}
 
 	return user, session
 }
@@ -80,7 +90,7 @@ func TestSignUpCreatesAnAccountAndLogsItIn(t *testing.T) {
 		f := newFixture(t, db)
 		ctx := context.Background()
 
-		user, session, err := f.auth.SignUp(ctx, " Shobu ", password)
+		user, session, err := f.auth.SignUp(ctx, " Shobu ", "shobu@example.test", password)
 		require.NoError(t, err)
 		assert.Equal(t, "Shobu", user.Username)
 		assert.Equal(t, users.RoleAdmin, user.Role, "the first account is the admin")
@@ -122,13 +132,13 @@ func TestSignUpChecksItsInput(t *testing.T) {
 			{"Shobu", "short", "password"},
 			{"Shobu", strings.Repeat("x", auth.PasswordMaxLength+1), "password"},
 		} {
-			_, _, err := f.auth.SignUp(ctx, bad.username, bad.password)
+			_, _, err := f.auth.SignUp(ctx, bad.username, "someone@example.test", bad.password)
 			invalid, ok := validation.As(err)
 			require.True(t, ok, "%q/%q: got %v", bad.username, bad.password, err)
 			assert.Equal(t, bad.field, invalid.Field)
 		}
 
-		_, _, err := f.auth.SignUp(ctx, "Shobu", strings.Repeat("é", auth.PasswordMinLength))
+		_, _, err := f.auth.SignUp(ctx, "Shobu", "shobu@example.test", strings.Repeat("é", auth.PasswordMinLength))
 		assert.NoError(t, err, "password length counts characters, not bytes")
 	})
 }
@@ -138,7 +148,7 @@ func TestSignUpRefusesATakenName(t *testing.T) {
 		f := newFixture(t, db)
 		f.signUp(t, "Shobu")
 
-		_, _, err := f.auth.SignUp(context.Background(), "SHOBU", password)
+		_, _, err := f.auth.SignUp(context.Background(), "SHOBU", "other@example.test", password)
 		assert.ErrorIs(t, err, users.ErrUsernameTaken)
 	})
 }
@@ -152,7 +162,7 @@ func TestSignUpRespectsTheAdminSetting(t *testing.T) {
 		_, err := f.settings.Set(ctx, auth.SignupsOpen.Key, "false")
 		require.NoError(t, err)
 
-		_, _, err = f.auth.SignUp(ctx, "Newcomer", password)
+		_, _, err = f.auth.SignUp(ctx, "Newcomer", "newcomer@example.test", password)
 		assert.ErrorIs(t, err, auth.ErrSignupsClosed)
 
 		_, _, err = f.auth.LogIn(ctx, "Admin", password)

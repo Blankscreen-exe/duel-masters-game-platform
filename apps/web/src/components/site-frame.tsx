@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { SiteFooter } from './site-footer';
 import { SiteHeader } from './site-header';
 import { TabBar } from './tab-bar';
+import { VerifyEmailNotice } from './verify-email-notice';
 
 /**
  * Every page but a game's: the header, the page in the middle, the footer and the phone tab bar.
@@ -16,6 +17,7 @@ export function SiteFrame({ children }: { readonly children: ReactNode }) {
   return (
     <>
       <SiteHeader />
+      <VerifyEmailNotice />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:has-[[data-fill-screen]]:flex lg:has-[[data-fill-screen]]:min-h-0 lg:has-[[data-fill-screen]]:flex-col">
         {children}
       </main>

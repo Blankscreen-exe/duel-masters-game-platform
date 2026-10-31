@@ -14,6 +14,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/clocktest"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/mail"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -72,7 +73,8 @@ func newFixture(t *testing.T, db *gorm.DB) fixture {
 
 	clock := clocktest.New(time.Now().UTC())
 	accounts := users.NewService(db, storetest.Logger())
-	authService := auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(4), clock.Now, storetest.Logger())
+	mailService := mail.NewService(db, nil, storetest.Logger())
+	authService := auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(4), mailService, clock.Now, storetest.Logger())
 	seen := &effects{}
 
 	return fixture{
@@ -98,7 +100,12 @@ func newFixture(t *testing.T, db *gorm.DB) fixture {
 func (f fixture) signUp(t *testing.T, username string) (users.User, auth.Session) {
 	t.Helper()
 
-	user, session, err := f.auth.SignUp(context.Background(), username, password)
+	user, session, err := f.auth.SignUp(context.Background(), username, username+"@example.test", password)
+	if err == nil && !user.IsVerified() {
+		now := f.clock.Now().UTC().Truncate(time.Microsecond)
+		err = users.ConfirmEmailIn(f.db, user.ID, now)
+		user.EmailVerifiedAt = &now
+	}
 	require.NoError(t, err)
 	return user, session
 }

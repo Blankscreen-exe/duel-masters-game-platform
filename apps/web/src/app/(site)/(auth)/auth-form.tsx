@@ -16,6 +16,7 @@ import {
 } from '@/lib/credentials';
 import { textField } from '@/lib/form-data';
 import { bannedMessage } from '@/lib/moderation';
+import { EMAIL_MAX_LENGTH, verifyEmailHref } from '@/lib/verification';
 
 interface AuthFormProps {
   readonly mode: 'login' | 'signup';
@@ -60,12 +61,16 @@ export function AuthForm({ mode, next }: AuthFormProps) {
     setPending(true);
     setError(null);
     try {
-      const { error: failure, response } = isSignup
-        ? await api.POST('/auth/signup', { body })
+      const {
+        data: account,
+        error: failure,
+        response,
+      } = isSignup
+        ? await api.POST('/auth/signup', { body: { ...body, email: textField(form, 'email') } })
         : await api.POST('/auth/login', { body });
 
-      if (response.ok) {
-        router.push(next);
+      if (response.ok && account) {
+        router.push(account.emailVerified ? next : verifyEmailHref(next));
         router.refresh();
         return;
       }
@@ -98,6 +103,17 @@ export function AuthForm({ mode, next }: AuthFormProps) {
               : undefined
           }
         />
+        {isSignup && (
+          <TextField
+            label="Email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            maxLength={EMAIL_MAX_LENGTH}
+            hint="We send you a code to confirm it. Only you and admins can see it."
+          />
+        )}
         <TextField
           label="Password"
           name="password"

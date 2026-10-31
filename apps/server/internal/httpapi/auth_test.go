@@ -48,8 +48,12 @@ func (s testServer) call(method, path string, body any, session *http.Cookie) *h
 func (s testServer) signUp(t *testing.T, username string) *http.Cookie {
 	t.Helper()
 
-	response := s.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: username, Password: testPassword}, nil)
+	response := s.call(http.MethodPost, "/api/auth/signup", api.SignUpInput{Username: username, Email: username + "@example.test", Password: testPassword}, nil)
 	require.Equal(t, http.StatusCreated, response.Code, response.Body.String())
+
+	// Only the first account starts confirmed. The tests of confirming are in
+	// verification_test.go; everyone else is here to do something else.
+	require.NoError(t, s.db.Table("users").Where("username = ?", username).Update("email_verified_at", s.clock.Now().UTC()).Error)
 
 	return sessionCookieOf(t, response)
 }
@@ -69,7 +73,7 @@ func sessionCookieOf(t *testing.T, response *httptest.ResponseRecorder) *http.Co
 func TestSignUpAnswersWithTheAccountAndASessionCookie(t *testing.T) {
 	server := newTestServer(t, false)
 
-	response := server.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: "Shobu", Password: testPassword}, nil)
+	response := server.call(http.MethodPost, "/api/auth/signup", api.SignUpInput{Username: "Shobu", Email: strings.ToLower("Shobu") + "@example.test", Password: testPassword}, nil)
 
 	require.Equal(t, http.StatusCreated, response.Code, response.Body.String())
 	created := decode[api.Account](t, response)
@@ -101,7 +105,7 @@ func TestSignUpErrors(t *testing.T) {
 	server := newTestServer(t, false)
 	server.signUp(t, "Shobu")
 
-	invalid := server.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: "no", Password: testPassword}, nil)
+	invalid := server.call(http.MethodPost, "/api/auth/signup", api.SignUpInput{Username: "no", Email: strings.ToLower("no") + "@example.test", Password: testPassword}, nil)
 	assert.Equal(t, http.StatusBadRequest, invalid.Code)
 	body := decode[api.Error](t, invalid)
 	assert.Equal(t, "invalid_input", body.Code)
@@ -109,17 +113,17 @@ func TestSignUpErrors(t *testing.T) {
 	require.NotNil(t, body.Field)
 	assert.Equal(t, "username", *body.Field)
 
-	weak := server.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: "Kokujo", Password: "short"}, nil)
+	weak := server.call(http.MethodPost, "/api/auth/signup", api.SignUpInput{Username: "Kokujo", Email: strings.ToLower("Kokujo") + "@example.test", Password: "short"}, nil)
 	assert.Equal(t, http.StatusBadRequest, weak.Code)
 	assert.Equal(t, "password", *decode[api.Error](t, weak).Field)
 
-	taken := server.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: "SHOBU", Password: testPassword}, nil)
+	taken := server.call(http.MethodPost, "/api/auth/signup", api.SignUpInput{Username: "SHOBU", Email: "another@example.test", Password: testPassword}, nil)
 	assert.Equal(t, http.StatusConflict, taken.Code)
 	assert.Equal(t, "username_taken", decode[api.Error](t, taken).Code)
 
 	_, err := server.settings.Set(context.Background(), auth.SignupsOpen.Key, "false")
 	require.NoError(t, err)
-	closed := server.call(http.MethodPost, "/api/auth/signup", api.Credentials{Username: "Kokujo", Password: testPassword}, nil)
+	closed := server.call(http.MethodPost, "/api/auth/signup", api.SignUpInput{Username: "Kokujo", Email: strings.ToLower("Kokujo") + "@example.test", Password: testPassword}, nil)
 	assert.Equal(t, http.StatusForbidden, closed.Code)
 	assert.Equal(t, "signups_closed", decode[api.Error](t, closed).Code)
 }
@@ -231,7 +235,7 @@ func TestChangesMustBeSentAsJSON(t *testing.T) {
 	server := newTestServer(t, false)
 
 	for _, contentType := range []string{"", "text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x"} {
-		request := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"username":"Shobu","password":"correct horse battery staple"}`))
+		request := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"username":"Shobu","email":"shobu@example.test","password":"correct horse battery staple"}`))
 		if contentType != "" {
 			request.Header.Set("Content-Type", contentType)
 		}
@@ -242,7 +246,7 @@ func TestChangesMustBeSentAsJSON(t *testing.T) {
 		assert.Equal(t, "unsupported_media_type", decode[api.Error](t, response).Code)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/api/auth/signup", strings.NewReader(`{"username":"Shobu","password":"correct horse battery staple"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/auth/signup", strings.NewReader(`{"username":"Shobu","email":"shobu@example.test","password":"correct horse battery staple"}`))
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 	response := httptest.NewRecorder()
 	server.handler.ServeHTTP(response, request)

@@ -17,6 +17,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/mail"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
 )
@@ -64,6 +65,7 @@ type Listener interface {
 type Dependencies struct {
 	DB          *gorm.DB
 	Auth        *auth.Service
+	Mail        *mail.Service
 	Connections Connections
 	Games       Games
 	Settings    *settings.Service
@@ -77,6 +79,7 @@ type Dependencies struct {
 type Service struct {
 	db          *gorm.DB
 	auth        *auth.Service
+	mail        *mail.Service
 	connections Connections
 	games       Games
 	settings    *settings.Service
@@ -90,6 +93,7 @@ func NewService(deps Dependencies) *Service {
 	return &Service{
 		db:          deps.DB,
 		auth:        deps.Auth,
+		mail:        deps.Mail,
 		connections: deps.Connections,
 		games:       deps.Games,
 		settings:    deps.Settings,

@@ -359,16 +359,18 @@ func (h *handlers) adminUsers(ctx context.Context, accounts []users.User) ([]api
 		}
 
 		user := api.AdminUser{
-			Id:       account.ID,
-			Username: account.Username,
-			Role:     api.Role(account.Role),
-			Computer: account.Computer,
-			JoinedAt: account.CreatedAt.UTC(),
-			Rank:     apiRank(standing.Rank),
-			Wins:     standing.Wins,
-			Losses:   standing.Losses,
-			Online:   h.hub.IsOnline(account.ID),
-			Mute:     apiMute(account, now),
+			Id:            account.ID,
+			Username:      account.Username,
+			Email:         nonEmpty(account.Email),
+			EmailVerified: account.IsVerified(),
+			Role:          api.Role(account.Role),
+			Computer:      account.Computer,
+			JoinedAt:      account.CreatedAt.UTC(),
+			Rank:          apiRank(standing.Rank),
+			Wins:          standing.Wins,
+			Losses:        standing.Losses,
+			Online:        h.hub.IsOnline(account.ID),
+			Mute:          apiMute(account, now),
 		}
 		if ban, banned := account.BanAt(now); banned {
 			user.Ban = &api.Ban{Since: ban.Since.UTC(), Until: utcOrNil(ban.Until), Reason: ban.Reason}

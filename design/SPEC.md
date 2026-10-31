@@ -72,7 +72,8 @@ Browser ──HTTP──▶ Next.js (pages) ──/api, /ws──▶ Go server �
 
 ## 3. Accounts and roles
 
-- Players sign up and log in with a **name and password**, with the same rules as Triple Triad:
+- Players sign up with a **name, email address and password**, and log in with the name and
+  password, with the same rules as Triple Triad:
   - names are 3 to 20 letters, numbers, underscores or hyphens, unique regardless of case;
   - passwords are 8 to 128 characters, stored as Argon2id hashes (OWASP settings);
   - a login answers a wrong name and a wrong password alike, in the same time, and an account
@@ -90,8 +91,13 @@ Browser ──HTTP──▶ Next.js (pages) ──/api, /ws──▶ Go server �
   can lift any ban sooner. A ban ends the player's sessions and live connections at once, stops
   the game they are playing (no winner, no rating change, shown as "Stopped"), takes them out of
   the lobby, quick match and rematches, and hides them from the rankings.
-- No email **(default)**: a forgotten password is reset by an admin, who types the new password
-  and passes it on; it ends the player's sessions.
+- **Confirming an email address** (ADR 0014): a new player enters a 6-digit code sent to their
+  address before they can do anything but correct it. The first account needs no code, as it sets
+  up the mail server. While there is none, new players wait until there is, or until an admin lets
+  them in. An account still not confirmed 24 hours after its first code is deleted. Addresses are
+  unique regardless of case, and only the player and admins see them.
+- A forgotten password is reset by an admin, who types the new password and passes it on; it ends
+  the player's sessions.
 - **Guards**: nobody can change their own role, ban, mute or reset their own password in the
   admin panel. An admin cannot be banned until made a player again, a banned player cannot be
   made an admin, and the last admin can never be made a player.
@@ -318,7 +324,8 @@ Every page has hover feedback and works on phones (see 11.2).
 | ----------- | --------- | -------------------------------------------------------------------------------- |
 | Home        | `/`       | Banner with Play now, what the site is, showcase cards, live numbers (players online, games running), the lobby chat (read-only for visitors) |
 | Log in      | `/login`  | Name and password                                                                |
-| Sign up     | `/signup` | Name, password, repeat password                                                  |
+| Sign up     | `/signup` | Name, email address, password                                                    |
+| Confirm email | `/verify-email` | Enter the code sent, ask for another, correct the address, or wait for the site to be able to send email |
 | Rules       | `/rules`  | How to play: turn steps, zones, and a keyword list with the board's badge icons  |
 | Card list   | `/cards`  | Every playable card; filters (civilization, cost, type, race, set, keyword, text); card details |
 
@@ -476,7 +483,7 @@ duel-masters-game-platform/
 - Turn timers (the engine has none).
 - Tournaments, friends lists, private messages.
 - Visitors watching games (spectating needs an account).
-- Email (verification, password reset by email).
+- Password reset by email, and changing a confirmed email address.
 
 ## 15. Open details (to settle before or during build)
 

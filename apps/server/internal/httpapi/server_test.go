@@ -26,11 +26,13 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games/gamestest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/mail"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/ratings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/realtime"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/rematch"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/secrets"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/settings"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -92,7 +94,10 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 
 	clock := clocktest.New(time.Now())
 	accounts := users.NewService(db, logger)
-	authService := auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(4), clock.Now, logger)
+	box, err := secrets.NewBox(make([]byte, secrets.KeySize))
+	require.NoError(t, err)
+	mailService := mail.NewService(db, box, logger)
+	authService := auth.NewService(db, accounts, siteSettings, auth.NewPasswordHasher(4), mailService, clock.Now, logger)
 
 	catalogue, cardDatabase := makeCatalogue(t, db)
 	deckService := decks.NewService(db, catalogue, siteSettings, logger)
@@ -123,11 +128,12 @@ func newTestServerWith(t *testing.T, secureCookies bool, makeCatalogue catalogue
 		Lobby: lobbyService, Games: gameService, Challenges: challenges, Directory: live, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
 	})
 	adminService := admin.NewService(admin.Dependencies{
-		DB: db, Auth: authService, Connections: hub, Games: gameService, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
+		DB: db, Auth: authService, Mail: mailService, Connections: hub, Games: gameService, Settings: siteSettings, Listener: live, Logger: logger, Now: clock.Now,
 	})
 
 	return testServer{
 		handler: NewHandler(Dependencies{
+			Mail:          mailService,
 			DB:            sqlDB,
 			Auth:          authService,
 			Users:         accounts,

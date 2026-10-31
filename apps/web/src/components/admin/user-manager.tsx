@@ -9,6 +9,7 @@ import { TextField } from '@/components/ui/text-field';
 import type { AdminUser } from '@/lib/admin';
 import {
   banUser,
+  letUserIn,
   muteUser,
   setUserPassword,
   setUserRole,
@@ -27,7 +28,7 @@ import {
 } from '@/lib/moderation';
 import { notify } from '@/lib/notifications';
 
-type Step = 'menu' | 'ban' | 'unban' | 'mute' | 'unmute' | 'role' | 'password';
+type Step = 'menu' | 'letIn' | 'ban' | 'unban' | 'mute' | 'unmute' | 'role' | 'password';
 
 /**
  * The Manage button of a player in the admin panel's list, and its dialog: choose what to do, then
@@ -82,6 +83,15 @@ export function UserManager({ user }: { readonly user: AdminUser }) {
         <Modal title={`Manage ${name}`} onClose={close}>
           {step === 'menu' && (
             <ul className="space-y-2">
+              {!user.emailVerified && (
+                <MenuItem
+                  onClick={() => {
+                    open('letIn');
+                  }}
+                >
+                  Let in without confirming their email
+                </MenuItem>
+              )}
               <MenuItem
                 onClick={() => {
                   open(user.ban ? 'unban' : 'ban');
@@ -115,6 +125,23 @@ export function UserManager({ user }: { readonly user: AdminUser }) {
                 Give a new password…
               </MenuItem>
             </ul>
+          )}
+
+          {step === 'letIn' && (
+            <Confirm
+              label="Let in"
+              pending={pending}
+              onCancel={close}
+              onConfirm={() =>
+                void run(
+                  () => letUserIn(user.id),
+                  () => `${name} can now use the site.`,
+                )
+              }
+            >
+              {name} can use the site straight away, without entering a code. Their email address,{' '}
+              {user.email}, stays unchecked.
+            </Confirm>
           )}
 
           {step === 'ban' && (

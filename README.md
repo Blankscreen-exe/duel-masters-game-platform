@@ -64,6 +64,7 @@ The server is configured with environment variables, checked at startup:
 | `LOG_FORMAT`   | `text` (`json` in production) | `text` or `json`                                           |
 | `SECURE_COOKIES` | `false` (`true` in production) | Send the login cookie over HTTPS only. Turn off only for plain HTTP, such as a home network. |
 | `SITE_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` in development; required in production | The addresses players open the site from, comma-separated. Live connections from other pages are refused. |
+| `APP_SECRET_KEY` | required in production | Encrypts the mail server's settings in the database. Make one with `openssl rand -base64 32`. Without it in development, no mail server can be set up. |
 
 The database tests run on SQLite and, when `TEST_POSTGRES_URL` points at a PostgreSQL server
 (for example `postgres://test:test@127.0.0.1:5432/platform_test?sslmode=disable`), on PostgreSQL
@@ -88,7 +89,10 @@ Known engine bugs and the order we fix them in are in
 [`docs/engine-fixes.md`](docs/engine-fixes.md).
 
 The first account to sign up becomes the admin, so sign up straight after the first start; the
-server warns in its log until an account exists.
+server warns in its log until an account exists. That account needs no email code. Set up the mail
+server under Admin panel, Email: until then, other new players wait, and you can let them in from
+the Players page. A player who is sent a code has 24 hours to confirm their address (an admin
+setting) before the account is deleted.
 
 ## Running with Docker
 

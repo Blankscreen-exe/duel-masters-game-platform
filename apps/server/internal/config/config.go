@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/caarlos0/env/v11"
+
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/secrets"
 )
 
 // Environment is where the server runs.
@@ -69,8 +71,15 @@ type Config struct {
 	// other page are refused. Development defaults to the Next.js site on
 	// port 3000; production must set them.
 	SiteOrigins []string `env:"SITE_ORIGINS" envSeparator:","`
-	Database    Database
-	Log         Log
+	// SecretKeyText is APP_SECRET_KEY as given: 32 random bytes in base64, as
+	// `openssl rand -base64 32` makes. It is never logged, and is kept out of
+	// the database so a stolen database gives no secrets away. Required in
+	// production; in development, leaving it out leaves mail unavailable.
+	SecretKeyText string `env:"APP_SECRET_KEY"`
+	// SecretKey is SecretKeyText parsed; nil when it is not set.
+	SecretKey []byte `env:"-"`
+	Database  Database
+	Log       Log
 }
 
 // Database selects and locates the database.
@@ -173,6 +182,17 @@ func (c *Config) validate() error {
 		if !isOrigin(origin) {
 			problems = append(problems, fmt.Errorf("SITE_ORIGINS must be addresses such as https://duelmasters.example, without a path, got %q", origin))
 		}
+	}
+
+	switch {
+	case c.SecretKeyText != "":
+		key, err := secrets.ParseKey(c.SecretKeyText)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("APP_SECRET_KEY %w; make one with: openssl rand -base64 32", err))
+		}
+		c.SecretKey = key
+	case c.Environment == Production:
+		problems = append(problems, errors.New("APP_SECRET_KEY is required in production; make one with: openssl rand -base64 32"))
 	}
 
 	if err := c.Log.Level.UnmarshalText([]byte(c.Log.LevelName)); err != nil {
