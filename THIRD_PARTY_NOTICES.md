@@ -51,5 +51,8 @@ The card pictures, names and rules text in the linked card database
 Duel Masters material, © Wizards of the Coast and Takara Tomy. They were collected from
 [db.duelmasters.us](https://db.duelmasters.us/).
 
+The profile pictures in `apps/server/internal/avatars/images/` are card art from the Game Boy Advance
+game *Duel Masters: Kaijudo Showdown*, cut from sprite sheets ripped by AztecCroc.
+
 This is a non-commercial fan project. It is not affiliated with, endorsed, sponsored or approved by
 Wizards of the Coast or Takara Tomy, and it claims no ownership of their material.

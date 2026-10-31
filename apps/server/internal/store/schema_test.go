@@ -235,6 +235,24 @@ func TestUndoingComputerAccountsKeepsEveryonesSessions(t *testing.T) {
 	})
 }
 
+func TestUndoingUserAvatarsKeepsEveryAccount(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		require.NoError(t, insertUser(db, "u1", "Shobu", "player"))
+		require.NoError(t, insertSession(db, "s1", "u1"))
+		require.NoError(t, db.Table("users").Where("id = ?", "u1").Update("avatar_id", "dm01-spells-01").Error)
+
+		require.NoError(t, store.RollbackTo(db, "0015_format_civilizations"))
+		var sessions int64
+		require.NoError(t, db.Table("sessions").Count(&sessions).Error)
+		assert.Equal(t, int64(1), sessions, "undoing the migration takes nobody's sessions")
+
+		require.NoError(t, store.Migrate(db), "and it can run again")
+		var avatar string
+		require.NoError(t, db.Raw("SELECT avatar_id FROM users WHERE id = ?", "u1").Scan(&avatar).Error)
+		assert.Empty(t, avatar, "as on a database that really dropped the column")
+	})
+}
+
 func TestUndoingFormatCivilizationsKeepsEveryFormatsRules(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
 		require.NoError(t, store.Migrate(db))

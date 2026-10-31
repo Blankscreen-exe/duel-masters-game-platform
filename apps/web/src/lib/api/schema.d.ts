@@ -95,6 +95,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Choose your profile picture */
+        put: operations["setAvatar"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/avatars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The pictures players can choose for their profile */
+        get: operations["listAvatars"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/avatars/{avatarId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A profile picture
+         * @description Browsers may keep pictures for a day and check them again with If-None-Match.
+         */
+        get: operations["getAvatarImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password": {
         parameters: {
             query?: never;
@@ -1129,6 +1183,17 @@ export interface components {
             rank: components["schemas"]["Rank"];
             /** @description While an admin has muted the player in the lobby chat. */
             mute?: components["schemas"]["Penalty"];
+            /** @description The picture they chose; absent until they choose one. */
+            avatarUrl?: string;
+        };
+        /** @description A picture players can choose for their profile. */
+        Avatar: {
+            id: string;
+            imageUrl: string;
+        };
+        AvatarChoice: {
+            /** @description One of the pictures. */
+            avatarId: string;
         };
         /** @enum {string} */
         Role: "player" | "admin";
@@ -1849,6 +1914,8 @@ export interface components {
         PlayerProfile: {
             id: string;
             username: string;
+            /** @description The picture they chose; absent until they choose one. */
+            avatarUrl?: string;
             /** Format: date-time */
             joinedAt: string;
             rank: components["schemas"]["Rank"];
@@ -2247,6 +2314,82 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
+        };
+    };
+    setAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AvatarChoice"];
+            };
+        };
+        responses: {
+            /** @description The account, with its new picture. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    listAvatars: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every picture, in the order to show them. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Avatar"][];
+                };
+            };
+        };
+    };
+    getAvatarImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                avatarId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The picture. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                };
+            };
+            /** @description The browser's copy is still current. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     changePassword: {

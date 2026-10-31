@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { CivilizationMarks } from '@/components/cards/civilization-marks';
+import { AvatarPicker } from '@/components/players/avatar-picker';
 import { MatchList } from '@/components/players/match-list';
+import { PlayerAvatar } from '@/components/players/player-avatar';
 import { RankBadge } from '@/components/players/rank-badge';
 import { buttonClasses } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
@@ -16,7 +18,7 @@ import {
   winRate,
   type PlayerProfile,
 } from '@/lib/players';
-import { requireAccount } from '@/lib/session';
+import { getCurrentAccount, requireAccount } from '@/lib/session';
 import { dayText } from '@/lib/dates';
 
 /** The profile, asked once per request for both the page and its title. */
@@ -41,16 +43,12 @@ export async function generateMetadata({ params }: PageProps<'/u/[name]'>): Prom
 /** A player's rank, record, favourite civilizations and latest matches. */
 export default async function ProfilePage({ params }: PageProps<'/u/[name]'>) {
   const profile = await getProfile((await params).name);
+  const account = await getCurrentAccount();
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center gap-4">
-        <span
-          aria-hidden
-          className="cut-corners grid size-16 place-items-center bg-linear-to-br from-slate-200 to-slate-500 font-display text-3xl font-bold text-slate-900"
-        >
-          {profile.username.charAt(0).toUpperCase()}
-        </span>
+        <PlayerAvatar username={profile.username} src={profile.avatarUrl} size="large" />
         <div className="space-y-1">
           <h1 className="font-display text-4xl font-bold tracking-widest text-white">
             {profile.username}
@@ -62,6 +60,7 @@ export default async function ProfilePage({ params }: PageProps<'/u/[name]'>) {
             </span>
           </p>
         </div>
+        {account?.id === profile.id && <ChangePicture current={profile.avatarUrl} />}
       </header>
 
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -125,6 +124,15 @@ export default async function ProfilePage({ params }: PageProps<'/u/[name]'>) {
       </div>
     </div>
   );
+}
+
+/** The way to change the picture, on the player's own profile. */
+async function ChangePicture({ current }: { readonly current: string | undefined }) {
+  const api = await serverApi();
+  const { data } = await api.GET('/avatars');
+  if (!data) throw new Error('Loading the profile pictures failed');
+
+  return <AvatarPicker avatars={data} current={current} />;
 }
 
 function Stat({

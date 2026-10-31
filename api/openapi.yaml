@@ -176,6 +176,68 @@ paths:
                 $ref: "#/components/schemas/Account"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+  /auth/avatar:
+    put:
+      operationId: setAvatar
+      summary: Choose your profile picture
+      tags: [auth]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AvatarChoice"
+      responses:
+        "200":
+          description: The account, with its new picture.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /avatars:
+    get:
+      operationId: listAvatars
+      summary: The pictures players can choose for their profile
+      tags: [players]
+      responses:
+        "200":
+          description: Every picture, in the order to show them.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Avatar"
+  /avatars/{avatarId}:
+    get:
+      operationId: getAvatarImage
+      summary: A profile picture
+      description: Browsers may keep pictures for a day and check them again with If-None-Match.
+      tags: [players]
+      parameters:
+        - name: avatarId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The picture.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "304":
+          description: The browser's copy is still current.
+        "404":
+          $ref: "#/components/responses/NotFound"
   /auth/password:
     post:
       operationId: changePassword
@@ -2199,6 +2261,25 @@ components:
         mute:
           description: While an admin has muted the player in the lobby chat.
           $ref: "#/components/schemas/Penalty"
+        avatarUrl:
+          description: The picture they chose; absent until they choose one.
+          type: string
+    Avatar:
+      description: A picture players can choose for their profile.
+      type: object
+      required: [id, imageUrl]
+      properties:
+        id:
+          type: string
+        imageUrl:
+          type: string
+    AvatarChoice:
+      type: object
+      required: [avatarId]
+      properties:
+        avatarId:
+          description: One of the pictures.
+          type: string
     Role:
       type: string
       enum: [player, admin]
@@ -3592,6 +3673,9 @@ components:
         id:
           type: string
         username:
+          type: string
+        avatarUrl:
+          description: The picture they chose; absent until they choose one.
           type: string
         joinedAt:
           type: string

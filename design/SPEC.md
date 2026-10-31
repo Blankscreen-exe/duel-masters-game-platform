@@ -300,6 +300,9 @@ Every page has hover feedback and works on phones (see 11.2).
 - **Header (desktop)**: logo, menu (Play, Decks, Cards, Rankings, Rules), the player's name and
   rank, user menu (Profile, Settings, Admin for admins, Log out). Visitors see Log in and Sign up.
 - **Bottom tab bar (phone)**: Play, Decks, Cards, Rankings, Profile.
+- **Profile picture**: a player's own profile has "Change picture": a grid of the pictures, pick
+  one, then "Update". It shows in the header and on their profile, and the first letter of their
+  name until they choose. The pictures are part of the server (`internal/avatars`).
 - **Footer**: one thin line, so pages that fit the screen have room for it: "not affiliated with
   Wizards of the Coast". The engine's MIT license notice is in `THIRD_PARTY_NOTICES.md`.
 - **Pages that fit the screen**: on a wide screen the play page fits the screen between the header

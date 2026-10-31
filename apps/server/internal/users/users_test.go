@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/avatars"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/paging"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store/storetest"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/users"
@@ -53,6 +54,33 @@ func TestNormalizeUsername(t *testing.T) {
 		assert.Equal(t, "username", invalid.Field)
 		assert.Contains(t, invalid.Reason, reason, "%q", raw)
 	}
+}
+
+func TestAnAccountChoosesAPicture(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *gorm.DB) {
+		ctx := context.Background()
+		service := newService(db)
+		user, err := service.Create(ctx, "Shobu", "hash")
+		require.NoError(t, err)
+		assert.Empty(t, user.AvatarID, "none until they choose")
+
+		picture := avatars.IDs()[0]
+		require.NoError(t, service.SetAvatar(ctx, user.ID, picture))
+		found, err := service.ByID(ctx, user.ID)
+		require.NoError(t, err)
+		assert.Equal(t, picture, found.AvatarID)
+
+		for _, id := range []string{"", "nothing"} {
+			invalid, ok := validation.As(service.SetAvatar(ctx, user.ID, id))
+			require.True(t, ok, id)
+			assert.Equal(t, "avatarId", invalid.Field)
+		}
+		found, err = service.ByID(ctx, user.ID)
+		require.NoError(t, err)
+		assert.Equal(t, picture, found.AvatarID, "a refused choice changes nothing")
+
+		assert.ErrorIs(t, service.SetAvatar(ctx, "nobody", picture), users.ErrNotFound)
+	})
 }
 
 func TestTheFirstAccountIsTheAdmin(t *testing.T) {

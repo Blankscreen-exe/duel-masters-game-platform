@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { profileHref } from '@/lib/players';
 import { getCurrentAccount } from '@/lib/session';
 import { LogOutButton } from './log-out-button';
+import { PlayerAvatar } from './players/player-avatar';
 import { RankBadge } from './players/rank-badge';
 import { AccountRefresh } from './players/account-refresh';
 import { buttonClasses } from './ui/button';
@@ -35,12 +36,7 @@ export async function UserMenu() {
           title="Your profile"
           className="group flex items-center gap-2"
         >
-          <span
-            aria-hidden
-            className="cut-corners-sm grid size-8 place-items-center bg-linear-to-br from-slate-200 to-slate-500 font-display text-base font-bold text-slate-900 transition group-hover:from-white group-hover:to-slate-400"
-          >
-            {account.username.charAt(0).toUpperCase()}
-          </span>
+          <PlayerAvatar username={account.username} src={account.avatarUrl} size="small" />
           <span className="sr-only sm:not-sr-only group-hover:text-accent">{account.username}</span>
         </Link>
         <span className="hidden sm:inline-flex">

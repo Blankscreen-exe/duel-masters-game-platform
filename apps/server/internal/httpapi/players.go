@@ -106,6 +106,7 @@ func (h *handlers) GetPlayer(ctx context.Context, request api.GetPlayerRequestOb
 		Streak:                 standing.Streak,
 		FavouriteCivilizations: make([]api.CivilizationPlayed, 0, len(favourites)),
 		RecentMatches:          apiMatches(recent.Games),
+		AvatarUrl:              avatarURL(player.AvatarID),
 	}
 	if place > 0 {
 		profile.Place = &place
@@ -175,6 +176,7 @@ func (h *handlers) account(ctx context.Context, user users.User) (api.Account, e
 		CreatedAt: user.CreatedAt.UTC(),
 		Rank:      apiRank(standing.Rank),
 		Mute:      apiMute(user, h.now()),
+		AvatarUrl: avatarURL(user.AvatarID),
 	}, nil
 }
 

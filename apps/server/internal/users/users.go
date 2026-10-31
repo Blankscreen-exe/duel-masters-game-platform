@@ -19,6 +19,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/avatars"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/paging"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/store"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
@@ -64,6 +65,9 @@ type User struct {
 	// Computer marks the account of a computer opponent: it has no
 	// password, so nobody logs in to it, and admins cannot change it.
 	Computer bool
+	// AvatarID is the picture the player chose from package avatars, empty until
+	// they choose one.
+	AvatarID string
 	Moderation
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -274,6 +278,16 @@ func (s *Service) SetPasswordHash(ctx context.Context, id, passwordHash string) 
 // SetPasswordHashIn is SetPasswordHash inside the caller's transaction.
 func SetPasswordHashIn(tx *gorm.DB, id, passwordHash string) error {
 	return update(tx, id, "changing a password", map[string]any{"password_hash": passwordHash})
+}
+
+// SetAvatar gives an account one of the pictures of package avatars. It returns
+// a *validation.Error for a picture there is not, and ErrNotFound if the account
+// does not exist.
+func (s *Service) SetAvatar(ctx context.Context, id, avatarID string) error {
+	if _, found := avatars.ByID(avatarID); !found {
+		return validation.New("avatarId", "must be one of the pictures")
+	}
+	return update(s.db.WithContext(ctx), id, "changing a picture", map[string]any{"avatar_id": avatarID})
 }
 
 // AnyExist reports whether at least one person's account exists; computer

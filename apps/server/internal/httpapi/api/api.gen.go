@@ -626,6 +626,8 @@ func (e SearchCardsParamsOrder) Valid() bool {
 
 // Account defines model for Account.
 type Account struct {
+	// AvatarUrl The picture they chose; absent until they choose one.
+	AvatarUrl *string   `json:"avatarUrl,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	Id        string    `json:"id"`
 
@@ -807,6 +809,18 @@ type AdminUserPage struct {
 
 // AdminUserStatus defines model for AdminUserStatus.
 type AdminUserStatus string
+
+// Avatar A picture players can choose for their profile.
+type Avatar struct {
+	Id       string `json:"id"`
+	ImageUrl string `json:"imageUrl"`
+}
+
+// AvatarChoice defines model for AvatarChoice.
+type AvatarChoice struct {
+	// AvatarId One of the pictures.
+	AvatarId string `json:"avatarId"`
+}
 
 // Ban defines model for Ban.
 type Ban struct {
@@ -1416,6 +1430,9 @@ type PlayerActivityKind string
 
 // PlayerProfile defines model for PlayerProfile.
 type PlayerProfile struct {
+	// AvatarUrl The picture they chose; absent until they choose one.
+	AvatarUrl *string `json:"avatarUrl,omitempty"`
+
 	// FavouriteCivilizations The civilizations of the player's decks over their latest 50 games, the most played first.
 	FavouriteCivilizations []CivilizationPlayed `json:"favouriteCivilizations"`
 	Id                     string               `json:"id"`
@@ -1885,6 +1902,9 @@ type SetUserPasswordJSONRequestBody = NewPassword
 
 // SetUserRoleJSONRequestBody defines body for SetUserRole for application/json ContentType.
 type SetUserRoleJSONRequestBody = RoleInput
+
+// SetAvatarJSONRequestBody defines body for SetAvatar for application/json ContentType.
+type SetAvatarJSONRequestBody = AvatarChoice
 
 // LogInJSONRequestBody defines body for LogIn for application/json ContentType.
 type LogInJSONRequestBody = Credentials
@@ -2382,6 +2402,9 @@ type ServerInterface interface {
 	// SetUserRole Make a player an admin, or an admin a player
 	// (PUT /admin/users/{userId}/role)
 	SetUserRole(w http.ResponseWriter, r *http.Request, userId UserId)
+	// SetAvatar Choose your profile picture
+	// (PUT /auth/avatar)
+	SetAvatar(w http.ResponseWriter, r *http.Request)
 	// LogIn Log in
 	// (POST /auth/login)
 	LogIn(w http.ResponseWriter, r *http.Request)
@@ -2397,6 +2420,12 @@ type ServerInterface interface {
 	// SignUp Create an account and log it in
 	// (POST /auth/signup)
 	SignUp(w http.ResponseWriter, r *http.Request)
+	// ListAvatars The pictures players can choose for their profile
+	// (GET /avatars)
+	ListAvatars(w http.ResponseWriter, r *http.Request)
+	// GetAvatarImage A profile picture
+	// (GET /avatars/{avatarId})
+	GetAvatarImage(w http.ResponseWriter, r *http.Request, avatarId string)
 	// SearchCards Search the card catalogue
 	// (GET /cards)
 	SearchCards(w http.ResponseWriter, r *http.Request, params SearchCardsParams)
@@ -3121,6 +3150,20 @@ func (siw *ServerInterfaceWrapper) SetUserRole(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// SetAvatar operation middleware
+func (siw *ServerInterfaceWrapper) SetAvatar(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetAvatar(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // LogIn operation middleware
 func (siw *ServerInterfaceWrapper) LogIn(w http.ResponseWriter, r *http.Request) {
 
@@ -3182,6 +3225,46 @@ func (siw *ServerInterfaceWrapper) SignUp(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SignUp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAvatars operation middleware
+func (siw *ServerInterfaceWrapper) ListAvatars(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAvatars(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAvatarImage operation middleware
+func (siw *ServerInterfaceWrapper) GetAvatarImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "avatarId" -------------
+	var avatarId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "avatarId", r.PathValue("avatarId"), &avatarId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "avatarId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAvatarImage(w, r, avatarId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4494,6 +4577,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/login", wrapper.LogIn)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.LogOut)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/me", wrapper.GetCurrentAccount)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/auth/avatar", wrapper.SetAvatar)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/avatars", wrapper.ListAvatars)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/avatars/{avatarId}", wrapper.GetAvatarImage)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/password", wrapper.ChangePassword)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.SearchCards)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/filters", wrapper.GetCardFilters)
@@ -6288,6 +6374,56 @@ func (response SetUserRole409JSONResponse) VisitSetUserRoleResponse(w http.Respo
 	return err
 }
 
+type SetAvatarRequestObject struct {
+	Body *SetAvatarJSONRequestBody
+}
+
+type SetAvatarResponseObject interface {
+	VisitSetAvatarResponse(w http.ResponseWriter) error
+}
+
+type SetAvatar200JSONResponse Account
+
+func (response SetAvatar200JSONResponse) VisitSetAvatarResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAvatar400JSONResponse struct{ InvalidInputJSONResponse }
+
+func (response SetAvatar400JSONResponse) VisitSetAvatarResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAvatar401JSONResponse struct{ UnauthenticatedJSONResponse }
+
+func (response SetAvatar401JSONResponse) VisitSetAvatarResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LogInRequestObject struct {
 	Body *LogInJSONRequestBody
 }
@@ -6582,6 +6718,77 @@ func (response SignUp409JSONResponse) VisitSignUpResponse(w http.ResponseWriter)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAvatarsRequestObject struct {
+}
+
+type ListAvatarsResponseObject interface {
+	VisitListAvatarsResponse(w http.ResponseWriter) error
+}
+
+type ListAvatars200JSONResponse []Avatar
+
+func (response ListAvatars200JSONResponse) VisitListAvatarsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAvatarImageRequestObject struct {
+	AvatarId string `json:"avatarId"`
+}
+
+type GetAvatarImageResponseObject interface {
+	VisitGetAvatarImageResponse(w http.ResponseWriter) error
+}
+
+type GetAvatarImage200ImagepngResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetAvatarImage200ImagepngResponse) VisitGetAvatarImageResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "image/png")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetAvatarImage304Response struct {
+}
+
+func (response GetAvatarImage304Response) VisitGetAvatarImageResponse(w http.ResponseWriter) error {
+	w.WriteHeader(304)
+	return nil
+}
+
+type GetAvatarImage404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAvatarImage404JSONResponse) VisitGetAvatarImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8700,6 +8907,9 @@ type StrictServerInterface interface {
 	// SetUserRole Make a player an admin, or an admin a player
 	// (PUT /admin/users/{userId}/role)
 	SetUserRole(ctx context.Context, request SetUserRoleRequestObject) (SetUserRoleResponseObject, error)
+	// SetAvatar Choose your profile picture
+	// (PUT /auth/avatar)
+	SetAvatar(ctx context.Context, request SetAvatarRequestObject) (SetAvatarResponseObject, error)
 	// LogIn Log in
 	// (POST /auth/login)
 	LogIn(ctx context.Context, request LogInRequestObject) (LogInResponseObject, error)
@@ -8715,6 +8925,12 @@ type StrictServerInterface interface {
 	// SignUp Create an account and log it in
 	// (POST /auth/signup)
 	SignUp(ctx context.Context, request SignUpRequestObject) (SignUpResponseObject, error)
+	// ListAvatars The pictures players can choose for their profile
+	// (GET /avatars)
+	ListAvatars(ctx context.Context, request ListAvatarsRequestObject) (ListAvatarsResponseObject, error)
+	// GetAvatarImage A profile picture
+	// (GET /avatars/{avatarId})
+	GetAvatarImage(ctx context.Context, request GetAvatarImageRequestObject) (GetAvatarImageResponseObject, error)
 	// SearchCards Search the card catalogue
 	// (GET /cards)
 	SearchCards(ctx context.Context, request SearchCardsRequestObject) (SearchCardsResponseObject, error)
@@ -9544,6 +9760,37 @@ func (sh *strictHandler) SetUserRole(w http.ResponseWriter, r *http.Request, use
 	}
 }
 
+// SetAvatar operation middleware
+func (sh *strictHandler) SetAvatar(w http.ResponseWriter, r *http.Request) {
+	var request SetAvatarRequestObject
+
+	var body SetAvatarJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetAvatar(ctx, request.(SetAvatarRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetAvatar")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetAvatarResponseObject); ok {
+		if err := validResponse.VisitSetAvatarResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // LogIn operation middleware
 func (sh *strictHandler) LogIn(w http.ResponseWriter, r *http.Request) {
 	var request LogInRequestObject
@@ -9678,6 +9925,56 @@ func (sh *strictHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SignUpResponseObject); ok {
 		if err := validResponse.VisitSignUpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAvatars operation middleware
+func (sh *strictHandler) ListAvatars(w http.ResponseWriter, r *http.Request) {
+	var request ListAvatarsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAvatars(ctx, request.(ListAvatarsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAvatars")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAvatarsResponseObject); ok {
+		if err := validResponse.VisitListAvatarsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAvatarImage operation middleware
+func (sh *strictHandler) GetAvatarImage(w http.ResponseWriter, r *http.Request, avatarId string) {
+	var request GetAvatarImageRequestObject
+
+	request.AvatarId = avatarId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAvatarImage(ctx, request.(GetAvatarImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAvatarImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAvatarImageResponseObject); ok {
+		if err := validResponse.VisitGetAvatarImageResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
