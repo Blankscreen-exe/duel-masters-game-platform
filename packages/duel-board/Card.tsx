@@ -9,6 +9,7 @@ import {
   useCardPictures,
   MUTED_CARD_FILTER,
   SHIELD_TINT,
+  FACE_DOWN_IMAGE_ID,
 } from "./cardImage";
 
 export interface CardProps {
@@ -115,7 +116,7 @@ export function Card({
   const rotation = cardRotation(rotated, flipped);
   const imgRef = useTrackedCard<HTMLImageElement>(
     virtualId,
-    imageId || "backside",
+    imageId || FACE_DOWN_IMAGE_ID,
     rotation,
     muted,
   );

@@ -1,8 +1,24 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { cardPictureUrl, FACE_DOWN_IMAGE_ID } from "./cardImage";
 
 const BOARD_FOLDER = fileURLToPath(new URL(".", import.meta.url));
+
+describe("cardPictureUrl", () => {
+  const pictures = { card: (id: string) => `/cards/${id}`, back: "/back.svg" };
+
+  it("is the card's picture", () => {
+    expect(cardPictureUrl(pictures, "abc")).toBe("/cards/abc");
+  });
+
+  it("is the card back for a card that is face down or unknown", () => {
+    expect(cardPictureUrl(pictures, FACE_DOWN_IMAGE_ID)).toBe("/back.svg");
+    expect(cardPictureUrl(pictures, "")).toBe("/back.svg");
+    expect(cardPictureUrl(pictures, null)).toBe("/back.svg");
+    expect(cardPictureUrl(pictures)).toBe("/back.svg");
+  });
+});
 
 describe("card pictures", () => {
   it("all come from the site using the board, never from a fixed address", () => {

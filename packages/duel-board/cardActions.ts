@@ -1,4 +1,5 @@
 import type { DragZone } from "./BoardZone";
+import { FACE_DOWN_IMAGE_ID } from "./cardImage";
 import {
   cardHasFlag,
   PLAYABLE_FLAG,
@@ -57,7 +58,7 @@ export function findBoardCard(
 
 /** Whether the card's face can be seen, and so enlarged. */
 export function isFaceUp(card: CardState | ShieldState): boolean {
-  return !!card.uid && card.uid !== "backside";
+  return !!card.uid && card.uid !== FACE_DOWN_IMAGE_ID;
 }
 
 /** What the viewer can do with a card. Playing and attacking are only offered

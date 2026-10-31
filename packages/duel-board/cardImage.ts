@@ -8,6 +8,19 @@ export interface CardPictures {
   back: string;
 }
 
+/** What the server sends as the picture of a card the player may not see. */
+export const FACE_DOWN_IMAGE_ID = "backside";
+
+/** A card's picture, or the card back when it is face down or unknown. */
+export function cardPictureUrl(
+  pictures: CardPictures,
+  imageId?: string | null,
+): string {
+  return imageId && imageId !== FACE_DOWN_IMAGE_ID
+    ? pictures.card(imageId)
+    : pictures.back;
+}
+
 const CardPicturesContext = createContext<CardPictures | null>(null);
 
 /** Gives the board, and the previews used beside it, their card pictures. */
@@ -23,7 +36,6 @@ export const CARD_ASPECT_RATIO = 403 / 560;
  * loads, so cards would jump sideways as they arrive and could not be
  * measured for animation. */
 export function useCardPictures(): {
-  /** A card's picture, or the card back when it is face down or unknown. */
   url: (imageId?: string | null) => string;
   placeholder: CSSProperties;
 } {
@@ -34,7 +46,7 @@ export function useCardPictures(): {
 
   return useMemo(
     () => ({
-      url: (imageId?: string | null) => (imageId ? pictures.card(imageId) : pictures.back),
+      url: (imageId?: string | null) => cardPictureUrl(pictures, imageId),
       placeholder: {
         aspectRatio: `auto ${CARD_ASPECT_RATIO}`,
         backgroundImage: `url(${pictures.back})`,
