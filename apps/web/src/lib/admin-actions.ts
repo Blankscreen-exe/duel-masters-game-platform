@@ -2,6 +2,7 @@ import type { AdminSetting, AdminUser } from './admin';
 import { api } from './api/client';
 import { attempt, attemptEmpty, type Outcome } from './api/outcome';
 import type { components } from './api/schema';
+import type { Announcement, AnnouncementInput } from './announcements';
 import type { AdminComputerOpponent, ComputerOpponentInput } from './computer-opponents';
 import type { MailSettings, MailSettingsInput } from './mail-settings';
 import type { AdminFormat, FormatInput } from './formats';
@@ -21,6 +22,30 @@ export function banUser(
       ...user(userId),
       body: durationMinutes === undefined ? { reason } : { reason, durationMinutes },
     }),
+  );
+}
+
+export function createAnnouncement(input: AnnouncementInput): Promise<Outcome<Announcement>> {
+  return attempt(() => api.POST('/admin/announcements', { body: input }));
+}
+
+const announcement = (announcementId: string) => ({ params: { path: { announcementId } } });
+
+export function updateAnnouncement(
+  announcementId: string,
+  input: AnnouncementInput,
+): Promise<Outcome<Announcement>> {
+  return attempt(() =>
+    api.PUT('/admin/announcements/{announcementId}', {
+      ...announcement(announcementId),
+      body: input,
+    }),
+  );
+}
+
+export function deleteAnnouncement(announcementId: string): Promise<Outcome<null>> {
+  return attemptEmpty(() =>
+    api.DELETE('/admin/announcements/{announcementId}', announcement(announcementId)),
   );
 }
 

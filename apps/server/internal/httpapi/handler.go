@@ -14,6 +14,7 @@ import (
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/admin"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/adminlog"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/announcements"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/auth"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/chat"
@@ -45,13 +46,14 @@ type Pinger interface {
 
 // Dependencies are what the handlers need.
 type Dependencies struct {
-	Mail      *mail.Service
-	DB        Pinger
-	Auth      *auth.Service
-	Users     *users.Service
-	Ratings   *ratings.Service
-	Catalogue *cards.Catalogue
-	Formats   *formats.Service
+	Announcements *announcements.Service
+	Mail          *mail.Service
+	DB            Pinger
+	Auth          *auth.Service
+	Users         *users.Service
+	Ratings       *ratings.Service
+	Catalogue     *cards.Catalogue
+	Formats       *formats.Service
 	// FormatManager changes the formats, for admins.
 	FormatManager *formats.Manager
 	Decks         *decks.Service
@@ -85,6 +87,7 @@ type Dependencies struct {
 
 // handlers implements the operations of the API contract.
 type handlers struct {
+	announcements *announcements.Service
 	mail          *mail.Service
 	db            Pinger
 	auth          *auth.Service
@@ -120,6 +123,7 @@ func NewHandler(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
 	strict := api.NewStrictHandlerWithOptions(&handlers{
+		announcements: deps.Announcements,
 		db:            deps.DB,
 		mail:          deps.Mail,
 		auth:          deps.Auth,

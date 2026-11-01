@@ -1139,6 +1139,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What admins have told every player, the latest first
+         * @description Anyone can read these, without logging in.
+         */
+        get: operations["getAnnouncements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/announcements/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the player has yet to see */
+        get: operations["getMyAnnouncements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/announcements/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Note that the player has looked at them
+         * @description Clears the unread count. It leaves popups, which go only when closed.
+         */
+        post: operations["markAnnouncementsSeen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/announcements/{announcementId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                announcementId: components["parameters"]["AnnouncementId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close the popup of an important one
+         * @description It does not come back, unless an admin asks to show it again. Closing it twice is not an error.
+         */
+        post: operations["dismissAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tell every player something
+         * @description An important one also pops up in the lobby for every player who joined before it.
+         */
+        post: operations["createAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcements/{announcementId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                announcementId: components["parameters"]["AnnouncementId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change one
+         * @description Stays quiet, such as for fixing a typo, unless it is made important or an important one is shown again, which pops it up even for players who closed it.
+         */
+        put: operations["updateAnnouncement"];
+        post?: never;
+        /**
+         * Delete one for good
+         * @description The admin log keeps its title.
+         */
+        delete: operations["deleteAnnouncement"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/users/{userId}/let-in": {
         parameters: {
             query?: never;
@@ -1290,6 +1415,40 @@ export interface components {
              * @description 8 to 128 characters.
              */
             password: string;
+        };
+        /** @description Something an admin has told every player, shown as a notification. */
+        Announcement: {
+            id: string;
+            title: string;
+            /** @description Plain text, which may have line breaks. */
+            body: string;
+            /** @description Whether it also pops up in the lobby. */
+            important: boolean;
+            /**
+             * Format: date-time
+             * @description When it last went out to players.
+             */
+            postedAt: string;
+        };
+        AnnouncementPage: {
+            announcements: components["schemas"]["Announcement"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        /** @description What a player has yet to see. Nothing from before they joined counts. */
+        MyAnnouncements: {
+            /** @description How many have gone out since they last looked. */
+            unread: number;
+            /** @description The important ones they have yet to close, the oldest first. */
+            popups: components["schemas"]["Announcement"][];
+        };
+        AnnouncementInput: {
+            title: string;
+            body: string;
+            important: boolean;
+            /** @description On changing an important one, pop it up again for players who have closed it. */
+            showAgain?: boolean;
         };
         SignUpInput: {
             /** @description 3 to 20 letters, numbers, underscores or hyphens, after surrounding spaces are trimmed. Unique regardless of case. */
@@ -1573,7 +1732,7 @@ export interface components {
             value: string;
         };
         /** @enum {string} */
-        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped" | "computer_opponent_added" | "computer_opponent_changed" | "computer_opponent_offered" | "computer_opponent_retired" | "format_added" | "format_changed" | "format_retired" | "format_restored" | "formats_reordered" | "player_let_in" | "mail_settings_changed" | "mail_settings_cleared";
+        AdminLogAction: "user_banned" | "user_unbanned" | "user_muted" | "user_unmuted" | "role_changed" | "password_reset" | "setting_changed" | "setting_reset" | "chat_message_deleted" | "game_stopped" | "computer_opponent_added" | "computer_opponent_changed" | "computer_opponent_offered" | "computer_opponent_retired" | "format_added" | "format_changed" | "format_retired" | "format_restored" | "formats_reordered" | "player_let_in" | "mail_settings_changed" | "mail_settings_cleared" | "announcement_added" | "announcement_changed" | "announcement_deleted";
         AdminLogEntry: {
             id: string;
             /** @description The admin who acted; absent once their account is gone. */
@@ -1977,7 +2136,7 @@ export interface components {
             role: components["schemas"]["GameRole"];
         };
         /** @description A message on the live connection (GET /realtime), told apart by its type. Messages of a type the page does not know are ignored, so new ones can be added. Visitors receive only the chat and the site's numbers. */
-        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"] | components["schemas"]["RealtimeRematch"] | components["schemas"]["RealtimeRematchEnded"] | components["schemas"]["RealtimeMatchRecorded"] | components["schemas"]["RealtimeAccountChanged"];
+        RealtimeMessage: components["schemas"]["RealtimeChatMessage"] | components["schemas"]["RealtimeSiteStats"] | components["schemas"]["RealtimeLobby"] | components["schemas"]["RealtimeQuickMatchQueue"] | components["schemas"]["RealtimeGameStarted"] | components["schemas"]["RealtimeOpenGameExpired"] | components["schemas"]["RealtimeRematch"] | components["schemas"]["RealtimeRematchEnded"] | components["schemas"]["RealtimeMatchRecorded"] | components["schemas"]["RealtimeAccountChanged"] | components["schemas"]["RealtimeAnnouncementsChanged"];
         /** @description How many players are online and games running, for everyone. */
         RealtimeSiteStats: {
             /**
@@ -2203,6 +2362,14 @@ export interface components {
             type: "match_recorded";
             match: components["schemas"]["Match"];
         };
+        /** @description An admin has posted, changed or deleted a notification, so players look again. Sent to players. */
+        RealtimeAnnouncementsChanged: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "announcements_changed";
+        };
         /** @description An admin has changed the player's account, such as muting them or making them an admin, so their pages show it again. Sent to the player. A player put out of the site, by a ban or a new password, instead has their live connection closed with code 4001. */
         RealtimeAccountChanged: {
             /**
@@ -2372,6 +2539,7 @@ export interface components {
     parameters: {
         FormatId: string;
         OpponentId: string;
+        AnnouncementId: string;
         /** @description The account's id. */
         UserId: string;
     };
@@ -4385,6 +4553,172 @@ export interface operations {
                 };
             };
             400: components["responses"]["InvalidDeckOrInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAnnouncements: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of them. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+        };
+    };
+    getMyAnnouncements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Their unread count and their popups. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAnnouncements"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    markAnnouncementsSeen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Noted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    dismissAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                announcementId: components["parameters"]["AnnouncementId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Closed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnouncementInput"];
+            };
+        };
+        responses: {
+            /** @description Posted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Announcement"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                announcementId: components["parameters"]["AnnouncementId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnouncementInput"];
+            };
+        };
+        responses: {
+            /** @description Changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Announcement"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                announcementId: components["parameters"]["AnnouncementId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

@@ -18,7 +18,7 @@ export function SiteHeader() {
               aria-hidden
               className="size-5 rotate-45 bg-linear-to-br from-slate-100 via-slate-400 to-slate-700 shadow-[0_0_12px_rgb(148_163_184/0.6)] transition group-hover:shadow-[0_0_16px_rgb(56_189_248/0.7)]"
             />
-            <span className="bg-linear-to-b from-white to-slate-400 bg-clip-text font-display text-xl font-bold tracking-[0.18em] text-transparent uppercase sm:text-2xl">
+            <span className="hidden bg-linear-to-b from-white to-slate-400 bg-clip-text font-display text-xl font-bold tracking-[0.18em] whitespace-nowrap text-transparent uppercase min-[30rem]:inline sm:text-2xl">
               Duel Masters
             </span>
           </Link>

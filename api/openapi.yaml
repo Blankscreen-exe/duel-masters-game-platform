@@ -2059,6 +2059,157 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /announcements:
+    get:
+      operationId: getAnnouncements
+      summary: What admins have told every player, the latest first
+      description: Anyone can read these, without logging in.
+      tags: [announcements]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: One page of them.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnnouncementPage"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+  /announcements/mine:
+    get:
+      operationId: getMyAnnouncements
+      summary: What the player has yet to see
+      tags: [announcements]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Their unread count and their popups.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyAnnouncements"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /announcements/seen:
+    post:
+      operationId: markAnnouncementsSeen
+      summary: Note that the player has looked at them
+      description: Clears the unread count. It leaves popups, which go only when closed.
+      tags: [announcements]
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Noted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /announcements/{announcementId}/dismiss:
+    parameters:
+      - $ref: "#/components/parameters/AnnouncementId"
+    post:
+      operationId: dismissAnnouncement
+      summary: Close the popup of an important one
+      description: It does not come back, unless an admin asks to show it again. Closing it twice is not an error.
+      tags: [announcements]
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Closed.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/announcements:
+    post:
+      operationId: createAnnouncement
+      summary: Tell every player something
+      description: An important one also pops up in the lobby for every player who joined before it.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementInput"
+      responses:
+        "201":
+          description: Posted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/announcements/{announcementId}:
+    parameters:
+      - $ref: "#/components/parameters/AnnouncementId"
+    put:
+      operationId: updateAnnouncement
+      summary: Change one
+      description: >-
+        Stays quiet, such as for fixing a typo, unless it is made important or an important one is
+        shown again, which pops it up even for players who closed it.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementInput"
+      responses:
+        "200":
+          description: Changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteAnnouncement
+      summary: Delete one for good
+      description: The admin log keeps its title.
+      tags: [admin]
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /admin/users/{userId}/let-in:
     parameters:
       - $ref: "#/components/parameters/UserId"
@@ -2335,6 +2486,12 @@ components:
       required: true
       schema:
         type: string
+    AnnouncementId:
+      name: announcementId
+      in: path
+      required: true
+      schema:
+        type: string
     UserId:
       name: userId
       in: path
@@ -2485,6 +2642,67 @@ components:
           format: password
           minLength: 8
           maxLength: 128
+    Announcement:
+      description: Something an admin has told every player, shown as a notification.
+      type: object
+      required: [id, title, body, important, postedAt]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        body:
+          description: Plain text, which may have line breaks.
+          type: string
+        important:
+          description: Whether it also pops up in the lobby.
+          type: boolean
+        postedAt:
+          description: When it last went out to players.
+          type: string
+          format: date-time
+    AnnouncementPage:
+      type: object
+      required: [announcements, total, page, pageSize]
+      properties:
+        announcements:
+          type: array
+          items:
+            $ref: "#/components/schemas/Announcement"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+    MyAnnouncements:
+      description: What a player has yet to see. Nothing from before they joined counts.
+      type: object
+      required: [unread, popups]
+      properties:
+        unread:
+          description: How many have gone out since they last looked.
+          type: integer
+        popups:
+          description: The important ones they have yet to close, the oldest first.
+          type: array
+          items:
+            $ref: "#/components/schemas/Announcement"
+    AnnouncementInput:
+      type: object
+      required: [title, body, important]
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        body:
+          type: string
+          maxLength: 2000
+        important:
+          type: boolean
+        showAgain:
+          description: On changing an important one, pop it up again for players who have closed it.
+          type: boolean
     SignUpInput:
       type: object
       required: [username, email, password]
@@ -2998,6 +3216,9 @@ components:
         - player_let_in
         - mail_settings_changed
         - mail_settings_cleared
+        - announcement_added
+        - announcement_changed
+        - announcement_deleted
     AdminLogEntry:
       type: object
       required: [id, adminName, action, subject, details, at]
@@ -3845,6 +4066,7 @@ components:
         - $ref: "#/components/schemas/RealtimeRematchEnded"
         - $ref: "#/components/schemas/RealtimeMatchRecorded"
         - $ref: "#/components/schemas/RealtimeAccountChanged"
+        - $ref: "#/components/schemas/RealtimeAnnouncementsChanged"
       discriminator:
         propertyName: type
         mapping:
@@ -3858,6 +4080,7 @@ components:
           rematch_ended: "#/components/schemas/RealtimeRematchEnded"
           match_recorded: "#/components/schemas/RealtimeMatchRecorded"
           account_changed: "#/components/schemas/RealtimeAccountChanged"
+          announcements_changed: "#/components/schemas/RealtimeAnnouncementsChanged"
     RealtimeSiteStats:
       description: How many players are online and games running, for everyone.
       type: object
@@ -4210,6 +4433,14 @@ components:
           enum: [match_recorded]
         match:
           $ref: "#/components/schemas/Match"
+    RealtimeAnnouncementsChanged:
+      description: An admin has posted, changed or deleted a notification, so players look again. Sent to players.
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [announcements_changed]
     RealtimeAccountChanged:
       description: >-
         An admin has changed the player's account, such as muting them or making them an admin, so

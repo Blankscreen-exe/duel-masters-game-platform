@@ -1,6 +1,7 @@
 import 'server-only';
 import { notFound, redirect } from 'next/navigation';
 import { cache } from 'react';
+import { NOTHING_NEW, type MyAnnouncements } from './announcements';
 import type { Account } from './api/client';
 import { serverApi } from './api/server';
 import { verifyEmailHref } from './verification';
@@ -40,6 +41,19 @@ export async function requireAccount(returnTo: string): Promise<Account> {
 
   return account;
 }
+
+/**
+ * What the logged-in player has yet to see of the notifications: their unread count and popups.
+ * Nothing for a visitor, and should it fail to load, as it should not take the page down with it.
+ * Asked once per request, by the top bar and the page alike.
+ */
+export const getMyAnnouncements = cache(async (): Promise<MyAnnouncements> => {
+  if (!(await getCurrentAccount())) return NOTHING_NEW;
+
+  const api = await serverApi();
+  const { data } = await api.GET('/announcements/mine');
+  return data ?? NOTHING_NEW;
+});
 
 /** For the log-in and sign-up pages: there is nothing to do there once logged in. */
 export async function redirectIfLoggedIn(next: string): Promise<void> {
