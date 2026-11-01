@@ -457,7 +457,7 @@ func (s *Service) seatComputer(entrant Entrant, gameID string) {
 
 	options := *entrant.Computer
 	options.Logger = logger
-	player := computer.New(options)
+	player := computer.NewSeat(options)
 
 	s.computers.Go(player.Play)
 	s.computers.Go(func() {

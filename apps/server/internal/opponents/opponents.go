@@ -45,6 +45,10 @@ type Opponent struct {
 	Cards []decks.Entry
 }
 
+// IsLive reports whether it is the live opponent, who plays from outside the
+// server rather than by a style.
+func (o Opponent) IsLive() bool { return o.Style == LiveStyle }
+
 // Deck is its deck as a game takes it.
 func (o Opponent) Deck() decks.Deck {
 	return decks.Deck{ID: o.ID, Name: o.Name, Cards: slices.Clone(o.Cards)}

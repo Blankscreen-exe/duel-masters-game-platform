@@ -29,6 +29,7 @@ import (
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/games"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/lobby"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/localplayer"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/mail"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/matchmaking"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/opponents"
@@ -64,6 +65,11 @@ const offlineAfter = 10 * time.Second
 
 // App is the assembled server.
 type App struct {
+	// localPlayerAddr and localPlayer are the address and handler of the tools
+	// Claude Code plays with, not served when the address is empty.
+	localPlayerAddr string
+	localPlayer     http.Handler
+
 	logger     *slog.Logger
 	db         *gorm.DB
 	auth       *auth.Service
@@ -169,13 +175,16 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	})
 	builtCards, _ := cards.Build(source, games.PlayableCards())
 	opponentService := opponents.NewService(db, catalogue, formatService)
+	library := computer.NewLibrary(builtCards)
+	desk := computer.NewDesk(library, time.Now)
 	challenges := opponents.NewChallenges(opponents.ChallengeDependencies{
 		Opponents: opponentService,
 		Formats:   formatService,
 		Lobby:     lobbyService,
 		Games:     gameService,
-		Library:   computer.NewLibrary(builtCards),
+		Library:   library,
 		Settings:  siteSettings,
+		Desk:      desk,
 		Logger:    logger.With("component", "opponents"),
 	})
 	rematches := rematch.NewService(rematch.Dependencies{
@@ -202,6 +211,14 @@ func assemble(ctx context.Context, cfg config.Config, logger *slog.Logger, db *g
 	})
 
 	return &App{
+		localPlayerAddr: cfg.LocalPlayerAddr,
+		localPlayer: localplayer.NewHandler(localplayer.Dependencies{
+			Desk:      desk,
+			Opponents: opponentService,
+			Catalogue: catalogue,
+			Formats:   formatService,
+			Settings:  siteSettings,
+		}),
 		logger:     logger,
 		db:         db,
 		auth:       authService,
@@ -262,12 +279,14 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 	background.Go(func() { a.lobby.Run(backgroundCtx) })
 	background.Go(func() { a.quickMatch.Run(backgroundCtx) })
 	background.Go(func() { a.rematches.Run(backgroundCtx) })
+	stopLocalPlayer := a.serveLocalPlayer(&background)
 
 	// Games and live connections are taken over from the HTTP server, which
 	// does not wait for them, so they are closed here: running games are
 	// stopped and, once the background work stops, saved, before the
 	// database closes.
 	closeDown := func(ctx context.Context) error {
+		stopLocalPlayer()
 		err := errors.Join(a.games.Close(ctx), a.hub.Close(ctx))
 		stopBackground()
 		background.Wait()
@@ -299,6 +318,33 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 	}
 
 	return errors.Join(err, closeDown(shutdownCtx))
+}
+
+// serveLocalPlayer serves the tools Claude Code plays with, if asked to, on an
+// address of their own, returning how to stop them. Not being able to listen,
+// as when another copy of the server has the port, costs only those tools, so
+// it does not stop the server. Their calls wait on the game for as long as a
+// move takes, so they have no time limit to write a response; stopping cuts
+// them off, and they try again.
+func (a *App) serveLocalPlayer(background *sync.WaitGroup) (stop func()) {
+	if a.localPlayerAddr == "" {
+		return func() {}
+	}
+
+	listener, err := net.Listen("tcp", a.localPlayerAddr)
+	if err != nil {
+		a.logger.Warn("not serving the local player's tools", "address", a.localPlayerAddr, "error", err)
+		return func() {}
+	}
+	a.logger.Info("serving the local player's tools", "address", listener.Addr().String())
+
+	server := &http.Server{Handler: a.localPlayer, ReadHeaderTimeout: readHeaderTimeout, MaxHeaderBytes: maxHeaderBytes}
+	background.Go(func() {
+		if err := server.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
+			a.logger.Warn("the local player's tools stopped", "error", err)
+		}
+	})
+	return func() { _ = server.Close() }
 }
 
 // cleanUpSessions deletes expired sessions and accounts that ran out of time to

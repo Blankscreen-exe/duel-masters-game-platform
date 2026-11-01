@@ -125,6 +125,11 @@ func Seeds(logger *slog.Logger) []*gormigrate.Migration {
 		Migrate: func(tx *gorm.DB) error {
 			return addOpponents(tx, startingOpponents, logger)
 		},
+	}, {
+		ID: "0002_add_live_opponent",
+		Migrate: func(tx *gorm.DB) error {
+			return addLiveOpponent(tx, logger)
+		},
 	}}
 }
 

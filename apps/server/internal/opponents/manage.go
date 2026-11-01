@@ -58,14 +58,16 @@ type Input struct {
 }
 
 // All returns every opponent, retired or not, in order, for the admin panel.
+// The live opponent is not among them: it builds its own deck, and a setting
+// switches it on.
 func (s *Service) All(ctx context.Context) ([]Opponent, error) {
-	return s.read(ctx, s.db.WithContext(ctx))
+	return s.read(ctx, s.db.WithContext(ctx).Where("style <> ?", LiveStyle))
 }
 
 // ByID returns an opponent, retired or not, for the admin panel. It returns
 // ErrNotFound for one that does not exist.
 func (s *Service) ByID(ctx context.Context, id string) (Opponent, error) {
-	found, err := s.read(ctx, s.db.WithContext(ctx).Where("id = ?", id))
+	found, err := s.read(ctx, s.db.WithContext(ctx).Where("id = ? AND style <> ?", id, LiveStyle))
 	if err != nil {
 		return Opponent{}, err
 	}
@@ -180,10 +182,7 @@ func (s *Service) Update(ctx context.Context, actor users.User, id string, input
 		if err != nil {
 			return fmt.Errorf("changing computer opponent %q: %w", current.Name, err)
 		}
-		if err := tx.Where("computer_opponent_id = ?", id).Delete(&opponentCardRow{}).Error; err != nil {
-			return fmt.Errorf("replacing the deck of computer opponent %q: %w", current.Name, err)
-		}
-		if err := insertCards(tx, id, input.Cards); err != nil {
+		if err := replaceCards(tx, id, current.Name, input.Cards); err != nil {
 			return err
 		}
 
@@ -316,6 +315,14 @@ func insert(tx *gorm.DB, row opponentRow, cards []decks.Entry) error {
 		return fmt.Errorf("adding a computer opponent: %w", err)
 	}
 	return insertCards(tx, row.ID, cards)
+}
+
+// replaceCards replaces an opponent's deck.
+func replaceCards(tx *gorm.DB, opponentID, name string, cards []decks.Entry) error {
+	if err := tx.Where("computer_opponent_id = ?", opponentID).Delete(&opponentCardRow{}).Error; err != nil {
+		return fmt.Errorf("replacing the deck of computer opponent %q: %w", name, err)
+	}
+	return insertCards(tx, opponentID, cards)
 }
 
 // insertCards adds an opponent's deck, which may be empty.

@@ -94,6 +94,9 @@ server under Admin panel, Email: until then, other new players wait, and you can
 the Players page. A player who is sent a code has 24 hours to confirm their address (an admin
 setting) before the account is deleted.
 
+Running the site on your own computer, you can also play against Claude, using decks it builds
+itself: see [`docs/claude-opponent.md`](docs/claude-opponent.md).
+
 ## Running with Docker
 
 ```bash

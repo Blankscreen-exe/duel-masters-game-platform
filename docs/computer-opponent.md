@@ -92,6 +92,11 @@ Each plays under a computer account of its own (a `computer` flag on the account
 logs in to and admins cannot change), so its games are recorded like anyone's. A name an account
 already has is left out of the seed rather than taken.
 
+## Playing against Claude
+
+Separate from the personalities, Claude can play live from Claude Code on the computer the server
+runs on, with decks it builds itself. See [Playing against Claude](claude-opponent.md).
+
 ## Settings
 
 Admin settings: how long the computer pauses before each move (`computer.pause_milliseconds`), and

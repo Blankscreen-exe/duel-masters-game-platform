@@ -13,6 +13,7 @@ type question struct {
 	// show is a preview of cards it must close, which asks nothing else.
 	show       bool
 	actionType string
+	text       string
 	about      server.PromptAbout
 	// cards are the cards offered, those of every part of a question in
 	// parts together.
@@ -69,6 +70,7 @@ type actionMessage struct {
 	server.Prompt
 	server.PromptAbout
 	ActionType        string             `json:"actionType"`
+	Text              string             `json:"text"`
 	Cards             json.RawMessage    `json:"cards"`
 	MinSelections     int                `json:"minSelections"`
 	MaxSelections     int                `json:"maxSelections"`
@@ -131,6 +133,7 @@ func readQuestion(data []byte) (*question, bool) {
 	q := &question{
 		id:           message.ID,
 		actionType:   message.ActionType,
+		text:         message.Text,
 		about:        message.PromptAbout,
 		unselectable: map[string]bool{},
 		min:          message.MinSelections,
