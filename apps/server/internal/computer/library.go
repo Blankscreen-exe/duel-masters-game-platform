@@ -22,8 +22,10 @@ type Card struct {
 	Cost          int
 	Power         int
 	Civilizations []string
-	keywords      []string
-	categories    []string
+	// Text is its rules text.
+	Text       string
+	keywords   []string
+	categories []string
 }
 
 // IsCreature reports whether the card is a creature, evolution or not.
@@ -71,6 +73,7 @@ func NewLibrary(catalogue []cards.Card) *Library {
 			Cost:          card.Cost,
 			Power:         power,
 			Civilizations: slices.Clone(card.Civilizations),
+			Text:          card.RulesText,
 			keywords:      slices.Clone(card.Keywords),
 			categories:    slices.Clone(card.Categories),
 		}

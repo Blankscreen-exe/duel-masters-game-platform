@@ -52,6 +52,27 @@ type Options struct {
 	// Logger hears what it does, the moves it makes at debug level; nil
 	// hears nothing.
 	Logger *slog.Logger
+	// Outside, when set, seats a player from outside the server instead, and
+	// the options above do not apply.
+	Outside func(logger *slog.Logger) Seat
+}
+
+// Seat is a seat in a game played from inside the server.
+type Seat interface {
+	// Connection is the connection it plays over, to seat it in a game as a
+	// browser's would be.
+	Connection() server.Connection
+	// Play plays the game until its connection closes. It is to be run on a
+	// goroutine of its own, which it ends by returning.
+	Play()
+}
+
+// NewSeat returns the seat the options ask for.
+func NewSeat(options Options) Seat {
+	if options.Outside != nil {
+		return options.Outside(options.Logger)
+	}
+	return New(options)
 }
 
 // Player is a computer player in one game.

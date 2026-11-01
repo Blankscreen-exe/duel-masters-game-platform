@@ -27,9 +27,18 @@ var Pause = settings.Number{
 	Max:         5000,
 }
 
+// LiveOpponent is the admin setting that switches on the live opponent: Claude,
+// playing from Claude Code on the server's own computer.
+var LiveOpponent = settings.Bool{
+	Key:         "computer.claude_opponent",
+	Group:       "Computer opponents",
+	Description: "Offers Claude as an opponent, playing live from Claude Code on the computer the server runs on, while it is connected (see docs/claude-opponent.md). Games it is already in carry on when this is turned off.",
+	Default:     false,
+}
+
 // Settings are the settings this feature declares.
 func Settings() []settings.Definition {
-	return []settings.Definition{Pause}
+	return []settings.Definition{Pause, LiveOpponent}
 }
 
 // ErrUnavailable is returned for an opponent that cannot play for now: it is
@@ -53,7 +62,9 @@ type ChallengeDependencies struct {
 	// Library is what the computer knows of the cards.
 	Library  *computer.Library
 	Settings *settings.Service
-	Logger   *slog.Logger
+	// Desk is where the live opponent takes up its games; nil leaves it out.
+	Desk   *computer.Desk
+	Logger *slog.Logger
 }
 
 // Challenges starts players' games against the computer opponents. These games
@@ -66,6 +77,7 @@ type Challenges struct {
 	games     *games.Service
 	library   *computer.Library
 	settings  *settings.Service
+	desk      *computer.Desk
 	logger    *slog.Logger
 }
 
@@ -78,6 +90,7 @@ func NewChallenges(deps ChallengeDependencies) *Challenges {
 		games:     deps.Games,
 		library:   deps.Library,
 		settings:  deps.Settings,
+		desk:      deps.Desk,
 		logger:    deps.Logger,
 	}
 }
@@ -93,6 +106,9 @@ func (c *Challenges) Offers(ctx context.Context) ([]Offer, error) {
 
 	offers := make([]Offer, 0, len(list))
 	for _, opponent := range list {
+		if opponent.IsLive() && !c.liveReady() {
+			continue
+		}
 		problems, err := c.opponents.Check(ctx, opponent)
 		if err != nil {
 			return nil, err
@@ -199,13 +215,21 @@ func (c *Challenges) seat(ctx context.Context, opponent Opponent) (games.Entrant
 		return games.Entrant{}, ErrUnavailable
 	}
 
+	user := users.User{ID: opponent.UserID, Username: opponent.Name, Computer: true}
+	if opponent.IsLive() {
+		if !c.liveReady() {
+			return games.Entrant{}, ErrUnavailable
+		}
+		return games.Entrant{User: user, Deck: opponent.Deck(), Computer: &computer.Options{Outside: c.desk.Seat}}, nil
+	}
+
 	style, ok := computer.StyleNamed(opponent.Style)
 	if !ok {
 		return games.Entrant{}, fmt.Errorf("computer opponent %q has an unknown style %q", opponent.Name, opponent.Style)
 	}
 
 	return games.Entrant{
-		User: users.User{ID: opponent.UserID, Username: opponent.Name, Computer: true},
+		User: user,
 		Deck: opponent.Deck(),
 		Computer: &computer.Options{
 			Library:  c.library,
@@ -214,4 +238,10 @@ func (c *Challenges) seat(ctx context.Context, opponent Opponent) (games.Entrant
 			Pause:    time.Duration(c.settings.Number(Pause)) * time.Millisecond,
 		},
 	}, nil
+}
+
+// liveReady reports whether the live opponent can take up a game now: it is
+// switched on, there, and not in another game.
+func (c *Challenges) liveReady() bool {
+	return c.desk != nil && c.settings.Bool(LiveOpponent) && c.desk.Online() && c.desk.Free()
 }

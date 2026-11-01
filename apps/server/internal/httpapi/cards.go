@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/cards"
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/decks"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/formats"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/httpapi/api"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/validation"
@@ -95,13 +96,7 @@ func (h *handlers) legalityIn(ctx context.Context, formatID string) (*cards.Lega
 		return nil, err
 	}
 
-	legal := cards.Legality{AllSets: format.AllSets, Sets: format.Sets, MaxCivilizations: format.MaxCivilizations}
-	for cardID, limit := range format.Limits {
-		if limit == 0 {
-			legal.Banned = append(legal.Banned, cardID)
-		}
-	}
-
+	legal := decks.LegalityIn(format)
 	return &legal, nil
 }
 

@@ -20,6 +20,7 @@ supersedes the old one.
 | [0012](0012-gorm-for-data-access.md)                    | GORM for data access                                  | Accepted |
 | [0013](0013-card-catalogue-in-the-database.md)         | The card catalogue is copied into the database        | Accepted |
 | [0014](0014-email-confirmation-and-mail-settings.md) | Players confirm an email address, through a mail server an admin sets up | Accepted |
+| [0015](0015-claude-opponent-over-local-tools.md) | Claude plays through local tools, off unless an admin turns it on | Accepted |
 
 ## Template
 

@@ -174,3 +174,22 @@ func TestLoadReportsEveryProblemAtOnce(t *testing.T) {
 		assert.Contains(t, err.Error(), problem)
 	}
 }
+
+func TestLoadLocalPlayerAddress(t *testing.T) {
+	cfg, err := Load(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:8081", cfg.LocalPlayerAddr, "on by default in development")
+
+	cfg, err = Load([]string{"APP_ENV=production", "SITE_ORIGINS=https://duelmasters.example", secretKey})
+	require.NoError(t, err)
+	assert.Empty(t, cfg.LocalPlayerAddr, "not served in production unless asked")
+
+	cfg, err = Load([]string{"LOCAL_PLAYER_ADDR=127.0.0.1:9191"})
+	require.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:9191", cfg.LocalPlayerAddr)
+
+	for _, address := range []string{"0.0.0.0:8081", "192.168.1.20:8081", ":8081", "example.com:8081", "nonsense"} {
+		_, err = Load([]string{"LOCAL_PLAYER_ADDR=" + address})
+		assert.ErrorContains(t, err, "LOCAL_PLAYER_ADDR", address)
+	}
+}

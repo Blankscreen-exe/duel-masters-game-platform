@@ -47,6 +47,10 @@ const (
 // SQLite path is given.
 const sqliteFileName = "platform.db"
 
+// defaultLocalPlayerAddr is LocalPlayerAddr in development, and what the
+// repository's .mcp.json points Claude Code at.
+const defaultLocalPlayerAddr = "127.0.0.1:8081"
+
 // Config is the server's configuration.
 type Config struct {
 	Environment Environment `env:"APP_ENV" envDefault:"development"`
@@ -78,8 +82,12 @@ type Config struct {
 	SecretKeyText string `env:"APP_SECRET_KEY"`
 	// SecretKey is SecretKeyText parsed; nil when it is not set.
 	SecretKey []byte `env:"-"`
-	Database  Database
-	Log       Log
+	// LocalPlayerAddr is the address Claude Code reaches the tools it plays with
+	// on (see docs/claude-opponent.md), which must be on this computer alone.
+	// Development defaults to 127.0.0.1:8081; otherwise, unset, it is not served.
+	LocalPlayerAddr string `env:"LOCAL_PLAYER_ADDR"`
+	Database        Database
+	Log             Log
 }
 
 // Database selects and locates the database.
@@ -138,6 +146,10 @@ func (c *Config) applyDefaults() {
 		c.SiteOrigins[i] = strings.TrimRight(strings.TrimSpace(origin), "/")
 	}
 
+	if c.LocalPlayerAddr == "" && c.Environment == Development {
+		c.LocalPlayerAddr = defaultLocalPlayerAddr
+	}
+
 	if c.Log.Format == "" {
 		c.Log.Format = LogText
 		if c.Environment == Production {
@@ -157,6 +169,10 @@ func (c *Config) validate() error {
 
 	if _, _, err := net.SplitHostPort(c.HTTPAddr); err != nil {
 		problems = append(problems, fmt.Errorf("HTTP_ADDR must be host:port, got %q", c.HTTPAddr))
+	}
+
+	if c.LocalPlayerAddr != "" && !isLoopback(c.LocalPlayerAddr) {
+		problems = append(problems, fmt.Errorf("LOCAL_PLAYER_ADDR must be on this computer alone, such as %s, got %q", defaultLocalPlayerAddr, c.LocalPlayerAddr))
 	}
 
 	switch c.Database.Driver {
@@ -206,6 +222,16 @@ func (c *Config) validate() error {
 	}
 
 	return errors.Join(problems...)
+}
+
+// isLoopback reports whether an address is host:port on this computer alone.
+func isLoopback(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // isOrigin reports whether text is an origin: a scheme of http or https and a

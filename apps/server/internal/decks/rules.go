@@ -20,6 +20,17 @@ const (
 	MaxCopies = 4
 )
 
+// LegalityIn is what a format allows, for a card search to keep to.
+func LegalityIn(format formats.Format) cards.Legality {
+	legal := cards.Legality{AllSets: format.AllSets, Sets: format.Sets, MaxCivilizations: format.MaxCivilizations}
+	for cardID, limit := range format.Limits {
+		if limit == 0 {
+			legal.Banned = append(legal.Banned, cardID)
+		}
+	}
+	return legal
+}
+
 // Entry is how many copies of a card a deck has.
 type Entry struct {
 	CardID string
