@@ -47,6 +47,38 @@ export const NO_CARD_FILTERS: CardFilterChoices = {
   order: 'asc',
 };
 
+/** A way of listing cards: what they go by, and which way. */
+export interface CardSort {
+  readonly sort: CardFilterChoices['sort'];
+  readonly order: CardFilterChoices['order'];
+  readonly label: string;
+}
+
+/** The ways the trunk's quick sort offers, each by and order once. */
+export const CARD_SORTS: readonly CardSort[] = [
+  { sort: 'name', order: 'asc', label: 'Name, A to Z' },
+  { sort: 'name', order: 'desc', label: 'Name, Z to A' },
+  { sort: 'cost', order: 'asc', label: 'Cost, lowest first' },
+  { sort: 'cost', order: 'desc', label: 'Cost, highest first' },
+  { sort: 'power', order: 'desc', label: 'Power, highest first' },
+  { sort: 'power', order: 'asc', label: 'Power, lowest first' },
+];
+
+/** A sort as one value, for a drop-down list to hold. */
+export function cardSortKey({ sort, order }: Pick<CardSort, 'sort' | 'order'>): string {
+  return `${sort}-${order}`;
+}
+
+/** The sort a drop-down list's value names, or null for none of them. */
+export function cardSortOf(key: string): CardSort | null {
+  return CARD_SORTS.find((option) => cardSortKey(option) === key) ?? null;
+}
+
+/** The choices with nothing narrowing the search, keeping how they are sorted. */
+export function clearCardFilters(choices: CardFilterChoices): CardFilterChoices {
+  return { ...NO_CARD_FILTERS, sort: choices.sort, order: choices.order };
+}
+
 /**
  * No card has this id, so asking for only it finds nothing: how "only the deck's cards" asks for an
  * empty deck's, as an empty list would not narrow the search at all.

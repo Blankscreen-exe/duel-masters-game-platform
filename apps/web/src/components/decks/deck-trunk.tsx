@@ -6,7 +6,11 @@ import { CivilizationMarks } from '@/components/cards/civilization-marks';
 import { Button } from '@/components/ui/button';
 import type { Card, CardFilters, Format } from '@/lib/api/client';
 import {
+  CARD_SORTS,
   cardFiltersToSearch,
+  cardSortKey,
+  cardSortOf,
+  clearCardFilters,
   countCardFilters,
   deckCardLists,
   NO_CARD_FILTERS,
@@ -99,15 +103,39 @@ export function DeckTrunk({ draft, filters, formats, onAdd, onEnlarge }: DeckTru
             )}
           </Button>
         </div>
+        <label className="flex items-center gap-2">
+          <span className="shrink-0 text-xs font-semibold tracking-wider text-slate-400 uppercase">
+            Sort
+          </span>
+          <select
+            aria-label="Sort cards"
+            value={cardSortKey(applied.choices)}
+            onChange={(event) => {
+              const chosen = cardSortOf(event.target.value);
+              if (!chosen) return;
+              setApplied((now) => ({
+                ...now,
+                choices: { ...now.choices, sort: chosen.sort, order: chosen.order },
+              }));
+            }}
+            className="bz-field block min-w-0 flex-1 px-2 py-1.5 text-sm"
+          >
+            {CARD_SORTS.map((option) => (
+              <option key={cardSortKey(option)} value={cardSortKey(option)}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="flex items-center justify-between gap-2">
           <p aria-live="polite" className="text-xs tracking-wider text-slate-500 uppercase">
             {statusText(pages?.total, searching, error)}
           </p>
-          {applied !== NOTHING_APPLIED && (
+          {filtering > 0 && (
             <button
               type="button"
               onClick={() => {
-                setApplied(NOTHING_APPLIED);
+                setApplied((now) => ({ choices: clearCardFilters(now.choices), deckCards: {} }));
               }}
               className="text-xs font-semibold text-slate-400 underline hover:text-white"
             >

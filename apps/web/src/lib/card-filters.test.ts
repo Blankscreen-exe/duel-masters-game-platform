@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Card } from './api/client';
 import {
+  CARD_SORTS,
+  cardSortKey,
+  cardSortOf,
+  clearCardFilters,
   cardFiltersProblem,
   cardFiltersToSearch,
   countCardFilters,
@@ -167,6 +171,31 @@ describe('cardFiltersToSearch', () => {
 
   it('leaves out how civilizations match when none are chosen', () => {
     expect(cardFiltersToSearch({ ...NO_CARD_FILTERS, civilizationMatch: 'only' })).toEqual({});
+  });
+});
+
+describe('card sorts', () => {
+  it('offers each sort and order once, with the default first', () => {
+    const keys = CARD_SORTS.map(cardSortKey);
+    expect(new Set(keys).size).toBe(6);
+    expect(keys[0]).toBe(cardSortKey(NO_CARD_FILTERS));
+  });
+
+  it('reads back the sort its key names', () => {
+    expect(cardSortOf('cost-desc')).toMatchObject({ sort: 'cost', order: 'desc' });
+    expect(cardSortOf('rarity-asc')).toBeNull();
+  });
+
+  it('keeps the sort when clearing the filters', () => {
+    const cleared = clearCardFilters({
+      ...NO_CARD_FILTERS,
+      civilizations: ['Fire'],
+      minCost: '3',
+      sort: 'cost',
+      order: 'desc',
+    });
+    expect(cleared).toEqual({ ...NO_CARD_FILTERS, sort: 'cost', order: 'desc' });
+    expect(countCardFilters(cleared)).toBe(0);
   });
 });
 
