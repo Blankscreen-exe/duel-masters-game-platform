@@ -261,6 +261,26 @@ func TestTheUpgraderAcceptsOnlyTheSitesPages(t *testing.T) {
 	}
 }
 
+func TestTheUpgraderAcceptsOneSubdomainForAWildcard(t *testing.T) {
+	upgrader := NewUpgrader([]string{"https://*.trycloudflare.com"})
+
+	for origin, allowed := range map[string]bool{
+		"https://abc-def-ghi.trycloudflare.com":      true,
+		"https://ABC.TryCloudflare.com":              true,
+		"https://trycloudflare.com":                  false,
+		"https://a.b.trycloudflare.com":              false,
+		"http://abc.trycloudflare.com":               false,
+		"https://abc.trycloudflare.com:8443":         false,
+		"https://evil.example/.trycloudflare.com":    false,
+		"https://abc.trycloudflare.com.evil.example": false,
+		"https://*.trycloudflare.com":                false,
+	} {
+		request := httptest.NewRequest(http.MethodGet, "/", nil)
+		request.Header.Set("Origin", origin)
+		assert.Equal(t, allowed, upgrader.CheckOrigin(request), "%q", origin)
+	}
+}
+
 func TestBroadcastPlayersLeavesVisitorsOut(t *testing.T) {
 	hub, _ := newHub(t, time.Minute)
 	server := testServer(t, hub)

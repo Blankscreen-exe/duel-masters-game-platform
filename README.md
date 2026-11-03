@@ -63,7 +63,7 @@ The server is configured with environment variables, checked at startup:
 | `LOG_LEVEL`    | `info`                     | `debug`, `info`, `warn` or `error`                           |
 | `LOG_FORMAT`   | `text` (`json` in production) | `text` or `json`                                           |
 | `SECURE_COOKIES` | `false` (`true` in production) | Send the login cookie over HTTPS only. Turn off only for plain HTTP, such as a home network. |
-| `SITE_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` in development; required in production | The addresses players open the site from, comma-separated. Live connections from other pages are refused. |
+| `SITE_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` in development; required in production | The addresses players open the site from, comma-separated. Live connections from other pages are refused. `*.` stands for any one subdomain, for tunnels whose address changes: `https://*.trycloudflare.com`. |
 | `APP_SECRET_KEY` | required in production | Encrypts the mail server's settings in the database. Make one with `openssl rand -base64 32`. Without it in development, no mail server can be set up. |
 
 The database tests run on SQLite and, when `TEST_POSTGRES_URL` points at a PostgreSQL server
