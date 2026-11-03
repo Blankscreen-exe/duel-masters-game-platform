@@ -190,6 +190,10 @@ func (s *TestScenario) ActionPlayCardPrompt(player *match.PlayerReference, cardI
 		return nil, err
 	}
 
+	if err := s.GoToStep(player, match.GoToMainStep); err != nil {
+		return nil, err
+	}
+
 	messageCount := conn.JSONWriteCount()
 
 	if err := s.send(player, struct {
@@ -376,6 +380,10 @@ func (s *TestScenario) ActionAttackCreature(player *match.PlayerReference, attac
 		return err
 	}
 
+	if err := s.GoToStep(player, match.GoToAttackStep); err != nil {
+		return err
+	}
+
 	messageCount := conn.JSONWriteCount()
 	if err := s.send(player, struct {
 		Header string `json:"header"`
@@ -456,6 +464,10 @@ func (s *TestScenario) ActionUseTapAbility(player *match.PlayerReference, cardID
 		return err
 	}
 
+	if err := s.GoToStep(player, match.GoToAttackStep); err != nil {
+		return err
+	}
+
 	messageCount := conn.JSONWriteCount()
 	if err := s.send(player, struct {
 		Header string `json:"header"`
@@ -522,6 +534,10 @@ func (s *TestScenario) ActionAttackPlayer(player *match.PlayerReference, attacke
 		return nil, err
 	}
 
+	if err := s.GoToStep(player, match.GoToAttackStep); err != nil {
+		return nil, err
+	}
+
 	messageCount := conn.JSONWriteCount()
 	if err := s.send(player, struct {
 		Header string `json:"header"`
@@ -549,6 +565,10 @@ func (s *TestScenario) ActionAttackCreaturePrompt(player *match.PlayerReference,
 	}
 
 	if _, err := player.Player.GetCard(attackerID, match.BATTLEZONE); err != nil {
+		return nil, err
+	}
+
+	if err := s.GoToStep(player, match.GoToAttackStep); err != nil {
 		return nil, err
 	}
 
@@ -1078,6 +1098,25 @@ func (s *TestScenario) connectionFor(player *match.PlayerReference) (*MockConnec
 	}
 
 	return conn, nil
+}
+
+// GoToStep moves the player's turn on to the main or the attack step, as a
+// player does with the duel board's phase button, and waits until the match has
+// done so. The match does nothing when the turn is already there, so the play
+// and attack helpers call it first, and tests read as a turn is played rather
+// than step by step.
+func (s *TestScenario) GoToStep(player *match.PlayerReference, step string) error {
+	if err := s.send(player, struct {
+		Header string `json:"header"`
+		Step   string `json:"step"`
+	}{
+		Header: "go_to_step",
+		Step:   step,
+	}); err != nil {
+		return err
+	}
+
+	return s.WaitForEventLoop()
 }
 
 func (s *TestScenario) send(player *match.PlayerReference, payload interface{}) error {

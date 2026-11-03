@@ -204,6 +204,12 @@ project not affiliated with or endorsed by them, and credit them as the owners.
 - The game screen shows the duel board (everything we built: animations, power and status
   badges, phase bar with turn count, game log with clickable card names) between two name bars
   with each player's rank.
+- **The player moves the turn through its phases.** The draw happens by itself, then the turn
+  waits in the mana phase (charge one card, or not), the summon phase (summon and cast) and the
+  battle phase (attack and use tap abilities). Each phase allows only its own actions and the turn
+  never goes back. A button beside **End turn** moves on: **Go to summon phase**, then **Battle
+  phase**, which first warns when cards could still be played. **End turn** is there throughout.
+  Computer opponents and Claude move on by themselves before playing or attacking.
 - **Leave** and **Surrender** buttons; surrendering asks for confirmation and loses the game.
 - At the end, a **result screen**: winner, how it ended, turns, length, each player's rating
   change, and buttons for **Rematch** and **Back to lobby** (7.2).

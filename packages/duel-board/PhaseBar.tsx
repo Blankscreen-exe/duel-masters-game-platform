@@ -1,6 +1,13 @@
 import { useEffect, useId, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { displayPhase, TURN_PHASES, turnHint, turnNumber } from "./turnPhases";
+import {
+  displayPhase,
+  phaseAdvance,
+  TURN_PHASES,
+  turnHint,
+  turnNumber,
+  type PhaseAdvance,
+} from "./turnPhases";
 import type { MatchState } from "./types";
 
 const HIGHLIGHT_EASE = [0.4, 0, 0.2, 1] as const;
@@ -9,17 +16,21 @@ const HIGHLIGHT_EASE = [0.4, 0, 0.2, 1] as const;
 const HINT_BUBBLE_MS = 3000;
 
 /** Shows how far the current turn has got, between the two halves of the
- * board. The server enforces the order of a turn, so this is what tells a
- * player why summoning stops working once they have attacked. */
+ * board. Each phase only allows its own actions and lasts until the player
+ * moves on, which they do with the phase button here. */
 export function PhaseBar({
   state,
   onEndTurn,
+  onAdvance,
   compact = false,
   slim = false,
 }: {
   state: MatchState;
   /** Shows an End turn button at the end of the bar when given. */
   onEndTurn?: () => void;
+  /** Shows the button moving the turn on to the next phase, before End turn,
+   * when given. */
+  onAdvance?: (advance: PhaseAdvance) => void;
   /** A narrow screen has no room for the hint beside the bar, so it pops up
    * below it whenever it changes, and again when the bar is tapped. */
   compact?: boolean;
@@ -31,6 +42,7 @@ export function PhaseBar({
   const currentPhase = displayPhase(state);
   const hint = turnHint(state);
   const turn = turnNumber(state);
+  const advance = onAdvance ? phaseAdvance(state) : null;
   const [hintAskedAt, setHintAskedAt] = useState(0);
   const [bubbleShown, setBubbleShown] = useState(false);
 
@@ -151,13 +163,24 @@ export function PhaseBar({
           </motion.span>
         )}
       </AnimatePresence>
+      {advance && onAdvance && (
+        <button
+          type="button"
+          onClick={() => onAdvance(advance)}
+          className="bz-button bz-button-primary shrink-0 cursor-pointer px-4 py-1.5 text-xs leading-none"
+        >
+          {advance.label}
+        </button>
+      )}
       {onEndTurn && (
         <button
           type="button"
           onClick={onEndTurn}
           disabled={!state.myTurn}
           title={state.myTurn ? undefined : "It's not your turn"}
-          className="bz-button bz-button-primary shrink-0 cursor-pointer px-4 py-1.5 text-xs leading-none"
+          className={`bz-button ${
+            advance ? "bz-button-secondary" : "bz-button-primary"
+          } shrink-0 cursor-pointer px-4 py-1.5 text-xs leading-none`}
         >
           End turn
         </button>

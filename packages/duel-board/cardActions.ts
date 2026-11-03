@@ -1,5 +1,6 @@
 import type { DragZone } from "./BoardZone";
 import { FACE_DOWN_IMAGE_ID } from "./cardImage";
+import { displayPhase } from "./turnPhases";
 import {
   cardHasFlag,
   PLAYABLE_FLAG,
@@ -77,11 +78,15 @@ export function cardActions(
   }
 
   if (canAct && zone === "myPlayzone") {
-    // A creature summoned this turn has to wait for the next one.
+    // A creature summoned this turn has to wait for the next one, and the
+    // rest wait for the battle phase.
     const sick = cardHasFlag(card.flags, SUMMONING_SICK_FLAG);
+    const inBattle = displayPhase(state) === "attack";
     const attackReason = sick
       ? "Summoning sickness: it can't attack until your next turn"
-      : null;
+      : inBattle
+        ? null
+        : "Go to the battle phase to attack";
 
     actions.push(
       {
@@ -102,7 +107,9 @@ export function cardActions(
         label: "Use tap ability",
         disabledReason: sick
           ? "Summoning sickness: it can't use its tap ability until your next turn"
-          : null,
+          : inBattle
+            ? null
+            : "Go to the battle phase to use its tap ability",
       });
     }
   }
@@ -122,16 +129,24 @@ function playAction(
   const label =
     type === "creature" ? "Summon" : type === "spell" ? "Cast" : "Play";
 
-  // Attacking or using a tap ability moves the turn into the attack step, and
-  // the server refuses summons and casts from there on.
-  if (state.hasAttackedThisRound) {
+  // Cards are only played in the summon phase, which ends for good once the
+  // turn goes on to the battle phase.
+  const phase = displayPhase(state);
+  const what = type === "spell" ? "cast spells" : "summon creatures";
+
+  if (phase === "mana") {
     return {
       id: "play",
       label,
-      disabledReason:
-        type === "spell"
-          ? "You can't cast spells after attacking or using a tap ability"
-          : "You can't summon creatures after attacking or using a tap ability",
+      disabledReason: `Go to the summon phase to ${what}`,
+    };
+  }
+
+  if (state.hasAttackedThisRound || phase === "attack") {
+    return {
+      id: "play",
+      label,
+      disabledReason: `You can't ${what} in the battle phase`,
     };
   }
 
@@ -149,11 +164,8 @@ function chargeAction(state: MatchState): CardAction {
 
   if (state.hasAddedManaThisRound) {
     disabledReason = "You've already added mana to your manazone this turn";
-  } else if (state.hasAttackedThisRound) {
-    disabledReason =
-      "You can't charge mana after attacking or using a tap ability";
-  } else if (!state.canChargeManaThisRound) {
-    disabledReason = "You can't charge mana after playing creatures or spells";
+  } else if (displayPhase(state) !== "mana" || !state.canChargeManaThisRound) {
+    disabledReason = "Mana can only be added in the mana phase";
   }
 
   return { id: "charge", label: "Add to mana", disabledReason };

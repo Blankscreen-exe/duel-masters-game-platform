@@ -1472,8 +1472,61 @@ func (m *Match) EndTurn() {
 
 }
 
+// Turn steps a player moves the turn on to themselves, by name: the main
+// (summon) step, then the attack (battle) step. Each only allows its own
+// actions, so a player charges mana, summons and attacks in that order, and
+// says when they are done with each.
+const (
+	GoToMainStep   = "main"
+	GoToAttackStep = "attack"
+)
+
+// GoToStep moves the current player's turn on to the main or the attack step.
+// It does nothing when the turn is already there, so a client may ask for the
+// step it needs before every action, and it never goes back: from the attack
+// step the main step is refused.
+func (m *Match) GoToStep(p *PlayerReference, step string) {
+
+	switch m.Step.(type) {
+	case *ChargeStep, *MainStep, *AttackStep:
+	default:
+		// The turn is not waiting for the player, as while it begins or ends.
+		return
+	}
+
+	switch step {
+	case GoToMainStep:
+		switch m.Step.(type) {
+		case *MainStep:
+			return
+		case *AttackStep:
+			Warn(p, "You're in the battle phase: summoning and casting are over for this turn.")
+			return
+		}
+		m.Step = &MainStep{}
+
+	case GoToAttackStep:
+		if _, ok := m.Step.(*AttackStep); ok {
+			return
+		}
+		m.Step = &AttackStep{}
+
+	default:
+		return
+	}
+
+	p.Player.CanChargeMana = false
+	m.BroadcastState()
+
+}
+
 // ChargeMana is called when the player attempts to charge mana
 func (m *Match) ChargeMana(p *PlayerReference, cardID string) {
+
+	if _, ok := m.Step.(*ChargeStep); !ok {
+		Warn(p, "Mana can only be added in the mana phase.")
+		return
+	}
 
 	if p.Player.HasChargedMana {
 		Warn(p, "You have already charged mana this round")
@@ -1496,6 +1549,12 @@ func (m *Match) ChargeMana(p *PlayerReference, cardID string) {
 // PlayCard is called when the player attempts to play a card
 func (m *Match) PlayCard(p *PlayerReference, cardID string) {
 
+	// The attack step has its own refusals, worded for creatures and spells.
+	if _, ok := m.Step.(*ChargeStep); ok {
+		Warn(p, "Go to the summon phase to summon creatures and cast spells.")
+		return
+	}
+
 	ctx := NewContext(m, &PlayCardEvent{
 		CardID: cardID,
 	})
@@ -1503,10 +1562,6 @@ func (m *Match) PlayCard(p *PlayerReference, cardID string) {
 	m.HandleFx(ctx)
 
 	if !ctx.Cancelled() {
-		if _, ok := m.Step.(*MainStep); !ok {
-			m.Step = &MainStep{}
-		}
-
 		p.Player.CanChargeMana = false
 
 		if !p.Player.HasCard(HAND, cardID) {
@@ -1525,6 +1580,10 @@ func (m *Match) AttackPlayer(p *PlayerReference, cardID string) {
 
 	if err != nil {
 		Warn(p, "The creature you tried to attack with is not in the battlezone")
+		return
+	}
+
+	if !m.inAttackStep(p, "Go to the battle phase to attack.") {
 		return
 	}
 
@@ -1553,6 +1612,10 @@ func (m *Match) AttackCreature(p *PlayerReference, cardID string) {
 		return
 	}
 
+	if !m.inAttackStep(p, "Go to the battle phase to attack.") {
+		return
+	}
+
 	event := &AttackCreature{
 		CardID:              cardID,
 		AttackableCreatures: make([]*Card, 0),
@@ -1577,6 +1640,10 @@ func (m *Match) TapAbility(p *PlayerReference, cardID string) {
 		return
 	}
 
+	if !m.inAttackStep(p, "Go to the battle phase to use tap abilities.") {
+		return
+	}
+
 	event := &TapAbility{
 		CardID: cardID,
 	}
@@ -1591,6 +1658,16 @@ func (m *Match) TapAbility(p *PlayerReference, cardID string) {
 	}
 
 	m.BroadcastState()
+}
+
+// inAttackStep reports whether the turn is in the attack step, where attacks
+// and tap abilities belong, warning the player with refusal when it is not.
+func (m *Match) inAttackStep(p *PlayerReference, refusal string) bool {
+	if _, ok := m.Step.(*AttackStep); ok {
+		return true
+	}
+	Warn(p, refusal)
+	return false
 }
 
 // attackInProgress is an attack or tap ability the event loop is resolving.
@@ -1763,6 +1840,31 @@ func (m *Match) Parse(s *server.Socket, data []byte) {
 			}
 
 			m.EndTurn()
+
+		}, SequentialEvent)
+
+	case "go_to_step":
+		m.eventloop.schedule(func() {
+
+			p, err := m.PlayerForSocket(s)
+
+			if err != nil {
+				return
+			}
+
+			if m.Turn != p.Player.Turn {
+				return
+			}
+
+			var msg struct {
+				Step string `json:"step"`
+			}
+
+			if err := json.Unmarshal(data, &msg); err != nil {
+				return
+			}
+
+			m.GoToStep(p, msg.Step)
 
 		}, SequentialEvent)
 

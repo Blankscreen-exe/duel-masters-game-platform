@@ -142,6 +142,9 @@ func TestDisconnectDuringPromptStopsMatch(t *testing.T) {
 	creature, err := player.Player.SpawnCard(immortalBaronVorgUID, match.HAND)
 	require.NoError(t, err)
 
+	// Cards are only played in the summon phase.
+	require.NoError(t, scn.GoToStep(player, match.GoToMainStep))
+
 	start, err := scn.MessageCount(player)
 	require.NoError(t, err)
 
