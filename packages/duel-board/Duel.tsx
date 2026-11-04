@@ -55,7 +55,10 @@ import {
 import {
   attackForfeit,
   describeAttackForfeit,
+  displayPhase,
+  phaseAdvance,
   type AttackForfeit,
+  type PhaseAdvance,
 } from "./turnPhases";
 import { useStoredFlag } from "./useStoredFlag";
 import {
@@ -333,6 +336,7 @@ export function Duel({
     send,
     sendJoinMatch,
     sendEndTurn,
+    sendGoToStep,
     sendAddToBattlezone,
     sendAddToManazone,
     sendAttackPlayer,
@@ -637,11 +641,26 @@ export function Duel({
     setDropZone(foundZone);
   };
 
-  /** What the player is warned of before attacking or using a tap ability,
-   * which ends the summon step for the rest of the turn. They can choose not to
-   * be warned. */
+  /** What the player is warned of before going on to the battle phase, which
+   * ends the summon phase for the rest of the turn. They can choose not to be
+   * warned. */
   const currentForfeit = () =>
     confirmAttacks && state ? attackForfeit(state) : null;
+
+  /** The phase button: on to the summon phase at once, and on to the battle
+   * phase once the player has heard what they would give up. */
+  const advancePhase = (advance: PhaseAdvance) => {
+    const run = () => sendGoToStep(advance.step);
+    const forfeit = advance.step === "attack" ? currentForfeit() : null;
+
+    if (!forfeit) {
+      run();
+      return;
+    }
+
+    setStopConfirmingAttacks(false);
+    setPendingAttack({ label: advance.label, notice: null, forfeit, run });
+  };
 
   /** A tap ability only asks first while it would cost the player something. */
   const guardTapAbility = (run: () => void) => {
@@ -887,23 +906,32 @@ export function Duel({
       );
 
       if (zone === "myPlayzone") {
-        // Check if card can be played. Attacking or using a tap ability moves
-        // the match into the attack step, after which nothing can be summoned.
+        // Cards are only played in the summon phase.
         return draggedCard &&
           cardHasFlag(draggedCard.flags, PLAYABLE_FLAG) &&
-          !state?.hasAttackedThisRound
+          state &&
+          displayPhase(state) === "summon"
           ? "green"
           : "red";
       }
 
       if (zone === "myManazone") {
-        // Check if mana can be added
-        return !state?.hasAddedManaThisRound &&
-          !state?.hasAttackedThisRound &&
-          state?.canChargeManaThisRound
+        // Mana is only added in the mana phase, once a turn.
+        return state &&
+          displayPhase(state) === "mana" &&
+          !state.hasAddedManaThisRound &&
+          state.canChargeManaThisRound
           ? "green"
           : "red";
       }
+    }
+
+    // Creatures only attack in the battle phase.
+    if (
+      dragState.sourceZone === "myPlayzone" &&
+      (!state || displayPhase(state) !== "attack")
+    ) {
+      return "red";
     }
 
     // Check if attacking opponent's battlezone when it's empty
@@ -938,6 +966,7 @@ export function Duel({
     : isShortLandscape
       ? "rail"
       : "bar";
+  const compactAdvance = compactControls ? phaseAdvance(state) : null;
   const zoneHeights = ZONE_HEIGHTS[isUpright ? "upright" : "shares"];
   const battleHeight = (cards: unknown[]) =>
     cards.length > 0 ? zoneHeights.battle : zoneHeights.emptyBattle;
@@ -1192,6 +1221,7 @@ export function Duel({
             <PhaseBar
               state={state}
               onEndTurn={!isSpectating && !isCompact ? sendEndTurn : undefined}
+              onAdvance={!isSpectating && !isCompact ? advancePhase : undefined}
               compact={isCompact}
               slim={isShortLandscape}
             />
@@ -1331,6 +1361,20 @@ export function Duel({
               />
 
               <div className="min-h-0 min-w-0 flex-1" />
+              {compactAdvance && (
+                <div
+                  className={
+                    compactControls === "rail" ? "w-11" : "w-[6.5rem] shrink-0"
+                  }
+                >
+                  <Button
+                    onClick={() => advancePhase(compactAdvance)}
+                    size={compactControls === "rail" ? "narrow" : "default"}
+                  >
+                    {compactAdvance.shortLabel}
+                  </Button>
+                </div>
+              )}
               <div
                 className={
                   compactControls === "rail" ? "w-11" : "w-[6.5rem] shrink-0"
@@ -1340,6 +1384,7 @@ export function Duel({
                   onClick={sendEndTurn}
                   disabled={!state.myTurn}
                   disabledTooltip="It's not your turn"
+                  variant={compactAdvance ? "gray" : "default"}
                   size={compactControls === "rail" ? "narrow" : "default"}
                 >
                   End turn
@@ -1603,7 +1648,7 @@ export function Duel({
         <Popup
           visible={true}
           onClose={() => setPendingAttack(null)}
-          title={pendingAttack.notice ? "Confirm attack" : "End your summon step?"}
+          title={pendingAttack.notice ? "Confirm attack" : "Go to the battle phase?"}
           maxWidth="500px"
           closeOnOutsideClick={true}
         >

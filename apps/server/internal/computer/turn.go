@@ -19,6 +19,23 @@ type headerOnly struct {
 	Header string `json:"header"`
 }
 
+// stepMove moves the turn on to a step, which the engine needs before the
+// step's actions: playing cards in the main step, attacking in the attack step.
+type stepMove struct {
+	Header string `json:"header"`
+	Step   string `json:"step"`
+}
+
+// Turn steps as the match state names them.
+const (
+	stepCharge = "charge"
+	stepAttack = "attack"
+)
+
+func goToStep(step string) stepMove {
+	return stepMove{Header: "go_to_step", Step: step}
+}
+
 // turnPlan remembers the moves made in the computer's turn, so each is
 // tried once: a move the engine refuses, such as an evolution with nothing
 // to evolve from, is not tried again that turn.
@@ -84,6 +101,10 @@ func (pl *Player) nextMove(state *server.MatchState) any {
 	}
 
 	if card, ok := pl.cardToPlay(state); ok {
+		// Mana is over once the turn moves on, so it is only asked for here.
+		if state.Step == stepCharge {
+			return goToStep(match.GoToMainStep)
+		}
 		pl.plan.played[card] = true
 		return cardMove{Header: "add_to_playzone", ID: card}
 	}
@@ -94,6 +115,9 @@ func (pl *Player) nextMove(state *server.MatchState) any {
 	}
 
 	if attack, ok := pl.attack(state, me, opponent, pl.plan.refusedEndings > 0); ok {
+		if state.Step != stepAttack {
+			return goToStep(match.GoToAttackStep)
+		}
 		made := pl.plan.attacks[attack.ID]
 		made.tried(attack)
 		pl.plan.attacks[attack.ID] = made

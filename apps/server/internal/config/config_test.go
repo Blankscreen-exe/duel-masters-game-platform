@@ -155,6 +155,9 @@ func TestLoadRefusesInvalidSettings(t *testing.T) {
 		{"a site origin with a path", []string{"SITE_ORIGINS=https://example.com/play"}, "SITE_ORIGINS must be"},
 		{"a site origin without a scheme", []string{"SITE_ORIGINS=example.com"}, "SITE_ORIGINS must be"},
 		{"a site origin of another scheme", []string{"SITE_ORIGINS=ftp://example.com"}, "SITE_ORIGINS must be"},
+		{"a wildcard over a whole top-level domain", []string{"SITE_ORIGINS=https://*.com"}, "SITE_ORIGINS must be"},
+		{"a wildcard inside a label", []string{"SITE_ORIGINS=https://a*.example.com"}, "SITE_ORIGINS must be"},
+		{"a wildcard after the first label", []string{"SITE_ORIGINS=https://x.*.example.com"}, "SITE_ORIGINS must be"},
 	}
 
 	for _, test := range tests {

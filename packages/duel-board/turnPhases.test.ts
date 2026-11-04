@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   attackForfeit,
   describeAttackForfeit,
+  phaseAdvance,
   phaseBanners,
   phaseOfStep,
   queueBanners,
@@ -70,11 +71,11 @@ describe("turnNumber", () => {
 describe("turnHint", () => {
   it("invites the player to add mana at the start of their turn", () => {
     expect(turnHint(matchState())).toBe(
-      "Add a card to your mana zone, then summon or attack",
+      "Add a card to your mana zone, or go on to the summon phase",
     );
   });
 
-  it("moves on to summoning once mana was added", () => {
+  it("points on to the summon phase once mana was added", () => {
     expect(
       turnHint(
         matchState(
@@ -83,25 +84,23 @@ describe("turnHint", () => {
           { hasAddedManaThisRound: true, turnManaCharged: true },
         ),
       ),
-    ).toBe("Summon, cast spells or attack. Adding mana is over for this turn");
+    ).toBe("Go to the summon phase when you're ready");
   });
 
-  it("says mana is over once a card was played", () => {
+  it("points on to the battle phase from the summon phase", () => {
     expect(
       turnHint(
         matchState({}, {}, { step: "main", canChargeManaThisRound: false }),
       ),
-    ).toBe("Summon, cast spells or attack. Adding mana is over for this turn");
+    ).toBe("Summon creatures and cast spells, then go to the battle phase");
   });
 
-  it("says summoning is over in the attack step", () => {
+  it("points on to the end of the turn from the battle phase", () => {
     expect(
       turnHint(
         matchState({}, {}, { step: "attack", hasAttackedThisRound: true }),
       ),
-    ).toBe(
-      "Attack or end your turn. Summoning and mana are over for this turn",
-    );
+    ).toBe("Attack and use tap abilities, then end your turn");
   });
 
   it("names the opponent's turn", () => {
@@ -192,7 +191,7 @@ describe("attackForfeit", () => {
 describe("describeAttackForfeit", () => {
   it("names everything still possible", () => {
     expect(describeAttackForfeit({ playableCards: 2, canAddMana: true })).toBe(
-      "You can still play 2 cards from your hand and add mana. Once you attack or use a tap ability, you can't summon, cast spells or add mana for the rest of this turn.",
+      "You can still play 2 cards from your hand and add mana. Once you go to the battle phase, you can't summon, cast spells or add mana for the rest of this turn.",
     );
   });
 
@@ -247,7 +246,7 @@ describe("phaseBanners", () => {
       { kind: "phase", phase: "summon", title: "Summon phase", tone: "mine" },
     ]);
     expect(phaseBanners(summon, attack)).toEqual([
-      { kind: "phase", phase: "attack", title: "Attack phase", tone: "mine" },
+      { kind: "phase", phase: "attack", title: "Battle phase", tone: "mine" },
     ]);
   });
 
@@ -373,12 +372,12 @@ describe("displayPhase", () => {
     expect(displayPhase(matchState({}, {}, { step: "charge" }))).toBe("mana");
   });
 
-  it("shows the summon phase once mana is in, on either player's turn", () => {
+  it("stays in the mana phase once mana is in, until the player moves on", () => {
     expect(
       displayPhase(
         matchState({}, {}, { step: "charge", turnManaCharged: true }),
       ),
-    ).toBe("summon");
+    ).toBe("mana");
     expect(
       displayPhase(
         matchState(
@@ -387,7 +386,7 @@ describe("displayPhase", () => {
           { myTurn: false, step: "charge", turnManaCharged: true },
         ),
       ),
-    ).toBe("summon");
+    ).toBe("mana");
   });
 
   it("follows the server's step otherwise", () => {
@@ -398,13 +397,47 @@ describe("displayPhase", () => {
     ).toBe("attack");
   });
 
-  it("announces the summon phase as soon as mana is in", () => {
+  it("announces nothing when mana goes in", () => {
     const before = matchState({}, {}, { step: "charge" });
     const after = matchState({}, {}, { step: "charge", turnManaCharged: true });
 
-    expect(phaseBanners(before, after)).toEqual([
-      { kind: "phase", phase: "summon", title: "Summon phase", tone: "mine" },
-    ]);
+    expect(phaseBanners(before, after)).toEqual([]);
+  });
+});
+
+describe("phaseAdvance", () => {
+  it("moves on from the mana phase to the summon phase", () => {
+    expect(phaseAdvance(matchState({}, {}, { step: "charge" }))).toEqual({
+      step: "main",
+      label: "Go to summon phase",
+      shortLabel: "Summon phase",
+    });
+  });
+
+  it("moves on from the summon phase to the battle phase", () => {
+    expect(phaseAdvance(matchState({}, {}, { step: "main" }))).toEqual({
+      step: "attack",
+      label: "Battle phase",
+      shortLabel: "Battle phase",
+    });
+  });
+
+  it("leaves the battle phase to End turn", () => {
+    expect(phaseAdvance(matchState({}, {}, { step: "attack" }))).toBeNull();
+  });
+
+  it("offers nothing outside the phases a player acts in", () => {
+    expect(phaseAdvance(matchState({}, {}, { step: "draw" }))).toBeNull();
+    expect(phaseAdvance(matchState({}, {}, { step: "" }))).toBeNull();
+  });
+
+  it("offers nothing on the opponent's turn or to a spectator", () => {
+    expect(
+      phaseAdvance(matchState({}, {}, { step: "charge", myTurn: false })),
+    ).toBeNull();
+    expect(
+      phaseAdvance(matchState({}, {}, { step: "main", spectator: true })),
+    ).toBeNull();
   });
 });
 

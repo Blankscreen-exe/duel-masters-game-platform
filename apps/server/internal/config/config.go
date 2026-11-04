@@ -243,5 +243,18 @@ func isOrigin(text string) bool {
 	}
 
 	return (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != "" &&
-		parsed.Path == "" && parsed.RawQuery == "" && parsed.Fragment == "" && parsed.User == nil
+		parsed.Path == "" && parsed.RawQuery == "" && parsed.Fragment == "" && parsed.User == nil &&
+		wildcardIsNarrow(parsed.Hostname())
+}
+
+// wildcardIsNarrow reports whether a host's "*", if it has one, is its whole
+// first label with at least two labels after it: "*.trycloudflare.com", but
+// not "*.com", "a*.example.com" or "x.*.example.com".
+func wildcardIsNarrow(host string) bool {
+	if !strings.Contains(host, "*") {
+		return true
+	}
+	rest, found := strings.CutPrefix(host, "*.")
+	return found && !strings.Contains(rest, "*") && strings.Count(rest, ".") >= 1 &&
+		!strings.HasPrefix(rest, ".") && !strings.HasSuffix(rest, ".") && !strings.Contains(rest, "..")
 }

@@ -191,7 +191,7 @@ func TestARefusedAnswerIsNotRepeated(t *testing.T) {
 
 func TestARefusedEndOfTurnMakesEveryCreatureThatCanAttack(t *testing.T) {
 	pl := testPlayer()
-	state := &server.MatchState{MyTurn: true, Turn: 3, TurnManaCharged: true, Opponent: server.PlayerState{Shieldzone: make([]server.ShieldState, 5)}}
+	state := &server.MatchState{MyTurn: true, Turn: 3, TurnManaCharged: true, Step: stepAttack, Opponent: server.PlayerState{Shieldzone: make([]server.ShieldState, 5)}}
 	creatures(&state.Me, creature{card: in("small", "fire-small"), power: 2000})
 	creatures(&state.Opponent, creature{card: in("wall", "water-wall"), power: 6000, statuses: []string{cnd.Blocker}})
 
@@ -303,7 +303,7 @@ func TestEveryStyleHasAName(t *testing.T) {
 
 func TestACreatureThatHasToAttackTriesEveryAttack(t *testing.T) {
 	pl := testPlayer()
-	state := &server.MatchState{MyTurn: true, Turn: 3, TurnManaCharged: true, Opponent: server.PlayerState{Shieldzone: make([]server.ShieldState, 5)}}
+	state := &server.MatchState{MyTurn: true, Turn: 3, TurnManaCharged: true, Step: stepAttack, Opponent: server.PlayerState{Shieldzone: make([]server.ShieldState, 5)}}
 	creatures(&state.Me, creature{card: in("rusher", "fire-rusher"), power: 3000})
 	creatures(&state.Opponent, creature{card: in("giant", "fire-big", match.TappedFlag), power: 9000})
 
@@ -325,4 +325,15 @@ func TestACreatureThatHasToAttackTriesEveryAttack(t *testing.T) {
 	assert.Equal(t, []string{"giant"}, reply.Cards)
 
 	assert.Equal(t, headerOnly{Header: "end_turn"}, pl.nextMove(state), "with every attack tried, it ends the turn")
+}
+
+func TestItMovesTheTurnOnBeforePlayingAndAttacking(t *testing.T) {
+	pl := testPlayer()
+	state := &server.MatchState{MyTurn: true, Turn: 3, TurnManaCharged: true, Step: stepCharge, Opponent: server.PlayerState{Shieldzone: make([]server.ShieldState, 5)}}
+	creatures(&state.Me, creature{card: in("small", "fire-small"), power: 2000})
+
+	assert.Equal(t, goToStep(match.GoToAttackStep), pl.nextMove(state), "with nothing to play, it goes to the attack step")
+
+	state.Step = stepAttack
+	assert.Equal(t, cardMove{Header: "attack_player", ID: "small"}, pl.nextMove(state), "and attacks there")
 }

@@ -63,7 +63,7 @@ The server is configured with environment variables, checked at startup:
 | `LOG_LEVEL`    | `info`                     | `debug`, `info`, `warn` or `error`                           |
 | `LOG_FORMAT`   | `text` (`json` in production) | `text` or `json`                                           |
 | `SECURE_COOKIES` | `false` (`true` in production) | Send the login cookie over HTTPS only. Turn off only for plain HTTP, such as a home network. |
-| `SITE_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` in development; required in production | The addresses players open the site from, comma-separated. Live connections from other pages are refused. |
+| `SITE_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` in development; required in production | The addresses players open the site from, comma-separated. Live connections from other pages are refused. `*.` stands for any one subdomain, for tunnels whose address changes: `https://*.trycloudflare.com`. |
 | `APP_SECRET_KEY` | required in production | Encrypts the mail server's settings in the database. Make one with `openssl rand -base64 32`. Without it in development, no mail server can be set up. |
 
 The database tests run on SQLite and, when `TEST_POSTGRES_URL` points at a PostgreSQL server
@@ -99,14 +99,33 @@ itself: see [`docs/claude-opponent.md`](docs/claude-opponent.md).
 
 ## Running with Docker
 
+Docker Compose runs the whole site on one server: the Go server, the website, and
+[Caddy](https://caddyserver.com) in front of them, which serves it over HTTPS with a certificate it
+gets and renews by itself. On a server with Docker installed:
+
 ```bash
-cp .env.example .env                               # optional: adjust the settings
-docker compose up -d --build                       # server with SQLite on a data volume
-docker compose --profile postgres up -d --build    # server with PostgreSQL (see .env.example)
+git clone --recurse-submodules https://github.com/Blankscreen-exe/duel-masters-game-platform.git
+cd duel-masters-game-platform
+cp .env.example .env    # set DOMAIN, and APP_SECRET_KEY from: openssl rand -base64 32
+docker compose up -d --build                       # with SQLite on a data volume
+docker compose --profile postgres up -d --build    # or with PostgreSQL (see .env.example)
 ```
 
-The server is published on `127.0.0.1:8080`; put a tunnel or reverse proxy in front of it for
-internet access.
+Point the domain's DNS at the server and open ports 80 and 443 first, so the certificate can be
+issued. Then sign up straight away to become the admin. Only Caddy is reachable from outside: it
+sends `/api` (with the live connections) to the Go server and everything else to the website. Its
+settings are in [`deploy/Caddyfile`](deploy/Caddyfile).
+
+- **Trying it on your own computer:** keep `DOMAIN=localhost` and open <https://localhost>. Caddy
+  uses its own certificate there, so the browser warns once.
+- **Behind a tunnel or another proxy that adds HTTPS** (such as a Cloudflare tunnel): set
+  `DOMAIN=:80` for plain HTTP, point the tunnel at `http://localhost:80` and set `SITE_ORIGINS` to
+  the tunnel's address.
+
+To update, run `git pull && git submodule update --init && docker compose up -d --build`. The data
+lives in Docker volumes (`data` for the server's files and SQLite database, `postgres-data`, and
+`caddy-data` for the certificates), which survive updates and `docker compose down`, but not
+`docker compose down -v`.
 
 ## Theme mockups
 

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/game/match"
 	"github.com/Blankscreen-exe/duel-masters-game-platform/apps/server/internal/engine/server"
 )
 
@@ -368,12 +369,49 @@ func (l *Live) ChooseOrder(first bool) error {
 // is ending the turn. It returns an error wrapping ErrNotNow for a move the
 // game has no place for; the engine has the last word on the rest.
 func (l *Live) Move(kind, cardID string) error {
-	move, err := l.moveFor(kind, cardID)
+	moves, err := l.movesFor(kind, cardID)
 	if err != nil {
 		return err
 	}
-	l.send(move)
+	// The engine takes a game's moves in turn, so the step a move needs is
+	// reached before the move is made.
+	for _, move := range moves {
+		l.send(move)
+	}
 	return nil
+}
+
+// movesFor is what to send for what the player asks: the move, after moving
+// the turn on to the step it needs. Playing a card ends the mana step, and
+// attacking ends the main step, as the board's phase button does.
+func (l *Live) movesFor(kind, cardID string) ([]any, error) {
+	move, err := l.moveFor(kind, cardID)
+	if err != nil {
+		return nil, err
+	}
+
+	l.mu.Lock()
+	current := ""
+	if l.view.state != nil {
+		current = l.view.state.Step
+	}
+	l.mu.Unlock()
+
+	step := ""
+	switch kind {
+	case MovePlay:
+		if current == stepCharge {
+			step = match.GoToMainStep
+		}
+	case MoveAttackPlayer, MoveAttackCreature, MoveTapAbility:
+		if current != stepAttack {
+			step = match.GoToAttackStep
+		}
+	}
+	if step == "" {
+		return []any{move}, nil
+	}
+	return []any{goToStep(step), move}, nil
 }
 
 // moveFor is the move to send for what the player asks.

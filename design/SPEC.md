@@ -204,6 +204,12 @@ project not affiliated with or endorsed by them, and credit them as the owners.
 - The game screen shows the duel board (everything we built: animations, power and status
   badges, phase bar with turn count, game log with clickable card names) between two name bars
   with each player's rank.
+- **The player moves the turn through its phases.** The draw happens by itself, then the turn
+  waits in the mana phase (charge one card, or not), the summon phase (summon and cast) and the
+  battle phase (attack and use tap abilities). Each phase allows only its own actions and the turn
+  never goes back. A button beside **End turn** moves on: **Go to summon phase**, then **Battle
+  phase**, which first warns when cards could still be played. **End turn** is there throughout.
+  Computer opponents and Claude move on by themselves before playing or attacking.
 - **Leave** and **Surrender** buttons; surrendering asks for confirmation and loses the game.
 - At the end, a **result screen**: winner, how it ended, turns, length, each player's rating
   change, and buttons for **Rematch** and **Back to lobby** (7.2).
@@ -341,7 +347,7 @@ Every page has hover feedback and works on phones (see 11.2).
 | Lobby         | `/play`               | Open games (join/watch), create game, quick match, online players, lobby chat. On phones the games list becomes stacked cards |
 | Game          | `/play/[gameId]`      | Board, name bars, Leave/Surrender, result screen. Spectators see the same without the buttons |
 | My decks      | `/decks`              | Deck tiles: cover card, civilizations, count, legal formats; new, copy, delete, import |
-| Deck builder  | `/decks/[deckId]`     | The trunk in a side bar: every playable card as a scrolling, searchable list of small cards with names, and a Filters button opening a modal: card text (forgiving typing mistakes), civilization rules, type, cost, power, ability, race, rarity, set, format, whether the deck holds the card, and sorting, applied together on Apply. The main area shows the deck as cards by type (creatures, evolution creatures, spells), one picture per copy. Cards are dragged between the two, or moved with + and − buttons. Any card can be enlarged. Mana curve, civilization split, count and rule warnings; rename, cover card, export. On phones: Trunk, Deck and Stats tabs |
+| Deck builder  | `/decks/[deckId]`     | The trunk in a side bar: every playable card as a scrolling, searchable list of small cards with names, a quick sort (name, cost or power, either way) that applies at once, and a Filters button opening a modal: card text (forgiving typing mistakes), civilization rules, type, cost, power, ability, race, rarity, set, format, whether the deck holds the card, and sorting, applied together on Apply. The main area shows the deck as cards by type (creatures, evolution creatures, spells), one picture per copy. Cards are dragged between the two, or moved with + and − buttons. Any card can be enlarged. Mana curve, civilization split, count and rule warnings; rename, cover card, export. On phones: Trunk, Deck and Stats tabs |
 | Rankings      | `/rankings`           | Leaderboard with tier badges, your position highlighted, search, pages |
 | Profile       | `/u/[name]`           | Rank, rating, wins and losses, streak, favourite civilizations, recent matches |
 | Match history | `/u/[name]/matches`   | All matches: opponent, result, decks, format, turns, length, rating change |

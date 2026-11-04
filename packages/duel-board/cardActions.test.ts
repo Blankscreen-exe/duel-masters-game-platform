@@ -38,15 +38,46 @@ describe("findBoardCard", () => {
 });
 
 describe("cardActions", () => {
-  it("offers summoning, mana and viewing for a creature in hand", () => {
+  it("offers mana for a card in hand in the mana phase", () => {
     const creature = card("a", PLAYABLE_FLAG);
     const actions = cardActions({ card: creature, zone: "hand" }, matchState());
 
     expect(actions).toEqual([
-      { id: "play", label: "Summon", disabledReason: null },
+      {
+        id: "play",
+        label: "Summon",
+        disabledReason: "Go to the summon phase to summon creatures",
+      },
       { id: "charge", label: "Add to mana", disabledReason: null },
       { id: "view", label: "View", disabledReason: null },
     ]);
+  });
+
+  it("offers summoning for a card in hand in the summon phase", () => {
+    const creature = card("a", PLAYABLE_FLAG);
+    const actions = cardActions(
+      { card: creature, zone: "hand" },
+      matchState({}, {}, { step: "main", canChargeManaThisRound: false }),
+    );
+
+    expect(actions).toEqual([
+      { id: "play", label: "Summon", disabledReason: null },
+      {
+        id: "charge",
+        label: "Add to mana",
+        disabledReason: "Mana can only be added in the mana phase",
+      },
+      { id: "view", label: "View", disabledReason: null },
+    ]);
+  });
+
+  it("asks for the summon phase to cast a spell", () => {
+    const [cast] = cardActions(
+      { card: card("a", PLAYABLE_FLAG, "spell"), zone: "hand" },
+      matchState(),
+    );
+
+    expect(cast.disabledReason).toBe("Go to the summon phase to cast spells");
   });
 
   it("names playing a spell casting", () => {
@@ -64,14 +95,17 @@ describe("cardActions", () => {
   });
 
   it("explains a card that cannot be afforded", () => {
-    const [play] = cardActions({ card: card("a"), zone: "hand" }, matchState());
+    const [play] = cardActions(
+      { card: card("a"), zone: "hand" },
+      matchState({}, {}, { step: "main" }),
+    );
 
     expect(play.disabledReason).toBe(
       "You don't have enough mana to play this card",
     );
   });
 
-  it("explains that the attack step closed summoning and casting", () => {
+  it("explains that the battle phase closed summoning, casting and mana", () => {
     const attacking = matchState(
       {},
       {},
@@ -88,13 +122,11 @@ describe("cardActions", () => {
     );
 
     expect(summon.disabledReason).toBe(
-      "You can't summon creatures after attacking or using a tap ability",
+      "You can't summon creatures in the battle phase",
     );
-    expect(cast.disabledReason).toBe(
-      "You can't cast spells after attacking or using a tap ability",
-    );
+    expect(cast.disabledReason).toBe("You can't cast spells in the battle phase");
     expect(charge.disabledReason).toBe(
-      "You can't charge mana after attacking or using a tap ability",
+      "Mana can only be added in the mana phase",
     );
   });
 
@@ -109,24 +141,45 @@ describe("cardActions", () => {
     );
   });
 
-  it("explains mana closed by playing a card", () => {
+  it("explains mana closed by the summon phase", () => {
     const [, charge] = cardActions(
       { card: card("a"), zone: "hand" },
       matchState({}, {}, { step: "main", canChargeManaThisRound: false }),
     );
 
     expect(charge.disabledReason).toBe(
-      "You can't charge mana after playing creatures or spells",
+      "Mana can only be added in the mana phase",
     );
   });
 
   it("offers attacks for a creature in the battle zone", () => {
     const actions = cardActions(
       { card: card("a"), zone: "myPlayzone" },
-      matchState(),
+      matchState({}, {}, { step: "attack", hasAttackedThisRound: true }),
     );
 
     expect(ids(actions)).toEqual(["attackPlayer", "attackCreature", "view"]);
+    expect(actions.every((action) => action.disabledReason === null)).toBe(
+      true,
+    );
+  });
+
+  it("asks for the battle phase to attack or use a tap ability", () => {
+    for (const step of ["charge", "main"] as const) {
+      const actions = cardActions(
+        { card: card("a", TAP_ABILITY_FLAG), zone: "myPlayzone" },
+        matchState({}, {}, { step }),
+      );
+
+      expect(
+        actions.map(({ id, disabledReason }) => [id, disabledReason]),
+      ).toEqual([
+        ["attackPlayer", "Go to the battle phase to attack"],
+        ["attackCreature", "Go to the battle phase to attack"],
+        ["tapAbility", "Go to the battle phase to use its tap ability"],
+        ["view", null],
+      ]);
+    }
   });
 
   it("adds the tap ability when the creature has one", () => {

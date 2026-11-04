@@ -19,6 +19,7 @@ import {
   type CoinTossState,
 } from "./coinTossState";
 import { answerMessage, type ActionAnswer } from "./answers";
+import type { PhaseStep } from "./turnPhases";
 
 interface UseDuelOptions {
   /** The game's websocket, such as wss://site.example/api/games/abc/socket. */
@@ -276,6 +277,11 @@ export function useDuel({
     send({ header: "end_turn" });
   };
 
+  /** Moves the turn on to the summon (main) or battle (attack) phase. */
+  const sendGoToStep = (step: PhaseStep) => {
+    send({ header: "go_to_step", step });
+  };
+
   const sendAddToBattlezone = (virtualId: string) => {
     send({ header: "add_to_playzone", virtualId });
   };
@@ -329,6 +335,7 @@ export function useDuel({
     send,
     sendJoinMatch,
     sendEndTurn,
+    sendGoToStep,
     sendAddToBattlezone,
     sendAddToManazone,
     sendAttackPlayer,

@@ -35,7 +35,7 @@ export const TURN_PHASES: readonly TurnPhaseInfo[] = [
   },
   {
     phase: "attack",
-    label: "Attack",
+    label: "Battle",
     description:
       "The player attacks and uses tap abilities. Nothing more can be summoned, cast or put into mana this turn.",
   },
@@ -64,13 +64,44 @@ export function phaseOfStep(step: MatchState["step"]): TurnPhase | null {
   return (step && PHASE_OF_STEP[step]) || null;
 }
 
-/** The phase to show. Only one card may go into the mana zone each turn, so
- * once it is in, all that is left of the mana phase is summoning, and it is
- * shown as the summon phase, though the turn only formally moves on when a card
- * is played. */
+/** The phase to show. The mana, summon and battle phases each last until the
+ * player moves the turn on, so this is the server's step as it stands. */
 export function displayPhase(state: MatchState): TurnPhase | null {
-  const phase = phaseOfStep(state.step);
-  return phase === "mana" && state.turnManaCharged ? "summon" : phase;
+  return phaseOfStep(state.step);
+}
+
+/** A step the player moves the turn on to, as the server names it. */
+export type PhaseStep = "main" | "attack";
+
+/** The phase button beside End turn: the phase it moves the turn on to. */
+export interface PhaseAdvance {
+  step: PhaseStep;
+  label: string;
+  /** For the narrow controls of a phone. */
+  shortLabel: string;
+}
+
+/** What the phase button offers right now, or null when there is no phase to
+ * move on to: before or after the phases a player acts in, in the battle
+ * phase, which only End turn leaves, and when it is not the viewer's turn. The
+ * turn never goes back, so each phase can only be left forwards. */
+export function phaseAdvance(state: MatchState): PhaseAdvance | null {
+  if (state.spectator || !state.myTurn) {
+    return null;
+  }
+
+  switch (displayPhase(state)) {
+    case "mana":
+      return {
+        step: "main",
+        label: "Go to summon phase",
+        shortLabel: "Summon phase",
+      };
+    case "summon":
+      return { step: "attack", label: "Battle phase", shortLabel: "Battle phase" };
+    default:
+      return null;
+  }
 }
 
 /** Whether a new turn began between two states the board showed. Several
@@ -117,28 +148,28 @@ export function turnHint(state: MatchState): string | null {
 
   switch (displayPhase(state)) {
     case "mana":
-      return state.canChargeManaThisRound
-        ? "Add a card to your mana zone, then summon or attack"
-        : "Summon, cast spells or attack";
+      return state.hasAddedManaThisRound || !state.canChargeManaThisRound
+        ? "Go to the summon phase when you're ready"
+        : "Add a card to your mana zone, or go on to the summon phase";
     case "summon":
-      return "Summon, cast spells or attack. Adding mana is over for this turn";
+      return "Summon creatures and cast spells, then go to the battle phase";
     case "attack":
-      return "Attack or end your turn. Summoning and mana are over for this turn";
+      return "Attack and use tap abilities, then end your turn";
     default:
       return null;
   }
 }
 
-/** What attacking, or using a tap ability, right now would give up. */
+/** What going on to the battle phase right now would give up. */
 export interface AttackForfeit {
   /** Cards in hand the player could still afford to play. */
   playableCards: number;
   canAddMana: boolean;
 }
 
-/** Either action moves the turn into the attack step, after which nothing can
- * be summoned, cast or put into mana. Returns null when the player has nothing
- * left to lose by it. */
+/** Nothing can be summoned, cast or put into mana in the battle phase, so a
+ * player still able to is asked first. Returns null when the player has nothing
+ * left to lose by it, as once in the battle phase. */
 export function attackForfeit(state: MatchState): AttackForfeit | null {
   if (state.spectator || !state.myTurn || state.hasAttackedThisRound) {
     return null;
@@ -173,7 +204,7 @@ export function describeAttackForfeit({
     stillPossible.push("add mana");
   }
 
-  return `You can still ${stillPossible.join(" and ")}. Once you attack or use a tap ability, you can't summon, cast spells or add mana for the rest of this turn.`;
+  return `You can still ${stillPossible.join(" and ")}. Once you go to the battle phase, you can't summon, cast spells or add mana for the rest of this turn.`;
 }
 
 /** A title announcing a new turn or phase across the middle of the board. */
