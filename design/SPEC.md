@@ -313,14 +313,14 @@ Every page has hover feedback and works on phones (see 11.2).
 
 ### 10.1 Shared elements
 
-- **Header (desktop)**: logo, menu (Play, Decks, Cards, Rankings, Rules), the player's name and
+- **Header (desktop)**: logo, menu (Home, Play, Decks, Cards, Rankings, How to play), the player's name and
   rank, user menu (Profile, Settings, Admin for admins, Log out). Visitors see Log in and Sign up.
 - **Bottom tab bar (phone)**: Play, Decks, Cards, Rankings, Profile.
 - **Profile picture**: a player's own profile has "Change picture": a grid of the pictures, pick
   one, then "Update". It shows in the header and on their profile, and the first letter of their
   name until they choose. The pictures are part of the server (`internal/avatars`).
 - **Footer**: one thin line, so pages that fit the screen have room for it: "not affiliated with
-  Wizards of the Coast". The engine's MIT license notice is in `THIRD_PARTY_NOTICES.md`.
+  Wizards of the Coast", and a How to play link, which the phone's tab bar has no room for. The engine's MIT license notice is in `THIRD_PARTY_NOTICES.md`.
 - **Pages that fit the screen**: on a wide screen the play page fits the screen between the header
   and the footer, without scrolling; its games list and chat scroll inside their boxes. On a phone
   it stacks and scrolls.
@@ -337,7 +337,7 @@ Every page has hover feedback and works on phones (see 11.2).
 | Sign up     | `/signup` | Name, email address, password                                                    |
 | Confirm email | `/verify-email` | Enter the code sent, ask for another, correct the address, or wait for the site to be able to send email |
 | Notifications | `/notifications` | What admins have told every player, the latest first; open to visitors |
-| Rules       | `/rules`  | How to play: turn steps, zones, and a keyword list with the board's badge icons  |
+| How to play | `/how-to-play` | The goal, a first game, cards and civilizations, zones, setup, the turn's phases, mana, attacking and blocking, shield triggers, using the duel board, a keyword list with the board's badge icons, deck building, finding games and ratings, and tips |
 | Card list   | `/cards`  | Every playable card; filters (civilization, cost, type, race, set, keyword, text); card details |
 
 ### 10.3 Player pages

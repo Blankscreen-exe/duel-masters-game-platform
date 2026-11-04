@@ -4,6 +4,9 @@ export { useDuel } from "./useDuel";
 export { Popup } from "./Popup";
 export { MultiCardPreview } from "./MultiCardPreview";
 export { CardPicturesProvider } from "./cardImage";
+export { Badge as StatusBadgeIcon } from "./StatusBadges";
+export { statusBadges } from "./creatureStatus";
+export type { StatusBadge } from "./creatureStatus";
 export type { CardPictures } from "./cardImage";
 export type {
   DuelEnding,

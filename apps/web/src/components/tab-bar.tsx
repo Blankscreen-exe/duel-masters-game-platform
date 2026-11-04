@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { isCurrent, MAIN_LINKS } from './navigation';
+import { isCurrent, TAB_BAR_LINKS } from './navigation';
 
 /**
  * The main menu on phones: a bar along the bottom of the screen, within reach of a thumb. A spacer
@@ -11,7 +11,7 @@ import { isCurrent, MAIN_LINKS } from './navigation';
 export function TabBar() {
   const pathname = usePathname();
 
-  if (MAIN_LINKS.length === 0) return null;
+  if (TAB_BAR_LINKS.length === 0) return null;
 
   return (
     <>
@@ -21,7 +21,7 @@ export function TabBar() {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-600/50 bg-header-bottom/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
         <ul className="flex">
-          {MAIN_LINKS.map((link) => {
+          {TAB_BAR_LINKS.map((link) => {
             const current = isCurrent(link, pathname);
             return (
               <li key={link.href} className="flex-1">
