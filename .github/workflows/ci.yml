@@ -75,16 +75,22 @@ jobs:
         run: go test -race ./... -count=1 -timeout 300s
 
   docker:
-    name: Server image
+    name: Docker images
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          # The card database, which the image includes.
+          # The card database, which the server image includes.
           submodules: true
 
-      - name: Build
+      - name: Compose file
+        run: APP_SECRET_KEY=ci docker compose --profile postgres config --quiet
+
+      - name: Server image
         run: docker build -f apps/server/Dockerfile -t duel-masters-server:ci .
+
+      - name: Website image
+        run: docker build -f apps/web/Dockerfile -t duel-masters-web:ci .
 
   web:
     name: Website (generated types, format, lint, type-check, test, build)

@@ -1,0 +1,25 @@
+# The site's front door in docker compose: Caddy answers on ports 80 and 443,
+# gets and renews an HTTPS certificate for DOMAIN on its own, and passes
+# requests to the two containers behind it.
+#
+# DOMAIN comes from .env: a domain name such as duelmasters.example (whose DNS
+# points at this server) for automatic HTTPS, localhost to try it on this
+# computer (with Caddy's own certificate, which browsers warn about), or :80
+# for plain HTTP behind a tunnel or proxy that adds HTTPS itself.
+
+{$DOMAIN:localhost} {
+	encode zstd gzip
+
+	# The Go server: the API, its websockets (the lobby, chat and games) and
+	# the card pictures. The website would forward these too (apps/web/src/proxy.ts);
+	# going straight there saves a step.
+	@api path /api /api/*
+	handle @api {
+		reverse_proxy server:8080
+	}
+
+	# Every page of the site.
+	handle {
+		reverse_proxy web:3000
+	}
+}

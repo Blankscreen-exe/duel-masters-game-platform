@@ -1,27 +1,51 @@
-# Duel Masters Game Platform with Docker Compose. Settings come from .env next
-# to this file (copy .env.example).
+# Duel Masters Game Platform with Docker Compose: the whole site on one
+# server. Settings come from .env next to this file (copy .env.example; at the
+# least set DOMAIN and APP_SECRET_KEY).
 #
-#   docker compose up -d --build                      # server with SQLite on the data volume
-#   docker compose --profile postgres up -d --build   # server with PostgreSQL (set DB_DRIVER and
+#   docker compose up -d --build                      # with SQLite on the data volume
+#   docker compose --profile postgres up -d --build   # with PostgreSQL (set DB_DRIVER and
 #                                                     # POSTGRES_URL in .env, see .env.example)
+#
+# Caddy (deploy/Caddyfile) is the only container reachable from outside, on
+# ports 80 and 443. It serves the site over HTTPS for DOMAIN and passes /api to
+# the Go server and everything else to the website.
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # Certificates are fetched over ports 80 and 443, so both must be reachable
+    # from the internet for a real domain. 443/udp is HTTP/3.
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and their keys: keep them across restarts, or Caddy
+      # asks for new ones every time and runs into the issuer's limits.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      server:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+
   server:
     build:
       context: .
       dockerfile: apps/server/Dockerfile
     image: duel-masters-server:latest
     restart: unless-stopped
-    # Published on this machine only: put a tunnel or reverse proxy in front
-    # for internet access. Set SERVER_PORT in .env to use another port.
-    ports:
-      - "127.0.0.1:${SERVER_PORT:-8080}:8080"
     env_file:
       - path: .env
         required: false
     environment:
-      # The addresses players open the site from; see .env.example.
-      SITE_ORIGINS: ${SITE_ORIGINS:-http://localhost:3000}
+      # The addresses players open the site from: the domain, unless set; see .env.example.
+      SITE_ORIGINS: ${SITE_ORIGINS:-https://${DOMAIN:-localhost}}
       # Encrypts the mail server's settings in the database; see .env.example.
       APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY in .env; make one with openssl rand -base64 32}
     volumes:
@@ -30,6 +54,19 @@ services:
       postgres:
         condition: service_healthy
         required: false
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: duel-masters-web:latest
+    restart: unless-stopped
+    environment:
+      # Pages rendered on the server call the Go server here, inside the compose network.
+      GO_SERVER_URL: http://server:8080
+    depends_on:
+      server:
+        condition: service_healthy
 
   postgres:
     profiles: [postgres]
@@ -52,3 +89,5 @@ services:
 volumes:
   data:
   postgres-data:
+  caddy-data:
+  caddy-config:
