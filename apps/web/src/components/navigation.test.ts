@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCurrent } from './navigation';
+import { isCurrent, MAIN_LINKS, TAB_BAR_LINKS } from './navigation';
 
 describe('isCurrent', () => {
   const cards = { href: '/cards', label: 'Cards' };
@@ -19,5 +19,13 @@ describe('isCurrent', () => {
 
     expect(isCurrent(home, '/')).toBe(true);
     expect(isCurrent(home, '/cards')).toBe(false);
+  });
+});
+
+describe('TAB_BAR_LINKS', () => {
+  it('fits the phone tab bar, leaving How to play to the footer', () => {
+    expect(TAB_BAR_LINKS.length).toBeLessThanOrEqual(5);
+    expect(TAB_BAR_LINKS.map((link) => link.href)).not.toContain('/how-to-play');
+    expect(MAIN_LINKS.map((link) => link.href)).toContain('/how-to-play');
   });
 });

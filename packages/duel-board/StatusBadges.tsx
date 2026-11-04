@@ -20,8 +20,9 @@ const TONE_CLASSES: Record<StatusTone, string> = {
 export const STATUS_LANE_CLASS =
   "pt-[calc(clamp(0.6rem,1.4vh,0.85rem)*1.6_+_0.35rem)]";
 
-/** A status as a round, icon only badge. */
-function Badge({ badge }: { badge: StatusBadge }) {
+/** A status as a round, icon only badge, as the board shows it above a
+ * creature. Also exported for pages that explain the badges. */
+export function Badge({ badge }: { badge: StatusBadge }) {
   return (
     <span
       className={`flex h-[1.6em] w-[1.6em] shrink-0 items-center justify-center rounded-full text-white shadow-[0_1px_4px_rgba(0,0,0,0.9)] ${

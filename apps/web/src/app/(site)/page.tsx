@@ -55,6 +55,9 @@ export default async function HomePage() {
                 </Link>
               </>
             )}
+            <Link href="/how-to-play" className={buttonClasses('quiet', 'text-lg')}>
+              How to play
+            </Link>
           </div>
           {stats.data && (
             <div className="mt-8">
