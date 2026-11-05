@@ -337,7 +337,7 @@ Every page has hover feedback and works on phones (see 11.2).
 | Sign up     | `/signup` | Name, email address, password                                                    |
 | Confirm email | `/verify-email` | Enter the code sent, ask for another, correct the address, or wait for the site to be able to send email |
 | Notifications | `/notifications` | What admins have told every player, the latest first; open to visitors |
-| How to play | `/how-to-play` | The goal, a first game, cards and civilizations, zones, setup, the turn's phases, mana, attacking and blocking, shield triggers, using the duel board, a keyword list with the board's badge icons, deck building, finding games and ratings, and tips |
+| How to play | `/how-to-play` | The rules in pictures, with real cards and few words: winning, a card with its parts labelled, the kinds of cards, the civilizations, a board with its zones labelled, the turn's phases with the board's buttons, mana, attacking and blocking, shield triggers, controls, the board's keyword badges, decks, and games and ranks |
 | Card list   | `/cards`  | Every playable card; filters (civilization, cost, type, race, set, keyword, text); card details |
 
 ### 10.3 Player pages
